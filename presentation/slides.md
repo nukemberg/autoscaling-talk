@@ -65,12 +65,12 @@ everyone inherits as defaults and nobody tunes.
 
 # Oscillation, by Default
 
-<CpuScalerDemo />
+<Sim preset="cpu-step" :expose="['baseRps', 'rps', 'ramp', 'rampSec', 'periodSec', 'windowSec', 'stabilizationSec', 'countInFlight']" />
 
 <!--
-Live DES: constant load, HPA-style target tracking on busy fraction ("CPU"),
-target 50%, 16 slots/instance, 120s boot, 30s period, 60s metric window.
-Knobs: incoming throughput and mean service latency. sim/scenarios/cpu.ts.
+Live DES from presets/cpu-step.json (scenario sim/scenarios/cpu.ts).
+HPA-style target tracking on busy fraction ("CPU"), target 50%, 16 slots/instance,
+120s boot, 30s period, 60s window. Tune in the workbench (npm run bench), export JSON.
 -->
 
 ---

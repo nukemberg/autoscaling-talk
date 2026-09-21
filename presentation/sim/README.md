@@ -24,9 +24,16 @@ Arrivals ──▶ LoadBalancer ──▶ Instance ──▶ (Upstream)
 | `scaler.ts` | sampled controller: period, sample interval, metric delay, window, cooldowns, stabilization; `threshold` and `targetTracking` (HPA formula) policies |
 | `cost.ts` | bill = instance-time × price + integrated extra rate |
 
+| `scenarios/types.ts` | `ScenarioDef`: declarative params (`ParamSpec`), `run()`, `charts` |
+| `scenarios/shared.ts` | reusable param groups (load / unit / scaler) and their wiring |
+| `scenarios/cpu.ts` | first scenario: CPU target tracking under a load step |
+| `scenarios/preset.ts` | `{id, params}` JSON the workbench exports and slides load |
+
 ```sh
 npm test            # vitest, includes M/M/1 and M/M/2 checks against queueing theory
 npm run typecheck
+npm run bench       # workbench on :3032 — tune params, copy/download preset JSON
 ```
 
-See `integration.test.ts` for a full scenario wiring.
+Slides: drop the JSON into `presets/<name>.json`, then
+`<Sim preset="name" :expose="['rps', 'countInFlight']" />`.

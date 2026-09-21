@@ -1,0 +1,8 @@
+{
+  "id": "cpu-step",
+  "params": {
+    "baseRps": 100,
+    "rps": 400,
+    "ramp": "step"
+  }
+}

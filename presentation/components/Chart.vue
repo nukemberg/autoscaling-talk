@@ -61,11 +61,15 @@ function render() {
   chart.value?.destroy()
   if (!el.value)
     return
-  chart.value = new uPlot(buildOptions(), chartData(), el.value)
+  // uPlot mutates series/axes objects in place; hand it copies so props stay clean.
+  const opts = buildOptions()
+  opts.series = opts.series.map((s) => ({ ...s }))
+  opts.axes = opts.axes?.map((a) => ({ ...a }))
+  chart.value = new uPlot(opts, chartData(), el.value)
 }
 
 onMounted(render)
-watch(() => [props.data, props.options], render, { deep: true })
+watch(() => [props.data, props.options], render)
 onBeforeUnmount(() => chart.value?.destroy())
 </script>
 

@@ -130,3 +130,56 @@ describe('Autoscaler', () => {
     expect(scaler.desired).toBe(2)
   })
 })
+
+describe('Autoscaler countInFlight', () => {
+  function readyTarget(ready: number, booting: number) {
+    const calls: number[] = []
+    let size = ready + booting
+    return {
+      calls,
+      get size() { return size },
+      get ready() { return ready },
+      scaleTo(n: number) { calls.push(n); size = n },
+    }
+  }
+
+  test('off (default): policy multiplies total size, so booting instances compound', () => {
+    const sim = new Sim()
+    const tgt = readyTarget(2, 4)
+    new Autoscaler(sim, tgt, () => 1.0, {
+      period: 10, min: 1, max: 100, policy: targetTracking({ target: 0.5 }),
+    }).start()
+    sim.run(10)
+    expect(tgt.calls).toEqual([12]) // 6 × 2
+  })
+
+  test('on: desired computed from ready capacity, launch only if above what is already ordered', () => {
+    const sim = new Sim()
+    const tgt = readyTarget(2, 4)
+    new Autoscaler(sim, tgt, () => 1.0, {
+      period: 10, min: 1, max: 100, policy: targetTracking({ target: 0.5 }), countInFlight: true,
+    }).start()
+    sim.run(10)
+    expect(tgt.calls).toEqual([]) // wants 4 = 2 × 2, already have 6 on order → hold
+  })
+
+  test('on: scales up when ready-based desired exceeds total', () => {
+    const sim = new Sim()
+    const tgt = readyTarget(4, 1)
+    new Autoscaler(sim, tgt, () => 1.0, {
+      period: 10, min: 1, max: 100, policy: targetTracking({ target: 0.5 }), countInFlight: true,
+    }).start()
+    sim.run(10)
+    expect(tgt.calls).toEqual([8]) // 4 × 2 = 8 > 5
+  })
+
+  test('on: scale-down still allowed when ready-based desired is below total', () => {
+    const sim = new Sim()
+    const tgt = readyTarget(8, 0)
+    new Autoscaler(sim, tgt, () => 0.1, {
+      period: 10, min: 1, max: 100, policy: targetTracking({ target: 0.5 }), countInFlight: true,
+    }).start()
+    sim.run(10)
+    expect(tgt.calls).toEqual([2]) // ceil(8 × 0.2)
+  })
+})

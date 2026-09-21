@@ -8,7 +8,9 @@
     "export": "slidev export",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p sim"
+    "typecheck": "tsc --noEmit -p sim",
+    "bench": "vite --config bench/vite.config.ts",
+    "bench:build": "vite build --config bench/vite.config.ts"
   },
   "dependencies": {
     "@slidev/cli": "^53.0.0",

@@ -1,132 +1,99 @@
-import { Arrivals, logistic, ramp as linear, step, type Rate } from '../arrivals'
+import { Arrivals } from '../arrivals'
 import { Cluster } from '../cluster'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
 import { Recorder } from '../metrics'
 import { Rng } from '../rng'
-import { Autoscaler, targetTracking } from '../scaler'
 import { Stats } from '../stats'
+import { attachScaler, loadParams, loadProfile, neededInstances, scalerParams, unitParams } from './shared'
+import { num, type ParamSpec, type Params, type ScenarioDef } from './types'
 
-export interface CpuScenarioParams {
-  /** Incoming request rate after the ramp. */
-  rps: number
-  /** Stable load during the quiet period; the ramp starts here. Default 0. */
-  baseRps?: number
-  /** Mean service time per request. */
-  latencyMs: number
-  /** Load ramp shape from 0 to `rps`, starting at t=0. */
-  ramp?: 'step' | 'linear' | 'logistic'
-  /** Ramp duration, seconds (ignored for step). */
-  rampSec?: number
-  /** Idle time before load starts, seconds. Shows the "before" state. */
-  quietSec?: number
-  /** Simulated seconds. */
-  horizon?: number
-  /** Recorder sample period, seconds. */
-  sample?: number
-  seed?: number
-  // --- the knobs nobody tunes ---
-  bootSec?: number
-  periodSec?: number
-  windowSec?: number
-  targetCpu?: number
-  concurrency?: number
-  min?: number
-  max?: number
-}
+const simParams: ParamSpec[] = [
+  { key: 'horizonSec', label: 'horizon', group: 'sim', kind: 'range', min: 300, max: 7200, step: 60, default: 2100, unit: 's' },
+  { key: 'sampleSec', label: 'sample', group: 'sim', kind: 'range', min: 1, max: 60, step: 1, default: 5, unit: 's' },
+  { key: 'seed', label: 'seed', group: 'sim', kind: 'range', min: 1, max: 100, step: 1, default: 1 },
+]
 
-export interface CpuScenarioResult {
-  t: number[]
-  instances: number[]
-  ready: number[]
-  cpu: number[]
-  p99Ms: number[]
-  rejected: number[]
-  /** Arrival rate the load profile asked for. */
-  offeredRps: number[]
-  /** Successful completions per second over the last sample window. */
-  okRps: number[]
-  /** Failed (rejected/error/timeout) per second over the last sample window. */
-  failedRps: number[]
-}
-
-function loadProfile(shape: 'step' | 'linear' | 'logistic', from: number, to: number, rampSec: number): Rate {
-  switch (shape) {
-    case 'step': return step(0, from, to)
-    case 'linear': return linear(0, rampSec, from, to)
-    case 'logistic': return logistic(0, rampSec, from, to)
-  }
-}
-
-/** Constant load, one cluster, HPA-style target tracking on "CPU" (busy fraction). */
-export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
-  const {
-    rps, baseRps = 0, latencyMs, ramp = 'step', rampSec = 300, quietSec = 300, horizon = 2100, sample = 5, seed = 1,
-    bootSec = 120, periodSec = 30, windowSec = 60, targetCpu = 0.5,
-    concurrency = 16, min = 1, max = 100,
-  } = p
-
-  const sim = new Sim()
-  const rng = new Rng(seed)
-  const stats = new Stats(sim)
-  const lb = new LoadBalancer(sim)
-  lb.onDone = (r) => stats.record(r)
-
-  const cluster = new Cluster(sim, lb, {
-    bootTime: bootSec,
-    serviceTime: () => rng.exp(1000 / latencyMs),
-    concurrency,
-    queueLimit: 0,
-  })
-  // Start already sized for the base load, warm — the steady state before anything happens.
-  const needed = Math.ceil(baseRps * latencyMs / 1000 / concurrency / targetCpu)
-  cluster.scaleTo(Math.min(max, Math.max(min, needed)))
-  sim.run(bootSec)
-
-  const load = loadProfile(ramp, baseRps, rps, rampSec)
-  const t0 = sim.now + quietSec
-  const offered: Rate = Object.assign((t: number) => (t < t0 ? baseRps : load(t - t0)), { max: load.max })
-  new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
-
-  let lastTotals = { ...stats.totals }
-  const perSecond = (pick: (d: Record<string, number>) => number) => () => {
-    const d: Record<string, number> = {}
-    for (const k of Object.keys(stats.totals) as (keyof typeof stats.totals)[]) d[k] = stats.totals[k] - lastTotals[k]
-    return pick(d) / sample
-  }
-
-  new Autoscaler(sim, cluster, () => cluster.utilization, {
-    period: periodSec, sampleInterval: 5, window: windowSec, min, max,
-    policy: targetTracking({ target: targetCpu, tolerance: 0.1 }),
-  }).start()
-
-  const rec = new Recorder(sim, sample, {
-    instances: () => cluster.size,
-    ready: () => cluster.ready,
-    cpu: () => cluster.utilization,
-    p99Ms: () => {
-      const v = stats.latency(sample).percentile(0.99)
-      return Number.isNaN(v) ? 0 : v * 1000
+/** One cluster, stateless instances, autoscaled on busy fraction ("CPU"). */
+export const cpuScenario: ScenarioDef = {
+  id: 'cpu-step',
+  title: 'CPU autoscaling under a load step',
+  description: 'Stable base load, then a ramp. Autoscaler acts on mean busy fraction across ready instances.',
+  params: [...loadParams, ...unitParams, ...scalerParams, ...simParams],
+  charts: [
+    {
+      yLabel: 'instances',
+      series: [
+        { key: 'instances', label: 'instances', color: 'black', width: 2 },
+        { key: 'ready', label: 'ready', color: '#888', width: 1, dash: [4, 4] },
+        { key: 'cpu', label: 'cpu %', color: '#c0392b', width: 1.5, scale: 'pct' },
+      ],
+      scales: { pct: { range: [0, 100], label: 'cpu %', color: '#c0392b' } },
     },
-    rejected: () => stats.totals.rejected,
-    offeredRps: () => offered(sim.now),
-    okRps: perSecond((d) => d.ok),
-    failedRps: perSecond((d) => d.rejected + d.error + d.timeout),
-    // Probes run in order; this last one resets the per-window baseline.
-    _tick: () => { lastTotals = { ...stats.totals }; return 0 },
-  })
-  rec.start()
-  sim.run(bootSec + horizon)
+    {
+      yLabel: 'req/s',
+      series: [
+        { key: 'offeredRps', label: 'incoming', color: '#888', width: 1, dash: [4, 4] },
+        { key: 'okRps', label: 'OK', color: '#27ae60', width: 2 },
+        { key: 'failedRps', label: 'errors', color: '#c0392b', width: 2 },
+      ],
+    },
+  ],
 
-  return {
-    t: rec.t.map((t) => t - bootSec),
-    instances: rec.series.instances,
-    ready: rec.series.ready,
-    cpu: rec.series.cpu,
-    p99Ms: rec.series.p99Ms,
-    rejected: rec.series.rejected,
-    offeredRps: rec.series.offeredRps,
-    okRps: rec.series.okRps,
-    failedRps: rec.series.failedRps,
-  }
+  run(p: Params) {
+    const bootSec = num(p, 'bootSec'), quietSec = num(p, 'quietSec')
+    const horizon = num(p, 'horizonSec'), sample = num(p, 'sampleSec')
+
+    const sim = new Sim()
+    const rng = new Rng(num(p, 'seed'))
+    const stats = new Stats(sim)
+    const lb = new LoadBalancer(sim)
+    lb.onDone = (r) => stats.record(r)
+
+    const cluster = new Cluster(sim, lb, {
+      bootTime: bootSec,
+      serviceTime: () => rng.exp(1000 / num(p, 'latencyMs')),
+      concurrency: num(p, 'concurrency'),
+      queueLimit: 0,
+    })
+
+    // Start already sized for the base load, warm — the steady state before anything happens.
+    const needed = Math.ceil(neededInstances(p, num(p, 'baseRps')))
+    cluster.scaleTo(Math.min(num(p, 'maxInstances'), Math.max(num(p, 'minInstances'), needed)))
+    sim.run(bootSec)
+    const t0 = sim.now
+
+    const offered = loadProfile(p, t0 + quietSec)
+    new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
+    attachScaler(sim, cluster, () => cluster.utilization, p)
+
+    let lastTotals = { ...stats.totals }
+    const delta = (k: keyof typeof stats.totals) => stats.totals[k] - lastTotals[k]
+    const rec = new Recorder(sim, sample, {
+      instances: () => cluster.size,
+      ready: () => cluster.ready,
+      cpu: () => cluster.utilization * 100,
+      offeredRps: () => offered(sim.now),
+      okRps: () => delta('ok') / sample,
+      failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,
+      // Probes run in order; this last one resets the per-window baseline.
+      _tick: () => { lastTotals = { ...stats.totals }; return 0 },
+    })
+    rec.start()
+    sim.run(t0 + horizon)
+
+    const { _tick, ...series } = rec.series
+    const ok = series.okRps.reduce((a, b) => a + b, 0), failed = series.failedRps.reduce((a, b) => a + b, 0)
+    return {
+      t: rec.t.map((t) => t - t0),
+      series,
+      markers: [{ t: quietSec, label: 'load starts →' }],
+      summary: {
+        needed: neededInstances(p, num(p, 'rps')).toFixed(1),
+        peak: Math.max(...series.instances),
+        final: series.instances[series.instances.length - 1],
+        'errors %': ok + failed ? (100 * failed / (ok + failed)).toFixed(1) : '0',
+      },
+    }
+  },
 }

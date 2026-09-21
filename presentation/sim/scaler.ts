@@ -23,7 +23,10 @@ export function targetTracking(o: { target: number; tolerance?: number }): Polic
 }
 
 export interface Scalable {
+  /** Total instances, including ones still booting. */
   readonly size: number
+  /** Instances actually serving. Optional; needed for `countInFlight`. */
+  readonly ready?: number
   scaleTo(n: number): void
 }
 
@@ -43,6 +46,12 @@ export interface ScalerOpts {
   scaleDownCooldown?: number
   /** Scale-down uses the max desired size seen within this window (k8s HPA). */
   stabilizationWindow?: number
+  /**
+   * Compute desired from *ready* capacity (what the metric actually measures)
+   * and treat booting instances as already-ordered: scale up only past them.
+   * Off by default — that's how real autoscalers behave.
+   */
+  countInFlight?: boolean
 }
 
 interface Sample { t: number; v: number }
@@ -104,7 +113,8 @@ export class Autoscaler {
     this.metric = metric
 
     const current = this.target.size
-    const raw = this.opts.policy(metric, current)
+    const basis = this.opts.countInFlight ? (this.target.ready ?? current) : current
+    const raw = this.opts.policy(metric, basis)
     const clamped = Math.min(this.opts.max, Math.max(this.opts.min, raw))
     let desired = clamped
 
@@ -120,7 +130,8 @@ export class Autoscaler {
       if (this.sim.now - this.lastUp < (this.opts.scaleUpCooldown ?? 0)) return
       this.lastUp = this.sim.now
       this.target.scaleTo(desired)
-    } else if (desired < current) {
+    } else if (desired < (this.opts.countInFlight ? basis : current)) {
+      // With countInFlight, fewer-than-ordered is not a scale-down: the order is still landing.
       if (this.sim.now - this.lastDown < (this.opts.scaleDownCooldown ?? 0)) return
       this.lastDown = this.sim.now
       this.target.scaleTo(desired)

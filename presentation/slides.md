@@ -156,12 +156,13 @@ class: tradeoffs
 .tradeoffs h1 { font-size: 1.6rem; margin-bottom: 0.4rem; }
 .tradeoffs table { font-size: 0.8rem; line-height: 1.25; }
 .tradeoffs td, .tradeoffs th { padding: 0.3rem 0.5rem; }
+.tradeoffs th { font-weight: 700; text-align: left; }
 .tradeoffs code { font-size: 0.75rem; }
 </style>
 
 <div>
 
-| knob | removes | costs |
+| Knob | Removes | Costs |
 |---|---|---|
 | scale-up rate limit — HPA `max(4 pods, 100%)/15s` | geometric overshoot | big jumps take several periods |
 | scale-down stabilization — HPA `300s` | downward overshoot, second storm | pay for peak 5 min longer |

@@ -8,8 +8,10 @@ import { Autoscaler, targetTracking } from '../scaler'
 import { Stats } from '../stats'
 
 export interface CpuScenarioParams {
-  /** Mean incoming request rate. */
+  /** Incoming request rate after the ramp. */
   rps: number
+  /** Stable load during the quiet period; the ramp starts here. Default 0. */
+  baseRps?: number
   /** Mean service time per request. */
   latencyMs: number
   /** Load ramp shape from 0 to `rps`, starting at t=0. */
@@ -48,18 +50,18 @@ export interface CpuScenarioResult {
   failedRps: number[]
 }
 
-function loadProfile(shape: 'step' | 'linear' | 'logistic', rps: number, rampSec: number): Rate {
+function loadProfile(shape: 'step' | 'linear' | 'logistic', from: number, to: number, rampSec: number): Rate {
   switch (shape) {
-    case 'step': return step(0, 0, rps)
-    case 'linear': return linear(0, rampSec, 0, rps)
-    case 'logistic': return logistic(0, rampSec, 0, rps)
+    case 'step': return step(0, from, to)
+    case 'linear': return linear(0, rampSec, from, to)
+    case 'logistic': return logistic(0, rampSec, from, to)
   }
 }
 
 /** Constant load, one cluster, HPA-style target tracking on "CPU" (busy fraction). */
 export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
   const {
-    rps, latencyMs, ramp = 'step', rampSec = 300, quietSec = 300, horizon = 2100, sample = 5, seed = 1,
+    rps, baseRps = 0, latencyMs, ramp = 'step', rampSec = 300, quietSec = 300, horizon = 2100, sample = 5, seed = 1,
     bootSec = 120, periodSec = 30, windowSec = 60, targetCpu = 0.5,
     concurrency = 16, min = 1, max = 100,
   } = p
@@ -76,12 +78,14 @@ export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
     concurrency,
     queueLimit: 0,
   })
-  cluster.scaleTo(min)
-  sim.run(bootSec) // start with the minimum already warm
+  // Start already sized for the base load, warm — the steady state before anything happens.
+  const needed = Math.ceil(baseRps * latencyMs / 1000 / concurrency / targetCpu)
+  cluster.scaleTo(Math.min(max, Math.max(min, needed)))
+  sim.run(bootSec)
 
-  const load = loadProfile(ramp, rps, rampSec)
+  const load = loadProfile(ramp, baseRps, rps, rampSec)
   const t0 = sim.now + quietSec
-  const offered: Rate = Object.assign((t: number) => (t < t0 ? 0 : load(t - t0)), { max: load.max })
+  const offered: Rate = Object.assign((t: number) => (t < t0 ? baseRps : load(t - t0)), { max: load.max })
   new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
 
   let lastTotals = { ...stats.totals }

@@ -4,13 +4,17 @@ import type { AlignedData, Options } from 'uplot'
 import { computed, ref } from 'vue'
 import { runCpuScenario } from '../sim/scenarios/cpu'
 
-const rps = ref(200)
-const latencyMs = ref(100)
+const LATENCY_MS = 100          // fixed: 16 slots × 10 req/s = 160 rps per instance
+const PER_INSTANCE = 16 * 1000 / LATENCY_MS
+const TARGET = 0.5
+
+const baseRps = ref(100)
+const rps = ref(400)
 const ramp = ref<'step' | 'linear' | 'logistic'>('step')
 const rampSec = ref(300)
 
 const result = computed(() => runCpuScenario({
-  rps: rps.value, latencyMs: latencyMs.value, ramp: ramp.value, rampSec: rampSec.value,
+  rps: rps.value, baseRps: baseRps.value, latencyMs: LATENCY_MS, ramp: ramp.value, rampSec: rampSec.value,
 }))
 
 const scalingData = computed<AlignedData>(() => [
@@ -78,9 +82,9 @@ const scalingOptions: Partial<Options> = {
 const trafficOptions: Partial<Options> = {
   series: [
     {},
-    { label: 'offered', stroke: '#888', width: 1, dash: [4, 4], points: noPoints },
-    { label: 'ok', stroke: '#27ae60', width: 2, points: noPoints },
-    { label: 'failed', stroke: '#c0392b', width: 2, points: noPoints },
+    { label: 'incoming', stroke: '#888', width: 1, dash: [4, 4], points: noPoints },
+    { label: 'OK', stroke: '#27ae60', width: 2, points: noPoints },
+    { label: 'errors', stroke: '#c0392b', width: 2, points: noPoints },
   ],
   scales: { x: { time: false } },
   axes: [
@@ -96,51 +100,64 @@ const summary = computed(() => {
   const total = r.okRps.reduce((a, b) => a + b, 0) + r.failedRps.reduce((a, b) => a + b, 0)
   const failed = r.failedRps.reduce((a, b) => a + b, 0)
   return {
-    needed: (rps.value * latencyMs.value / 1000 / 16 / 0.5).toFixed(1),
+    needed: (rps.value / PER_INSTANCE / TARGET).toFixed(1),
     peak: Math.max(...r.instances),
     final: r.instances[r.instances.length - 1],
-    failedPct: total ? (100 * failed / total).toFixed(1) : '0',
+    errorPct: total ? (100 * failed / total).toFixed(1) : '0',
   }
 })
 </script>
 
 <template>
   <div class="demo">
-    <div class="controls">
-      <label>
-        throughput <b>{{ rps }}</b> rps
-        <input v-model.number="rps" type="range" min="10" max="1000" step="10">
-      </label>
-      <label>
-        latency <b>{{ latencyMs }}</b> ms
-        <input v-model.number="latencyMs" type="range" min="5" max="1000" step="5">
-      </label>
-      <label>
-        ramp
-        <select v-model="ramp">
-          <option value="step">heaviside (step)</option>
-          <option value="linear">linear</option>
-          <option value="logistic">logistic</option>
-        </select>
-      </label>
-      <label>
-        ramp time <b>{{ rampSec }}</b> s
-        <input v-model.number="rampSec" type="range" min="10" max="1200" step="10" :disabled="ramp === 'step'">
-      </label>
-    </div>
-    <div class="summary">
-      needs ≈ {{ summary.needed }} instances · peak {{ summary.peak }} · final {{ summary.final }} · failed {{ summary.failedPct }}%
-    </div>
-    <Chart :data="scalingData" :options="scalingOptions" :height="170" />
-    <Chart :data="trafficData" :options="trafficOptions" :height="150" />
+    <details class="controls">
+      <summary>
+        base {{ baseRps }} → {{ rps }} rps · {{ ramp }}<span v-if="ramp !== 'step'"> over {{ rampSec }}s</span>
+        · needs ≈ {{ summary.needed }} · peak {{ summary.peak }} · final {{ summary.final }} · errors {{ summary.errorPct }}%
+      </summary>
+      <div class="panel">
+        <label>
+          <span>base load <b>{{ baseRps }}</b> rps</span>
+          <input v-model.number="baseRps" type="range" min="0" max="1000" step="10">
+        </label>
+        <label>
+          <span>load after ramp <b>{{ rps }}</b> rps</span>
+          <input v-model.number="rps" type="range" min="10" max="2000" step="10">
+        </label>
+        <label>
+          <span>ramp</span>
+          <select v-model="ramp">
+            <option value="step">heaviside (step)</option>
+            <option value="linear">linear</option>
+            <option value="logistic">logistic</option>
+          </select>
+        </label>
+        <label>
+          <span>ramp time <b>{{ rampSec }}</b> s</span>
+          <input v-model.number="rampSec" type="range" min="10" max="1200" step="10" :disabled="ramp === 'step'">
+        </label>
+        <div class="fixed-params">
+          fixed: {{ LATENCY_MS }} ms/req · 16 slots → {{ PER_INSTANCE }} rps/instance · target CPU {{ TARGET * 100 }}% · boot 120 s · period 30 s · window 60 s
+        </div>
+      </div>
+    </details>
+    <Chart :data="scalingData" :options="scalingOptions" :height="190" />
+    <Chart :data="trafficData" :options="trafficOptions" :height="170" />
   </div>
 </template>
 
 <style scoped>
-.demo { display: flex; flex-direction: column; gap: 0.25rem; }
-.controls { display: flex; gap: 1.5rem; align-items: flex-end; font-size: 0.75rem; }
-.controls label { display: flex; flex-direction: column; min-width: 9rem; }
-.controls input, .controls select { width: 100%; }
-.summary { opacity: 0.7; font-family: monospace; font-size: 0.75rem; }
+.demo { display: flex; flex-direction: column; gap: 0.25rem; position: relative; }
+.controls { font-size: 0.75rem; }
+.controls summary { cursor: pointer; font-family: monospace; opacity: 0.8; }
+.panel {
+  position: absolute; z-index: 10; top: 1.4rem; left: 0;
+  display: grid; grid-template-columns: repeat(4, 11rem); gap: 0.6rem 1.2rem;
+  padding: 0.6rem 0.8rem; background: white; border: 1px solid #ccc; border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.panel label { display: flex; flex-direction: column; gap: 0.2rem; }
+.panel input, .panel select { width: 100%; }
+.fixed-params { grid-column: 1 / -1; opacity: 0.6; font-family: monospace; font-size: 0.7rem; }
 .demo :deep(.u-legend) { font-size: 0.7rem; }
 </style>

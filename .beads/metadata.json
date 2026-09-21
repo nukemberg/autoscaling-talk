@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "autoscaling_talk",
+  "project_id": "6fcc1de5-f59b-4767-89e7-f7946ea6cbce"
+}

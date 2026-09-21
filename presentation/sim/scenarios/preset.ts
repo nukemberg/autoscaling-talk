@@ -5,6 +5,8 @@ import { defaults, type Params, type ScenarioDef } from './types'
 export interface Preset {
   id: string
   params: Params
+  /** Display name; also the export filename. */
+  name?: string
 }
 
 /** Resolve a preset to its scenario plus a full parameter set. */
@@ -18,9 +20,9 @@ export function resolvePreset(preset: Preset, overrides: Params = {}): { def: Sc
 }
 
 /** Trim a full parameter set down to what differs from defaults — for export. */
-export function toPreset(def: ScenarioDef, params: Params): Preset {
+export function toPreset(def: ScenarioDef, params: Params, name?: string): Preset {
   const base = defaults(def.params)
   const out: Params = {}
   for (const [k, v] of Object.entries(params)) if (base[k] !== v) out[k] = v
-  return { id: def.id, params: out }
+  return name ? { id: def.id, name, params: out } : { id: def.id, params: out }
 }

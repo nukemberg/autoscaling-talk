@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ParamGroup, ParamSpec, Params } from '../sim/scenarios/types'
+import { isActive, type ParamGroup, type ParamSpec, type Params } from '../sim/scenarios/types'
 
 const props = defineProps<{
   specs: ParamSpec[]
@@ -13,7 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [Params] }>()
 
 const GROUP_LABEL: Record<ParamGroup, string> = {
-  load: 'load', unit: 'scaling unit', scaler: 'autoscaler', upstream: 'upstream', sim: 'simulation',
+  load: 'load', unit: 'scaling unit', scaler: 'autoscaler', upstream: 'upstream', fault: 'fault', sim: 'simulation',
 }
 
 const visible = computed(() => props.specs.filter((s) =>
@@ -30,14 +30,7 @@ function set(key: string, value: number | string | boolean) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 
-/** Grey out params that don't apply under the current algorithm / ramp. */
-function inactive(s: ParamSpec): boolean {
-  const p = props.modelValue
-  if (s.help?.startsWith('target tracking') && p.algo === 'threshold') return true
-  if (s.help?.startsWith('threshold') && p.algo !== 'threshold') return true
-  if (s.key === 'rampSec' && p.ramp === 'step') return true
-  return false
-}
+const inactive = (s: ParamSpec) => !isActive(s, props.modelValue)
 </script>
 
 <template>
@@ -46,7 +39,7 @@ function inactive(s: ParamSpec): boolean {
       <h4 v-if="grouped.length > 1">{{ GROUP_LABEL[group] }}</h4>
       <label v-for="s in specs" :key="s.key" :class="{ inactive: inactive(s) }" :title="s.help">
         <span class="name">
-          {{ s.label }}
+          {{ s.label }}<span class="info" :title="s.help">ⓘ</span>
           <b v-if="s.kind === 'range'">{{ modelValue[s.key] }}</b>
           <span v-if="s.kind === 'range' && s.unit" class="unit">{{ s.unit }}</span>
         </span>
@@ -74,6 +67,8 @@ label { display: flex; flex-direction: column; gap: 0.1rem; }
 label.inactive { opacity: 0.35; }
 .name { display: flex; gap: 0.3rem; align-items: baseline; }
 .unit { opacity: 0.6; }
+.info { opacity: 0.4; font-size: 0.9em; cursor: help; margin-right: 0.2rem; }
+label:hover .info { opacity: 0.9; }
 input[type=range], select { width: 100%; }
 input[type=checkbox] { align-self: flex-start; }
 </style>

@@ -1,11 +1,26 @@
 /** Declarative description of a scenario: params, how to run, how to chart. */
 
-export type ParamGroup = 'load' | 'unit' | 'scaler' | 'upstream' | 'sim'
+export type ParamGroup = 'load' | 'unit' | 'scaler' | 'upstream' | 'fault' | 'sim'
+
+interface Common {
+  key: string
+  label: string
+  group: ParamGroup
+  /** Tooltip. Required: every control explains itself. */
+  help: string
+  /** Greyed out unless these other params have one of the listed values. */
+  activeWhen?: Record<string, string | string[]>
+}
 
 export type ParamSpec =
-  | { key: string; label: string; group: ParamGroup; kind: 'range'; min: number; max: number; step: number; default: number; unit?: string; help?: string }
-  | { key: string; label: string; group: ParamGroup; kind: 'select'; options: { value: string; label: string }[]; default: string; help?: string }
-  | { key: string; label: string; group: ParamGroup; kind: 'toggle'; default: boolean; help?: string }
+  | (Common & { kind: 'range'; min: number; max: number; step: number; default: number; unit?: string })
+  | (Common & { kind: 'select'; options: { value: string; label: string }[]; default: string })
+  | (Common & { kind: 'toggle'; default: boolean })
+
+export function isActive(spec: ParamSpec, params: Params): boolean {
+  if (!spec.activeWhen) return true
+  return Object.entries(spec.activeWhen).every(([k, v]) => (Array.isArray(v) ? v : [v]).includes(String(params[k])))
+}
 
 export type Params = Record<string, number | string | boolean>
 

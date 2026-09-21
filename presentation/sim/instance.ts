@@ -19,11 +19,16 @@ export interface InstanceOpts {
   slowdown?: (inFlight: number) => number
   /** Override how a request is served (e.g. call an upstream). */
   work?: Work
+  /** CPU reported while hung (0 = stuck on I/O, 1 = spinning). Default: slots busy. */
+  hungCpu?: number
 }
 
 interface Active {
   req: Request
   handle?: EventHandle
+  /** When the default work would finish, so a hang can push it out. */
+  finishAt?: number
+  finish?: (outcome: Outcome) => void
 }
 
 /** One scaling unit: boots, then serves requests up to `concurrency` at a time. */
@@ -35,6 +40,9 @@ export class Instance {
   private active = new Map<number, Active>()
   private queue: Request[] = []
   private bootHandle?: EventHandle
+  private hungUntil = -Infinity
+  private slowUntil = -Infinity
+  private slowFactor = 1
 
   constructor(private sim: Sim, private opts: InstanceOpts) {
     this.busy = new TimeWeighted(sim, 0)
@@ -46,6 +54,29 @@ export class Instance {
   get inFlight(): number { return this.active.size }
   get queued(): number { return this.queue.length }
   get utilization(): number { return this.active.size / this.opts.concurrency }
+  get hung(): boolean { return this.sim.now < this.hungUntil }
+  /** What a health check sees: serving and not stuck. */
+  get healthy(): boolean { return this.state === 'ready' && !this.hung }
+  /** What a metrics agent reports — lies while hung, by design. */
+  get cpu(): number { return this.hung ? (this.opts.hungCpu ?? this.utilization) : this.utilization }
+
+  /** Stop completing anything for `duration`; requests keep piling into slots. */
+  hang(duration: number): void {
+    this.hungUntil = Math.max(this.hungUntil, this.sim.now + duration)
+    for (const a of this.active.values()) {
+      if (a.handle && a.finishAt !== undefined && a.finish) {
+        a.handle.cancel()
+        a.finishAt = this.hungUntil + Math.max(0, a.finishAt - this.sim.now)
+        a.handle = this.sim.scheduleAt(a.finishAt, () => a.finish!('ok'))
+      }
+    }
+  }
+
+  /** Service time × `factor` for new requests during `duration`. */
+  slow(factor: number, duration: number): void {
+    this.slowFactor = factor
+    this.slowUntil = this.sim.now + duration
+  }
 
   handle(req: Request): void {
     if (this.state !== 'ready') return this.finish(req, 'rejected')
@@ -80,8 +111,12 @@ export class Instance {
     if (this.opts.work) {
       this.opts.work(req, finish)
     } else {
-      const factor = this.opts.slowdown ? this.opts.slowdown(this.active.size) : 1
-      entry.handle = this.sim.schedule(this.opts.serviceTime() * factor, () => finish('ok'))
+      let factor = this.opts.slowdown ? this.opts.slowdown(this.active.size) : 1
+      if (this.sim.now < this.slowUntil) factor *= this.slowFactor
+      const service = this.opts.serviceTime() * factor
+      entry.finish = finish
+      entry.finishAt = Math.max(this.sim.now, this.hungUntil) + service
+      entry.handle = this.sim.scheduleAt(entry.finishAt, () => finish('ok'))
     }
   }
 

@@ -90,3 +90,31 @@ describe('viaUpstream', () => {
     expect(done).toEqual([[3, 'ok'], [5, 'ok']])
   })
 })
+
+describe('Upstream faults', () => {
+  test('outage: fails everything for the duration, then serves again', () => {
+    const sim = new Sim()
+    const { up, results, call } = setup(sim, { capacity: 1, serviceTime: () => 1 })
+    call()
+    up.outage(10)
+    expect(up.state).toBe('down')
+    expect(results).toEqual([[0, 'error']])
+    call()
+    expect(results[1]).toEqual([0, 'error'])
+    sim.run(10)
+    call()
+    sim.run()
+    expect(results[2]).toEqual([11, 'ok'])
+  })
+
+  test('slow: service time × factor for new calls during the window', () => {
+    const sim = new Sim()
+    const { up, results, call } = setup(sim, { capacity: 4, serviceTime: () => 1 })
+    up.slow(5, 10)
+    call()
+    sim.run(10)
+    call()
+    sim.run()
+    expect(results.map((r) => r[0])).toEqual([5, 11])
+  })
+})

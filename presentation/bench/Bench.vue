@@ -4,7 +4,7 @@ import { resolvePreset, toPreset, type Preset } from '../sim/scenarios/preset'
 import { scenarios } from '../sim/scenarios/registry'
 import { defaults, type ParamGroup, type Params } from '../sim/scenarios/types'
 
-const GROUPS: ParamGroup[] = ['load', 'unit', 'scaler', 'upstream', 'sim']
+const GROUPS: ParamGroup[] = ['load', 'unit', 'scaler', 'upstream', 'fault', 'sim']
 
 const scenarioId = ref(scenarios[0].id)
 const def = computed(() => scenarios.find((s) => s.id === scenarioId.value)!)

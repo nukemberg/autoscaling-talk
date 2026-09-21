@@ -32,6 +32,8 @@ export class Upstream {
 
   private active = new Set<Call>()
   private queue: Call[] = []
+  private slowUntil = -Infinity
+  private slowFactor = 1
 
   constructor(private sim: Sim, private opts: UpstreamOpts) {
     this.busy = new TimeWeighted(sim, 0)
@@ -40,6 +42,17 @@ export class Upstream {
   get inFlight(): number { return this.active.size }
   get queued(): number { return this.queue.length }
   get utilization(): number { return this.active.size / this.opts.capacity }
+
+  /** Fault: down for `duration`; everything in progress fails. */
+  outage(duration: number): void {
+    this.collapse(duration)
+  }
+
+  /** Fault: service time × factor for new queries during `duration`. */
+  slow(factor: number, duration: number): void {
+    this.slowFactor = factor
+    this.slowUntil = this.sim.now + duration
+  }
 
   call(done: Done): void {
     if (this.state === 'down') return done('error')
@@ -63,7 +76,8 @@ export class Upstream {
   private start(c: Call): void {
     this.active.add(c)
     this.busy.set(this.utilization)
-    const factor = this.opts.slowdown ? this.opts.slowdown(this.utilization) : 1
+    let factor = this.opts.slowdown ? this.opts.slowdown(this.utilization) : 1
+    if (this.sim.now < this.slowUntil) factor *= this.slowFactor
     this.sim.schedule(this.opts.serviceTime() * factor, () => {
       if (!this.active.delete(c)) return // killed by collapse
       this.busy.set(this.utilization)

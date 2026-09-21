@@ -112,3 +112,44 @@ describe('LoadBalancer', () => {
     expect(lb.readyCount).toBe(2)
   })
 })
+
+describe('LoadBalancer health checks', () => {
+  test('hung instance leaves rotation after unhealthyAfter consecutive failed checks', () => {
+    const sim = new Sim()
+    const { lb, inst } = setup(sim, { healthCheck: { interval: 10, unhealthyAfter: 3 } })
+    const a = inst({ concurrency: 10 })
+    sim.run(10)
+    expect(lb.readyCount).toBe(1)
+    a.hang(100)
+    sim.run(30)                      // checks at 20, 30 fail → still in
+    expect(lb.readyCount).toBe(1)
+    sim.run(40)                      // third failure
+    expect(lb.readyCount).toBe(0)
+  })
+
+  test('recovered instance rejoins after healthyAfter consecutive passes', () => {
+    const sim = new Sim()
+    const { lb, inst } = setup(sim, { healthCheck: { interval: 10, unhealthyAfter: 1, healthyAfter: 2 } })
+    const a = inst({ concurrency: 10 })
+    sim.run(10)
+    a.hang(15)                       // hung until 25
+    sim.run(20)
+    expect(lb.readyCount).toBe(0)
+    sim.run(30)                      // one pass
+    expect(lb.readyCount).toBe(0)
+    sim.run(40)                      // two passes
+    expect(lb.readyCount).toBe(1)
+  })
+
+  test('defaults: unhealthyAfter 1, healthyAfter 1', () => {
+    const sim = new Sim()
+    const { lb, inst } = setup(sim, { healthCheck: { interval: 10 } })
+    const a = inst({ concurrency: 10 })
+    sim.run(10)
+    a.hang(15)
+    sim.run(20)
+    expect(lb.readyCount).toBe(0)
+    sim.run(30)
+    expect(lb.readyCount).toBe(1)
+  })
+})

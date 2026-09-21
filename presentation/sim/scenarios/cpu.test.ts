@@ -17,9 +17,28 @@ describe('cpu scenario', () => {
     expect(run()).toEqual(run())
   })
 
-  test('marker at load start', () => {
-    const r = run({ quietSec: 300 })
-    expect(r.markers).toEqual([{ t: 300, label: 'load starts →' }])
+  test('markers at load start and fault', () => {
+    expect(run({ quietSec: 300 }).markers).toEqual([{ t: 300, label: 'load starts →' }])
+    expect(run({ quietSec: 300, faultKind: 'kill', faultAtSec: 900 }).markers).toEqual([
+      { t: 300, label: 'load starts →' }, { t: 900, label: 'kill →' },
+    ])
+  })
+
+  test('kill fault: instances drop, then are replaced', () => {
+    const r = run({ countInFlight: true, faultKind: 'kill', faultAtSec: 1200, faultCount: 2, replaceDeadSec: 60, sampleSec: 10 })
+    const i = (t: number) => r.series.instances[t / 10]
+    expect(i(1190)).toBe(5)
+    expect(i(1200)).toBe(3)
+    expect(i(1270)).toBe(5)
+  })
+
+  test('hang fault with spinning CPU: scaler sees 100% and adds instances it does not need', () => {
+    const r = run({ countInFlight: true, faultKind: 'hang', faultAtSec: 1200, faultCount: 2, faultDurationSec: 300, hungCpu: 'spinning', sampleSec: 10 })
+    const before = r.series.instances[119]
+    const during = Math.max(...r.series.instances.slice(120, 150))
+    expect(during).toBeGreaterThan(before)
+    // LB drops the hung ones after 3 failed checks
+    expect(Math.min(...r.series.inRotation.slice(124, 150))).toBe(before - 2)
   })
 
   test('stable base load: cluster pre-sized, ~no errors before the ramp', () => {

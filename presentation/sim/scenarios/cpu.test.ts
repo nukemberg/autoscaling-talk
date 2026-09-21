@@ -77,6 +77,21 @@ describe('cpu scenario', () => {
     expect(Math.max(...r.series.instances)).toBeGreaterThan(2)
   })
 
+  test('cpu-oscillation preset: overshoot, undershoot, then sustained chatter', () => {
+    const r = run({
+      baseRps: 300, rps: 1360, algo: 'threshold', upAt: 0.55, downAt: 0.45,
+      periodSec: 15, windowSec: 15, bootSec: 240, maxInstances: 50, horizonSec: 3000, sampleSec: 10,
+    })
+    const settled = 4 // cluster pre-sized for baseRps
+    const peak = Math.max(...r.series.instances)
+    const trough = Math.min(...r.series.instances.slice(30)) // after the ramp starts
+    expect(peak).toBeGreaterThan(settled * 2) // overshoot well past what the new load needs
+    expect(trough).toBeLessThan(peak - 5) // scale-in undershoots below the eventual band
+    // keeps flapping in the second half instead of settling to one value
+    const tail = r.series.instances.slice(150)
+    expect(new Set(tail).size).toBeGreaterThan(1)
+  })
+
   test('summary reports needed / peak / final / error %', () => {
     const r = run()
     expect(Object.keys(r.summary)).toEqual(['needed', 'peak', 'final', 'errors %'])

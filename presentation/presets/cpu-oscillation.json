@@ -1,0 +1,17 @@
+{
+  "id": "cpu-step",
+  "name": "cpu-oscillation",
+  "params": {
+    "baseRps": 300,
+    "rps": 1360,
+    "algo": "threshold",
+    "upAt": 0.55,
+    "downAt": 0.45,
+    "periodSec": 15,
+    "windowSec": 15,
+    "bootSec": 240,
+    "maxInstances": 50,
+    "horizonSec": 3000,
+    "sampleSec": 10
+  }
+}

@@ -1,3 +1,22 @@
+# Repo summary
+
+This repo contains the presentation for "Autoscaling: cost optimization turned reliability nightmare"  Reversim 2026 talk.
+
+Description:
+
+  Autoscaling gets slapped onto nearly every deployment, and the usual results are surprise bills and cascading failures. Here's the uncomfortable part: autoscaling isn't a scaling solution at all — it's a cost optimization. You still have to design and test for peak load yourself. Worse, the moment you enable it you've adopted a feedback control system — with dead time, gain, and coupling to your load balancer — and almost nobody treats it as one. This talk is about what autoscaling actually is, why "just turn on the HPA" produces oscillation and outage amplification, and what responsible use looks like: design for max scale first, keep the scaling units well-behaved, protect upstream resources, and pick your control loop on purpose.
+
+Outline:
+  [3 min] The setup — autoscaling is sold as reliability, but it's really a cost optimization with a feedback loop attached. Why surprise bills and cascading failures are the norm rather than the exception.
+  [5 min] Scaling on the wrong signal — a system scaled on latency and ran away to hundreds of instances while fixing nothing. Why autoscaling can't solve problems that aren't capacity problems, and why you still have to design and load-test for peak yourself.
+  [7 min] It's a control system — CPU-driven autoscaler oscillated so hard that instances died before they finished booting. Dead time, gain, cooldown, and loop period: the knobs everyone inherits as defaults and nobody tunes.
+  [6 min] Coupling and blast radius — autoscaler overwhelmed the very database it depended on and triggered a cascading failure. How scaling couples to upstream dependencies, the load balancer, and fast-onset load.
+  [4 min] Responsible autoscaling — design for max scale first, keep scaling units well-behaved, pick a signal that tracks load, tune the loop, protect upstream. Why the real fix is often less autoscaling: warm headroom, load shedding, backpressure.
+  [2 min] Summary - simpler is often better. Don't run before you walk
+
+Audience takeaways:
+  Autoscaling is sold as a simple "magic" solution but in reality you need to design your system around it to make it work properly. Here's how
+
 # Agent Instructions
 
 This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
@@ -30,6 +49,7 @@ bd dolt push          # Push beads data to remote
 Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
 
 **Use these forms instead:**
+
 ```bash
 # Force overwrite without prompting
 cp -f source dest           # NOT: cp source dest
@@ -42,6 +62,7 @@ cp -rf source dest          # NOT: cp -r source dest
 ```
 
 **Other commands that may prompt:**
+
 - `scp` - use `-o BatchMode=yes` for non-interactive
 - `ssh` - use `-o BatchMode=yes` to fail instead of prompting
 - `apt-get` - use `-y` flag
@@ -67,7 +88,7 @@ bd close <id>         # Complete work
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See <https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md> for details and anti-patterns.
 
 ## Agent Context Profiles
 
@@ -85,6 +106,7 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
 4. **Handle git/sync by active profile**:
+
    ```bash
    # Conservative/minimal/default: report status and proposed commands; wait for approval.
    git status
@@ -94,9 +116,11 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
    git push
    git status
    ```
+
 5. **Hand off** - Summarize changes, validation, issue status, and any blocked sync/commit/push step
 
 **Critical rules:**
+
 - Explicit user or orchestrator instructions override this Beads block.
 - Do not commit or push without clear authority from the active profile or the current user request.
 - If a required sync or push is blocked, stop and report the exact command and error.
@@ -123,5 +147,5 @@ bd prime                # Refresh Beads context
 - Run `bd prime` when Beads context is missing or stale. Codex 0.129.0+ can load Beads context automatically through native hooks; use `/hooks` to inspect or toggle them.
 - Keep persistent project memory in Beads via `bd remember`; do not create ad hoc memory files.
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See <https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md> for details and anti-patterns.
 <!-- END BEADS CODEX SETUP -->

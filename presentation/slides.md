@@ -162,17 +162,17 @@ class: tradeoffs
 
 <div>
 
-| Knob | Removes | Costs |
+| Knob | Kills | Costs |
 |---|---|---|
-| scale-up rate limit — HPA `max(4 pods, 100%)/15s` | geometric overshoot | big jumps take several periods |
-| scale-down stabilization — HPA `300s` | downward overshoot, second storm | pay for peak 5 min longer |
-| cooldown — ASG simple `300s` | flapping | one action per 5 min; 4× step = 20 min |
-| instance warm-up — ASG `300s` | compounding orders | scale-in frozen; one step per warm-up |
-| alarm datapoints — TT high 3 / low 15 | reacting to noise | +3 min dead time out, 15 min in |
-| tolerance / dead band — HPA `0.1`, TT low at 90% | chatter | steady state anywhere in the band |
-| lower target — 50% vs 80% | dead-time exposure | idle capacity, always |
-| faster boot | shrinks dead time itself | engineering; warm pools are paid |
-| `max` | runaway bill | designed outage at that load |
+| Scale-up rate limit | overshoot storms | big jumps arrive in installments |
+| Scale-down stabilization | the second storm | 5 more minutes of peak bill |
+| Cooldown | flapping | one move per 5 min |
+| Instance warm-up | compounding orders | scale-in frozen meanwhile |
+| Alarm datapoints | noise | +3 min to react, 15 min to shrink |
+| Tolerance / dead band | chatter | "close enough" is the steady state |
+| Lower target | dead-time exposure | idle capacity, always |
+| Faster boot | dead time itself | engineering; warm pools aren't free |
+| `max` | the runaway bill | an outage you chose |
 
 </div>
 

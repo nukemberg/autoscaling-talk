@@ -62,6 +62,17 @@ everyone inherits as defaults and nobody tunes.
 -->
 
 ---
+
+# Oscillation, by Default
+
+<Chart title="Instance count over time" />
+
+<!--
+Placeholder chart, sample data. Swap for real DES sim output once the
+engine (xjm.1) lands — this is where it plugs in.
+-->
+
+---
 layout: section
 ---
 

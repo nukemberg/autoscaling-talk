@@ -65,11 +65,12 @@ everyone inherits as defaults and nobody tunes.
 
 # Oscillation, by Default
 
-<Chart title="Instance count over time" />
+<CpuScalerDemo />
 
 <!--
-Placeholder chart, sample data. Swap for real DES sim output once the
-engine (xjm.1) lands — this is where it plugs in.
+Live DES: constant load, HPA-style target tracking on busy fraction ("CPU"),
+target 50%, 16 slots/instance, 120s boot, 30s period, 60s metric window.
+Knobs: incoming throughput and mean service latency. sim/scenarios/cpu.ts.
 -->
 
 ---

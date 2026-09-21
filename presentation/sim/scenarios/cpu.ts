@@ -16,6 +16,8 @@ export interface CpuScenarioParams {
   ramp?: 'step' | 'linear' | 'logistic'
   /** Ramp duration, seconds (ignored for step). */
   rampSec?: number
+  /** Idle time before load starts, seconds. Shows the "before" state. */
+  quietSec?: number
   /** Simulated seconds. */
   horizon?: number
   /** Recorder sample period, seconds. */
@@ -48,7 +50,7 @@ export interface CpuScenarioResult {
 
 function loadProfile(shape: 'step' | 'linear' | 'logistic', rps: number, rampSec: number): Rate {
   switch (shape) {
-    case 'step': return step(0, rps, rps)
+    case 'step': return step(0, 0, rps)
     case 'linear': return linear(0, rampSec, 0, rps)
     case 'logistic': return logistic(0, rampSec, 0, rps)
   }
@@ -57,7 +59,7 @@ function loadProfile(shape: 'step' | 'linear' | 'logistic', rps: number, rampSec
 /** Constant load, one cluster, HPA-style target tracking on "CPU" (busy fraction). */
 export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
   const {
-    rps, latencyMs, ramp = 'step', rampSec = 300, horizon = 1800, sample = 5, seed = 1,
+    rps, latencyMs, ramp = 'step', rampSec = 300, quietSec = 300, horizon = 2100, sample = 5, seed = 1,
     bootSec = 120, periodSec = 30, windowSec = 60, targetCpu = 0.5,
     concurrency = 16, min = 1, max = 100,
   } = p
@@ -78,8 +80,8 @@ export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
   sim.run(bootSec) // start with the minimum already warm
 
   const load = loadProfile(ramp, rps, rampSec)
-  const t0 = sim.now
-  const offered: Rate = Object.assign((t: number) => load(t - t0), { max: load.max })
+  const t0 = sim.now + quietSec
+  const offered: Rate = Object.assign((t: number) => (t < t0 ? 0 : load(t - t0)), { max: load.max })
   new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
 
   let lastTotals = { ...stats.totals }

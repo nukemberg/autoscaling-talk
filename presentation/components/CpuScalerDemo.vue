@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type uPlot from 'uplot'
 import type { AlignedData, Options } from 'uplot'
 import { computed, ref } from 'vue'
 import { runCpuScenario } from '../sim/scenarios/cpu'
@@ -28,6 +29,34 @@ const trafficData = computed<AlignedData>(() => [
 
 const grid = { stroke: '#ddd', width: 1 }
 const noPoints = { show: false }
+const QUIET_SEC = 300
+
+/** Vertical marker where load starts, so the before/after is obvious. */
+function loadStartMarker(label?: string) {
+  return {
+    draw: [(u: uPlot) => {
+      const x = u.valToPos(QUIET_SEC, 'x', true)
+      const { top, height } = u.bbox
+      const ctx = u.ctx
+      ctx.save()
+      ctx.strokeStyle = '#2980b9'
+      ctx.lineWidth = 2
+      ctx.setLineDash([6, 4])
+      ctx.beginPath()
+      ctx.moveTo(x, top)
+      ctx.lineTo(x, top + height)
+      ctx.stroke()
+      if (label) {
+        ctx.setLineDash([])
+        ctx.fillStyle = '#2980b9'
+        ctx.font = `${12 * devicePixelRatio}px sans-serif`
+        ctx.textAlign = 'right'
+        ctx.fillText(label, x - 6 * devicePixelRatio, top + 14 * devicePixelRatio)
+      }
+      ctx.restore()
+    }],
+  }
+}
 
 const scalingOptions: Partial<Options> = {
   series: [
@@ -43,6 +72,7 @@ const scalingOptions: Partial<Options> = {
     { stroke: '#c0392b', side: 1, scale: 'pct', grid: { show: false }, label: 'cpu %' },
   ],
   legend: { show: false },
+  hooks: loadStartMarker('load starts →'),
 }
 
 const trafficOptions: Partial<Options> = {
@@ -58,6 +88,7 @@ const trafficOptions: Partial<Options> = {
     { stroke: 'black', grid, label: 'req/s' },
   ],
   legend: { show: true },
+  hooks: loadStartMarker(),
 }
 
 const summary = computed(() => {

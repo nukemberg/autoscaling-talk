@@ -75,8 +75,6 @@ function remove() {
   flash('deleted')
 }
 
-watch(scenarioId, (id, old) => { if (id !== old && !localPresets.value.some((p) => p.name === name.value)) params.value = defaults(def.value.params) })
-
 // ---- JSON in / out ----
 
 const pasted = ref('')
@@ -118,9 +116,7 @@ onMounted(() => {
   <div class="bench">
     <aside>
       <header>
-        <select v-model="scenarioId" title="Scenario = model + charts (code). Presets = parameter sets for it.">
-          <option v-for="s in scenarios" :key="s.id" :value="s.id">{{ s.title }}</option>
-        </select>
+        <h1>{{ def.title }}</h1>
         <p class="desc">{{ def.description }}</p>
       </header>
 
@@ -175,7 +171,7 @@ onMounted(() => {
 body { margin: 0; font-family: system-ui, sans-serif; font-size: 14px; color: #111; background: #fafafa; }
 .bench { display: grid; grid-template-columns: 22rem 1fr; min-height: 100vh; }
 aside { padding: 1rem; border-right: 1px solid #ddd; background: white; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
-aside header select { width: 100%; font-size: 1rem; }
+aside header h1 { margin: 0; font-size: 1rem; }
 .desc { margin: 0.4rem 0 0; color: #555; font-size: 0.8rem; }
 .presets { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; }
 .presets select { flex: 1; }

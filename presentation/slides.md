@@ -142,3 +142,45 @@ class: text-center
 # Thank You
 
 Questions?
+
+---
+layout: default
+class: tradeoffs
+---
+
+# Bonus: every knob is a trade
+
+<style>
+.tradeoffs h1 { font-size: 1.6rem; margin-bottom: 0.4rem; }
+.tradeoffs table { font-size: 0.8rem; line-height: 1.25; }
+.tradeoffs td, .tradeoffs th { padding: 0.3rem 0.5rem; }
+.tradeoffs code { font-size: 0.75rem; }
+</style>
+
+<div>
+
+| knob | removes | costs |
+|---|---|---|
+| scale-up rate limit — HPA `max(4 pods, 100%)/15s` | geometric overshoot | big jumps take several periods |
+| scale-down stabilization — HPA `300s` | downward overshoot, second storm | pay for peak 5 min longer |
+| cooldown — ASG simple `300s` | flapping | one action per 5 min; 4× step = 20 min |
+| instance warm-up — ASG `300s` | compounding orders | scale-in frozen; one step per warm-up |
+| alarm datapoints — TT high 3 / low 15 | reacting to noise | +3 min dead time out, 15 min in |
+| tolerance / dead band — HPA `0.1`, TT low at 90% | chatter | steady state anywhere in the band |
+| lower target — 50% vs 80% | dead-time exposure | idle capacity, always |
+| faster boot | shrinks dead time itself | engineering; warm pools are paid |
+| `max` | runaway bill | designed outage at that load |
+
+</div>
+
+<div class="mt-3 text-sm">
+
+**No controller covers all cases.** Dead time · sampling period · saturating signal · gain on the wrong base — every fix for one is a cost on another. Headroom is the only thing that works *inside* the dead time.
+
+</div>
+
+<div class="abs-br m-4 text-xs opacity-60">docs/controller-tradeoffs.md</div>
+
+<!--
+Bonus slide — dense on purpose, for photos. Full notes in docs/controller-tradeoffs.md.
+-->

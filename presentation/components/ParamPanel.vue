@@ -17,7 +17,8 @@ const GROUP_LABEL: Record<ParamGroup, string> = {
 }
 
 const visible = computed(() => props.specs.filter((s) =>
-  (!props.only || props.only.includes(s.key)) && (!props.groups || props.groups.includes(s.group)),
+  (!props.only || props.only.includes(s.key)) && (!props.groups || props.groups.includes(s.group))
+  && isActive(s, props.modelValue),
 ))
 
 const grouped = computed(() => {
@@ -30,14 +31,13 @@ function set(key: string, value: number | string | boolean) {
   emit('update:modelValue', { ...props.modelValue, [key]: value })
 }
 
-const inactive = (s: ParamSpec) => !isActive(s, props.modelValue)
 </script>
 
 <template>
   <div class="param-panel">
     <section v-for="[group, specs] in grouped" :key="group">
       <h4 v-if="grouped.length > 1">{{ GROUP_LABEL[group] }}</h4>
-      <label v-for="s in specs" :key="s.key" :class="{ inactive: inactive(s) }" :title="s.help">
+      <label v-for="s in specs" :key="s.key" :title="s.help">
         <span class="name">
           {{ s.label }}<span class="info" :title="s.help">ⓘ</span>
           <b v-if="s.kind === 'range'">{{ modelValue[s.key] }}</b>
@@ -50,6 +50,10 @@ const inactive = (s: ParamSpec) => !isActive(s, props.modelValue)
         <select v-else-if="s.kind === 'select'" :value="modelValue[s.key]" @change="set(s.key, ($event.target as HTMLSelectElement).value)">
           <option v-for="o in s.options" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
+        <input
+          v-else-if="s.kind === 'text'" type="text" :value="modelValue[s.key]" :placeholder="s.placeholder"
+          @change="set(s.key, ($event.target as HTMLInputElement).value)"
+        >
         <input
           v-else type="checkbox" :checked="modelValue[s.key] as boolean"
           @change="set(s.key, ($event.target as HTMLInputElement).checked)"
@@ -64,11 +68,11 @@ const inactive = (s: ParamSpec) => !isActive(s, props.modelValue)
 section { display: flex; flex-direction: column; gap: 0.35rem; min-width: 11rem; }
 h4 { margin: 0 0 0.2rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
 label { display: flex; flex-direction: column; gap: 0.1rem; }
-label.inactive { opacity: 0.35; }
 .name { display: flex; gap: 0.3rem; align-items: baseline; }
 .unit { opacity: 0.6; }
 .info { opacity: 0.4; font-size: 0.9em; cursor: help; margin-right: 0.2rem; }
 label:hover .info { opacity: 0.9; }
-input[type=range], select { width: 100%; }
+input[type=range], input[type=text], select { width: 100%; box-sizing: border-box; }
+input[type=text] { font-family: monospace; font-size: 0.75rem; }
 input[type=checkbox] { align-self: flex-start; }
 </style>

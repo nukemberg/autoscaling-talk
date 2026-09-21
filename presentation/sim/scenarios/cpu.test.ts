@@ -25,15 +25,15 @@ describe('cpu scenario', () => {
   })
 
   test('kill fault: instances drop, then are replaced', () => {
-    const r = run({ countInFlight: true, faultKind: 'kill', faultAtSec: 1200, faultCount: 2, replaceDeadSec: 60, sampleSec: 10 })
+    const r = run({ faultKind: 'kill', faultAtSec: 1200, faultCount: 2, replaceDeadSec: 60, sampleSec: 10 })
     const i = (t: number) => r.series.instances[t / 10]
-    expect(i(1190)).toBe(5)
-    expect(i(1200)).toBe(3)
-    expect(i(1270)).toBe(5)
+    const before = i(1190)
+    expect(i(1200)).toBe(before - 2)
+    expect(i(1270)).toBe(before)
   })
 
   test('hang fault with spinning CPU: scaler sees 100% and adds instances it does not need', () => {
-    const r = run({ countInFlight: true, faultKind: 'hang', faultAtSec: 1200, faultCount: 2, faultDurationSec: 300, hungCpu: 'spinning', sampleSec: 10 })
+    const r = run({ faultKind: 'hang', faultAtSec: 1200, faultCount: 2, faultDurationSec: 300, hungCpu: 'spinning', sampleSec: 10 })
     const before = r.series.instances[119]
     const during = Math.max(...r.series.instances.slice(120, 150))
     expect(during).toBeGreaterThan(before)
@@ -62,25 +62,21 @@ describe('cpu scenario', () => {
     expect(r.series.offeredRps[20]).toBeCloseTo(100)
   })
 
-  test('default HPA settings overshoot; countInFlight removes the overshoot', () => {
-    const naive = run({ horizonSec: 1500 })
-    const smart = run({ horizonSec: 1500, countInFlight: true })
-    const peakNaive = Math.max(...naive.series.instances)
-    const peakSmart = Math.max(...smart.series.instances)
-    expect(peakNaive).toBeGreaterThan(20)
-    expect(peakSmart).toBeLessThanOrEqual(8)
-    expect(smart.series.instances.at(-1)).toBe(5)
-  })
-
-  test('threshold algorithm is selectable', () => {
-    const r = run({ algo: 'threshold', upAt: 0.7, downAt: 0.3, stepSize: 1, horizonSec: 900 })
-    expect(Math.max(...r.series.instances)).toBeGreaterThan(2)
+  test('every algorithm converges near the needed size for a step', () => {
+    for (const algo of ['hpa', 'aws-target', 'aws-step', 'aws-simple']) {
+      const r = run({ algo, horizonSec: 3000 })
+      const end = r.series.instances.slice(-20)
+      expect(Math.max(...r.series.instances), algo).toBeGreaterThan(2)
+      expect(Math.min(...end), algo).toBeGreaterThanOrEqual(4)
+      expect(Math.max(...end), algo).toBeLessThanOrEqual(12)
+    }
   })
 
   test('cpu-oscillation preset: overshoot, undershoot, then sustained chatter', () => {
     const r = run({
-      baseRps: 300, rps: 1360, algo: 'threshold', upAt: 0.55, downAt: 0.45,
-      periodSec: 15, windowSec: 15, bootSec: 240, maxInstances: 50, horizonSec: 3000, sampleSec: 10,
+      baseRps: 300, rps: 1360, algo: 'aws-simple', awsOutThreshold: 0.55, awsInThreshold: 0.45,
+      awsOutPeriods: 1, awsInPeriods: 1, awsPeriodSec: 15, awsMetricDelaySec: 0, awsCooldownSec: 0,
+      bootSec: 240, maxInstances: 50, horizonSec: 3000, sampleSec: 10,
     })
     const settled = 4 // cluster pre-sized for baseRps
     const peak = Math.max(...r.series.instances)

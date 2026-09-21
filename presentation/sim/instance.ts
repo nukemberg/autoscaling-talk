@@ -36,6 +36,8 @@ export class Instance {
   state: InstanceState = 'booting'
   onDone: (req: Request) => void = () => {}
   readonly busy: TimeWeighted
+  readonly launchedAt: number
+  readySince?: number
 
   private active = new Map<number, Active>()
   private queue: Request[] = []
@@ -46,9 +48,11 @@ export class Instance {
 
   constructor(private sim: Sim, private opts: InstanceOpts) {
     this.busy = new TimeWeighted(sim, 0)
+    this.launchedAt = sim.now
     const boot = typeof opts.bootTime === 'function' ? opts.bootTime() : opts.bootTime
-    if (boot === 0) this.state = 'ready'
-    else this.bootHandle = sim.schedule(boot, () => { this.state = 'ready' })
+    const ready = () => { this.state = 'ready'; this.readySince = this.sim.now }
+    if (boot === 0) ready()
+    else this.bootHandle = sim.schedule(boot, ready)
   }
 
   get inFlight(): number { return this.active.size }

@@ -16,6 +16,7 @@ export type ParamSpec =
   | (Common & { kind: 'range'; min: number; max: number; step: number; default: number; unit?: string })
   | (Common & { kind: 'select'; options: { value: string; label: string }[]; default: string })
   | (Common & { kind: 'toggle'; default: boolean })
+  | (Common & { kind: 'text'; default: string; placeholder?: string })
 
 export function isActive(spec: ParamSpec, params: Params): boolean {
   if (!spec.activeWhen) return true

@@ -4,7 +4,9 @@ import type { Cluster, ClusterOpts } from '../cluster'
 import type { Fault } from '../faults'
 import type { InstanceOpts } from '../instance'
 import type { LbOpts } from '../lb'
-import { Autoscaler, targetTracking, threshold, type ScalerOpts } from '../scaler'
+import { AwsSimpleScaling, AwsStepScaling, AwsTargetTracking } from '../controllers/aws'
+import { Hpa } from '../controllers/hpa'
+import { PodMetrics } from '../controllers/metrics'
 import type { Rng } from '../rng'
 import { bool, num, str, type ParamSpec, type Params } from './types'
 
@@ -88,70 +90,136 @@ export function clusterOpts(p: Params): ClusterOpts {
 
 // ---------------- autoscaler ----------------
 
+const hpa = { algo: 'hpa' }
+const aws = { algo: ['aws-target', 'aws-step', 'aws-simple'] }
+const awsWarm = { algo: ['aws-target', 'aws-step'] }
+const awsAlarm = { algo: ['aws-step', 'aws-simple'] }
+
 export const scalerParams: ParamSpec[] = [
-  { key: 'algo', label: 'algorithm', group: 'scaler', kind: 'select', default: 'target', options: [
-    { value: 'target', label: 'target tracking (HPA)' }, { value: 'threshold', label: 'threshold ± step' },
-  ], help: 'Target tracking: desired = ceil(current × metric / target), like k8s HPA. Threshold: add/remove a fixed step when the metric crosses a line.' },
-  { key: 'targetCpu', label: 'target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
-    help: 'Utilization the controller aims for. Lower = more headroom, more cost.', activeWhen: { algo: 'target' } },
-  { key: 'tolerance', label: 'tolerance', group: 'scaler', kind: 'range', min: 0, max: 0.5, step: 0.01, default: 0.1,
-    help: 'Dead band: no action while |metric/target − 1| is within this. k8s default 0.1.', activeWhen: { algo: 'target' } },
-  { key: 'upAt', label: 'scale up above', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.7,
-    help: 'Add `step` instances when the metric exceeds this.', activeWhen: { algo: 'threshold' } },
-  { key: 'downAt', label: 'scale down below', group: 'scaler', kind: 'range', min: 0, max: 0.9, step: 0.05, default: 0.3,
-    help: 'Remove `step` instances when the metric drops below this.', activeWhen: { algo: 'threshold' } },
-  { key: 'stepSize', label: 'step', group: 'scaler', kind: 'range', min: 1, max: 20, step: 1, default: 1, unit: 'instances',
-    help: 'Instances added or removed per decision.', activeWhen: { algo: 'threshold' } },
-  { key: 'periodSec', label: 'decision period', group: 'scaler', kind: 'range', min: 5, max: 600, step: 5, default: 30, unit: 's',
-    help: 'How often the controller evaluates and acts. k8s HPA: 15 s.' },
-  { key: 'windowSec', label: 'metric window', group: 'scaler', kind: 'range', min: 5, max: 600, step: 5, default: 60, unit: 's',
-    help: 'The metric is averaged over this trailing window. Smooths noise, adds lag.' },
-  { key: 'metricDelaySec', label: 'metric delay', group: 'scaler', kind: 'range', min: 0, max: 300, step: 5, default: 0, unit: 's',
-    help: 'Pipeline lag: the controller sees the metric as it was this long ago. CloudWatch ≈ 60 s.' },
-  { key: 'upCooldownSec', label: 'scale-up cooldown', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 0, unit: 's',
-    help: 'Minimum time between scale-up actions. AWS ASG default 300 s.' },
-  { key: 'downCooldownSec', label: 'scale-down cooldown', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 0, unit: 's',
-    help: 'Minimum time between scale-down actions.' },
-  { key: 'stabilizationSec', label: 'scale-down stabilization', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 0, unit: 's',
-    help: 'Scale-down uses the highest desired size seen in this window. k8s default 300 s. 0 = off.' },
-  { key: 'countInFlight', label: 'account for booting instances', group: 'scaler', kind: 'toggle', default: false,
-    help: 'Compute desired from ready instances (what the metric measures) and treat booting ones as already ordered. Real autoscalers do not.' },
+  { key: 'algo', label: 'algorithm', group: 'scaler', kind: 'select', default: 'hpa', options: [
+    { value: 'hpa', label: 'Kubernetes HPA' },
+    { value: 'aws-target', label: 'AWS target tracking' },
+    { value: 'aws-step', label: 'AWS step scaling' },
+    { value: 'aws-simple', label: 'AWS simple scaling' },
+  ], help: 'Which real-world controller to emulate. Each follows its documented algorithm and defaults.' },
   { key: 'minInstances', label: 'min', group: 'scaler', kind: 'range', min: 0, max: 50, step: 1, default: 1,
     help: 'Never scale below this.' },
   { key: 'maxInstances', label: 'max', group: 'scaler', kind: 'range', min: 1, max: 1000, step: 1, default: 100,
     help: 'Never scale above this. Also your bill ceiling.' },
+
+  // --- k8s HPA ---
+  { key: 'hpaTarget', label: 'target utilization', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
+    help: 'targetAverageUtilization. desired = ceil(current × avg / target).', activeWhen: hpa },
+  { key: 'hpaTolerance', label: 'tolerance', group: 'scaler', kind: 'range', min: 0, max: 0.5, step: 0.01, default: 0.1,
+    help: 'No action while |avg/target − 1| ≤ tolerance. Default 0.1.', activeWhen: hpa },
+  { key: 'hpaSyncSec', label: 'sync period', group: 'scaler', kind: 'range', min: 5, max: 300, step: 5, default: 15, unit: 's',
+    help: '--horizontal-pod-autoscaler-sync-period. Default 15 s.', activeWhen: hpa },
+  { key: 'hpaMetricWindowSec', label: 'metric window', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',
+    help: 'metrics-server scrape interval; CPU usage is averaged over it. Default 15 s.', activeWhen: hpa },
+  { key: 'hpaReadinessDelaySec', label: 'initial readiness delay', group: 'scaler', kind: 'range', min: 0, max: 300, step: 5, default: 30, unit: 's',
+    help: 'Pods ready for less than this are set aside: 0% on scale-up, 100% of target on scale-down. Default 30 s.', activeWhen: hpa },
+  { key: 'hpaDownStabilizationSec', label: 'scale-down stabilization', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 300, unit: 's',
+    help: 'Scale-down uses the highest recommendation seen in this window. Default 300 s.', activeWhen: hpa },
+  { key: 'hpaScaleUpPods', label: 'scale-up policy: pods', group: 'scaler', kind: 'range', min: 0, max: 50, step: 1, default: 4, unit: '/15 s',
+    help: 'behavior.scaleUp policy: at most this many pods added per 15 s. Combined with the percent policy via selectPolicy Max. Default 4.', activeWhen: hpa },
+  { key: 'hpaScaleUpPercent', label: 'scale-up policy: percent', group: 'scaler', kind: 'range', min: 0, max: 1000, step: 10, default: 100, unit: '%/15 s',
+    help: 'behavior.scaleUp policy: at most this percent of current replicas added per 15 s. Default 100.', activeWhen: hpa },
+
+  // --- AWS common ---
+  { key: 'awsPeriodSec', label: 'datapoint period', group: 'scaler', kind: 'range', min: 10, max: 300, step: 10, default: 60, unit: 's',
+    help: 'CloudWatch metric period. EC2 detailed monitoring: 60 s (basic: 300 s).', activeWhen: aws },
+  { key: 'awsMetricDelaySec', label: 'metric delay', group: 'scaler', kind: 'range', min: 0, max: 300, step: 10, default: 60, unit: 's',
+    help: 'Time until a datapoint is visible to alarms. CloudWatch typically 1–2 min for EC2 metrics.', activeWhen: aws },
+  { key: 'awsWarmupSec', label: 'instance warmup', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 300, unit: 's',
+    help: 'Until warmed up, an instance is excluded from the aggregated metric but counted toward desired capacity for scale-out; scale-in is blocked meanwhile. Default = default cooldown, 300 s.', activeWhen: awsWarm },
+
+  // --- AWS target tracking ---
+  { key: 'awsTarget', label: 'target value', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
+    help: 'Target utilization. Scale-out adds ceil(current × metric / target) − current.', activeWhen: { algo: 'aws-target' } },
+  { key: 'awsHighPeriods', label: 'AlarmHigh datapoints', group: 'scaler', kind: 'range', min: 1, max: 15, step: 1, default: 3,
+    help: 'Consecutive datapoints above target before scaling out. Docs do not state it; observed alarms use 3.', activeWhen: { algo: 'aws-target' } },
+  { key: 'awsLowPeriods', label: 'AlarmLow datapoints', group: 'scaler', kind: 'range', min: 1, max: 30, step: 1, default: 15,
+    help: 'Consecutive datapoints below the low threshold before scaling in. Observed alarms use 15.', activeWhen: { algo: 'aws-target' } },
+  { key: 'awsLowFactor', label: 'AlarmLow threshold', group: 'scaler', kind: 'range', min: 0.5, max: 1, step: 0.05, default: 0.9,
+    help: 'Scale-in alarm threshold as a fraction of target (observed: 90%). The gap is the anti-flapping buffer.', activeWhen: { algo: 'aws-target' } },
+  { key: 'awsDisableScaleIn', label: 'disable scale-in', group: 'scaler', kind: 'toggle', default: false,
+    help: 'Target tracking option: only ever scale out.', activeWhen: { algo: 'aws-target' } },
+
+  // --- AWS step / simple alarms ---
+  { key: 'awsOutThreshold', label: 'scale-out alarm above', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.6,
+    help: 'Scale-out alarm breaches when the metric is above this.', activeWhen: awsAlarm },
+  { key: 'awsOutPeriods', label: 'scale-out datapoints', group: 'scaler', kind: 'range', min: 1, max: 15, step: 1, default: 3,
+    help: 'Consecutive datapoints in breach before the scale-out alarm fires.', activeWhen: awsAlarm },
+  { key: 'awsInThreshold', label: 'scale-in alarm below', group: 'scaler', kind: 'range', min: 0, max: 0.9, step: 0.05, default: 0.3,
+    help: 'Scale-in alarm breaches when the metric is below this.', activeWhen: awsAlarm },
+  { key: 'awsInPeriods', label: 'scale-in datapoints', group: 'scaler', kind: 'range', min: 1, max: 30, step: 1, default: 15,
+    help: 'Consecutive datapoints in breach before the scale-in alarm fires.', activeWhen: awsAlarm },
+  { key: 'awsOutSteps', label: 'scale-out steps', group: 'scaler', kind: 'text', default: '0-0.1:+10%, 0.1-0.2:+20%, 0.2-:+30%',
+    help: 'Step adjustments relative to the breach size: lower-upper:adjust. Adjust is instances or percent of current capacity; AWS rounding (toward zero, min 1).', activeWhen: { algo: 'aws-step' } },
+  { key: 'awsInSteps', label: 'scale-in steps', group: 'scaler', kind: 'text', default: '0-0.1:-10%, 0.1-0.2:-20%, 0.2-:-30%',
+    help: 'Step adjustments for scale-in, relative to how far below the threshold the metric is.', activeWhen: { algo: 'aws-step' } },
+  { key: 'awsOutAdjust', label: 'scale-out adjustment', group: 'scaler', kind: 'text', default: '+1',
+    help: 'Simple scaling: single adjustment per alarm, e.g. +1 or +50%.', activeWhen: { algo: 'aws-simple' } },
+  { key: 'awsInAdjust', label: 'scale-in adjustment', group: 'scaler', kind: 'text', default: '-1',
+    help: 'Simple scaling: single adjustment per alarm, e.g. -1 or -10%.', activeWhen: { algo: 'aws-simple' } },
+  { key: 'awsCooldownSec', label: 'cooldown', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 300, unit: 's',
+    help: 'Simple scaling: no further scaling activity until the cooldown expires. Default 300 s.', activeWhen: { algo: 'aws-simple' } },
 ]
 
-export function scalerOpts(p: Params): ScalerOpts {
-  const policy = str(p, 'algo') === 'threshold'
-    ? threshold({ up: num(p, 'upAt'), down: num(p, 'downAt'), step: num(p, 'stepSize') })
-    : targetTracking({ target: num(p, 'targetCpu'), tolerance: num(p, 'tolerance') })
-  const stab = num(p, 'stabilizationSec')
-  return {
-    period: num(p, 'periodSec'),
-    sampleInterval: 5,
-    window: num(p, 'windowSec'),
-    metricDelay: num(p, 'metricDelaySec'),
-    scaleUpCooldown: num(p, 'upCooldownSec'),
-    scaleDownCooldown: num(p, 'downCooldownSec'),
-    stabilizationWindow: stab > 0 ? stab : undefined,
-    countInFlight: bool(p, 'countInFlight'),
-    min: num(p, 'minInstances'),
-    max: num(p, 'maxInstances'),
-    policy,
+export interface Controller { start(): void; readonly metric: number; readonly desired: number }
+
+export function attachController(sim: Sim, cluster: Cluster, p: Params): Controller {
+  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5 })
+  metrics.start()
+  const min = num(p, 'minInstances'), max = num(p, 'maxInstances')
+  const cw = { period: num(p, 'awsPeriodSec'), metricDelay: num(p, 'awsMetricDelaySec'), warmup: num(p, 'awsWarmupSec') }
+  let c: Controller
+  switch (str(p, 'algo')) {
+    case 'aws-target':
+      c = new AwsTargetTracking(sim, cluster, metrics, {
+        ...cw, min, max, target: num(p, 'awsTarget'),
+        highEvalPeriods: num(p, 'awsHighPeriods'), lowEvalPeriods: num(p, 'awsLowPeriods'), lowFactor: num(p, 'awsLowFactor'),
+        disableScaleIn: bool(p, 'awsDisableScaleIn'),
+      })
+      break
+    case 'aws-step':
+      c = new AwsStepScaling(sim, cluster, metrics, {
+        ...cw, min, max,
+        outThreshold: num(p, 'awsOutThreshold'), outSteps: str(p, 'awsOutSteps'), outEvalPeriods: num(p, 'awsOutPeriods'),
+        inThreshold: num(p, 'awsInThreshold'), inSteps: str(p, 'awsInSteps'), inEvalPeriods: num(p, 'awsInPeriods'),
+      })
+      break
+    case 'aws-simple':
+      c = new AwsSimpleScaling(sim, cluster, metrics, {
+        ...cw, min, max, cooldown: num(p, 'awsCooldownSec'),
+        outThreshold: num(p, 'awsOutThreshold'), outAdjust: str(p, 'awsOutAdjust'), outEvalPeriods: num(p, 'awsOutPeriods'),
+        inThreshold: num(p, 'awsInThreshold'), inAdjust: str(p, 'awsInAdjust'), inEvalPeriods: num(p, 'awsInPeriods'),
+      })
+      break
+    default:
+      c = new Hpa(sim, cluster, metrics, {
+        min, max, target: num(p, 'hpaTarget'), tolerance: num(p, 'hpaTolerance'), syncPeriod: num(p, 'hpaSyncSec'),
+        metricWindow: num(p, 'hpaMetricWindowSec'), initialReadinessDelay: num(p, 'hpaReadinessDelaySec'),
+        downStabilization: num(p, 'hpaDownStabilizationSec'),
+        scaleUpPods: num(p, 'hpaScaleUpPods'), scaleUpPercent: num(p, 'hpaScaleUpPercent'),
+      })
+  }
+  c.start()
+  return c
+}
+
+/** Utilization the controller aims for — used to size the cluster for a given load. */
+export function targetUtilization(p: Params): number {
+  switch (str(p, 'algo')) {
+    case 'aws-target': return num(p, 'awsTarget')
+    case 'aws-step': case 'aws-simple': return (num(p, 'awsOutThreshold') + num(p, 'awsInThreshold')) / 2
+    default: return num(p, 'hpaTarget')
   }
 }
 
-export function attachScaler(sim: Sim, cluster: Cluster, signal: () => number, p: Params): Autoscaler {
-  const s = new Autoscaler(sim, cluster, signal, scalerOpts(p))
-  s.start()
-  return s
-}
-
-/** Instances needed for `rps` at the scaler's target utilization. */
+/** Instances needed for `rps` at the controller's target utilization. */
 export function neededInstances(p: Params, rps: number): number {
-  const target = str(p, 'algo') === 'threshold' ? (num(p, 'upAt') + num(p, 'downAt')) / 2 : num(p, 'targetCpu')
-  return rps / unitCapacity(p) / target
+  return rps / unitCapacity(p) / targetUtilization(p)
 }
 
 // ---------------- faults ----------------

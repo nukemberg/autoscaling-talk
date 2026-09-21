@@ -65,7 +65,7 @@ everyone inherits as defaults and nobody tunes.
 
 # Oscillation, by Default
 
-<Sim preset="cpu-step" :expose="['baseRps', 'rps', 'ramp', 'rampSec', 'periodSec', 'windowSec', 'stabilizationSec', 'countInFlight']" />
+<Sim preset="cpu-step" :expose="['baseRps', 'rps', 'ramp', 'rampSec', 'algo', 'hpaScaleUpPods', 'hpaDownStabilizationSec', 'awsWarmupSec']" />
 
 <!--
 Live DES from presets/cpu-step.json (scenario sim/scenarios/cpu.ts).

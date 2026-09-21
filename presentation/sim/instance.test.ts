@@ -206,3 +206,15 @@ describe('Instance faults', () => {
     expect(inst.healthy).toBe(false)
   })
 })
+
+describe('Instance timestamps', () => {
+  test('launchedAt and readySince', () => {
+    const sim = new Sim()
+    sim.run(3)
+    const { inst } = make(sim, { bootTime: 5 })
+    expect(inst.launchedAt).toBe(3)
+    expect(inst.readySince).toBeUndefined()
+    sim.run(8)
+    expect(inst.readySince).toBe(8)
+  })
+})

@@ -7,7 +7,7 @@ import { Rng } from '../rng'
 import { injectFaults } from '../faults'
 import { Stats } from '../stats'
 import {
-  attachScaler, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
+  attachController, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
   neededInstances, scalerParams, unitParams,
 } from './shared'
 import { num, type ParamSpec, type Params, type ScenarioDef } from './types'
@@ -67,7 +67,7 @@ export const cpuScenario: ScenarioDef = {
 
     const offered = loadProfile(p, t0 + quietSec)
     new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
-    attachScaler(sim, cluster, () => cluster.cpu, p)
+    attachController(sim, cluster, p)
     const faultList = faults(p, t0)
     injectFaults(sim, { cluster }, faultList)
 

@@ -21,7 +21,11 @@ Arrivals ──▶ LoadBalancer ──▶ Instance ──▶ (Upstream)
 | `upstream.ts` | shared dependency: capacity, queue, slowdown, timeout (query keeps running), collapse + recovery |
 | `cluster.ts` | launches/terminates instances (youngest first), `instanceTime` for billing |
 | `stats.ts` | windowed throughput / error rate / latency percentiles |
-| `scaler.ts` | sampled controller: period, sample interval, metric delay, window, cooldowns, stabilization; `threshold` and `targetTracking` (HPA formula) policies |
+| `scaler.ts` | generic sampled controller (reference / tests); scenarios use `controllers/` |
+| `controllers/metrics.ts` | per-instance cpu scrape history (metrics-server / CloudWatch stand-in) |
+| `controllers/hpa.ts` | Kubernetes HPA: sync 15 s, tolerance 0.1, unready pods set aside (0% up / 100% down), 300 s down-stabilization, scaleUp max(4 pods, 100%)/15 s |
+| `controllers/aws.ts` | AWS target tracking (1-min datapoints, AlarmHigh 3 / AlarmLow 15 @ 90%, instance warm-up), step scaling (step tables, AWS rounding), simple scaling (cooldown 300 s) |
+| `faults.ts` | kill / hang / slow / rollingRestart / upstreamOutage / upstreamSlow |
 | `cost.ts` | bill = instance-time × price + integrated extra rate |
 
 | `scenarios/types.ts` | `ScenarioDef`: declarative params (`ParamSpec`), `run()`, `charts` |

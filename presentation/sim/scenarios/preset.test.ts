@@ -9,7 +9,7 @@ describe('presets', () => {
     expect(def).toBe(cpuScenario)
     expect(params.rps).toBe(900)
     expect(params.ramp).toBe('linear')
-    expect(params.periodSec).toBe(30)
+    expect(params.hpaSyncSec).toBe(15)
   })
 
   test('resolvePreset rejects unknown params', () => {
@@ -17,9 +17,9 @@ describe('presets', () => {
   })
 
   test('toPreset keeps only non-default values; round-trips', () => {
-    const full = { ...defaults(cpuScenario.params), rps: 900, countInFlight: true }
+    const full = { ...defaults(cpuScenario.params), rps: 900, awsDisableScaleIn: true }
     const preset = toPreset(cpuScenario, full)
-    expect(preset).toEqual({ id: 'cpu-step', params: { rps: 900, countInFlight: true } })
+    expect(preset).toEqual({ id: 'cpu-step', params: { rps: 900, awsDisableScaleIn: true } })
     expect(resolvePreset(preset).params).toEqual(full)
   })
 })

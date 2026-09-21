@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { Sim } from './engine'
 import { Rng } from './rng'
-import { Arrivals, constant, ramp, spike, step, sum } from './arrivals'
+import { Arrivals, constant, logistic, ramp, spike, step, sum } from './arrivals'
 import type { Request } from './types'
 
 function collect(sim: Sim) {
@@ -87,5 +87,17 @@ describe('Arrivals', () => {
     sim.schedule(5, () => a.stop())
     sim.run(20)
     expect(reqs.every((r) => r.arrivedAt <= 5)).toBe(true)
+  })
+})
+
+describe('logistic', () => {
+  test('S-curve from `from` to `to`, centred on t0 + duration/2', () => {
+    const r = logistic(100, 200, 0, 1000)
+    expect(r(0)).toBeCloseTo(0, 0)
+    expect(r(200)).toBeCloseTo(500, 5)
+    expect(r(400)).toBeCloseTo(1000, 0)
+    expect(r(150)).toBeGreaterThan(50)
+    expect(r(150)).toBeLessThan(500)
+    expect(r.max).toBe(1000)
   })
 })

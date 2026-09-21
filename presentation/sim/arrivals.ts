@@ -25,6 +25,16 @@ export const ramp = (t0: number, t1: number, from: number, to: number): Rate =>
     return from + ((to - from) * (t - t0)) / (t1 - t0)
   }, Math.max(from, to))
 
+/**
+ * Logistic (S-curve) ramp from `from` to `to` over [t0, t0 + duration]:
+ * midpoint at t0 + duration/2, ~1% / 99% at the ends.
+ */
+export const logistic = (t0: number, duration: number, from: number, to: number): Rate => {
+  const mid = t0 + duration / 2
+  const k = 2 * Math.log(99) / duration
+  return rate((t) => from + (to - from) / (1 + Math.exp(-k * (t - mid))), Math.max(from, to))
+}
+
 /** Extra `extra` req/s during [t0, t0 + duration). */
 export const spike = (t0: number, duration: number, extra: number): Rate =>
   rate((t) => (t >= t0 && t < t0 + duration ? extra : 0), extra)

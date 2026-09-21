@@ -1,4 +1,4 @@
-import { Arrivals, constant } from '../arrivals'
+import { Arrivals, logistic, ramp as linear, step, type Rate } from '../arrivals'
 import { Cluster } from '../cluster'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
@@ -12,6 +12,10 @@ export interface CpuScenarioParams {
   rps: number
   /** Mean service time per request. */
   latencyMs: number
+  /** Load ramp shape from 0 to `rps`, starting at t=0. */
+  ramp?: 'step' | 'linear' | 'logistic'
+  /** Ramp duration, seconds (ignored for step). */
+  rampSec?: number
   /** Simulated seconds. */
   horizon?: number
   /** Recorder sample period, seconds. */
@@ -34,12 +38,26 @@ export interface CpuScenarioResult {
   cpu: number[]
   p99Ms: number[]
   rejected: number[]
+  /** Arrival rate the load profile asked for. */
+  offeredRps: number[]
+  /** Successful completions per second over the last sample window. */
+  okRps: number[]
+  /** Failed (rejected/error/timeout) per second over the last sample window. */
+  failedRps: number[]
+}
+
+function loadProfile(shape: 'step' | 'linear' | 'logistic', rps: number, rampSec: number): Rate {
+  switch (shape) {
+    case 'step': return step(0, rps, rps)
+    case 'linear': return linear(0, rampSec, 0, rps)
+    case 'logistic': return logistic(0, rampSec, 0, rps)
+  }
 }
 
 /** Constant load, one cluster, HPA-style target tracking on "CPU" (busy fraction). */
 export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
   const {
-    rps, latencyMs, horizon = 1800, sample = 5, seed = 1,
+    rps, latencyMs, ramp = 'step', rampSec = 300, horizon = 1800, sample = 5, seed = 1,
     bootSec = 120, periodSec = 30, windowSec = 60, targetCpu = 0.5,
     concurrency = 16, min = 1, max = 100,
   } = p
@@ -59,7 +77,17 @@ export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
   cluster.scaleTo(min)
   sim.run(bootSec) // start with the minimum already warm
 
-  new Arrivals(sim, rng, constant(rps), (r) => lb.handle(r)).start()
+  const load = loadProfile(ramp, rps, rampSec)
+  const t0 = sim.now
+  const offered: Rate = Object.assign((t: number) => load(t - t0), { max: load.max })
+  new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
+
+  let lastTotals = { ...stats.totals }
+  const perSecond = (pick: (d: Record<string, number>) => number) => () => {
+    const d: Record<string, number> = {}
+    for (const k of Object.keys(stats.totals) as (keyof typeof stats.totals)[]) d[k] = stats.totals[k] - lastTotals[k]
+    return pick(d) / sample
+  }
 
   new Autoscaler(sim, cluster, () => cluster.utilization, {
     period: periodSec, sampleInterval: 5, window: windowSec, min, max,
@@ -75,6 +103,11 @@ export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
       return Number.isNaN(v) ? 0 : v * 1000
     },
     rejected: () => stats.totals.rejected,
+    offeredRps: () => offered(sim.now),
+    okRps: perSecond((d) => d.ok),
+    failedRps: perSecond((d) => d.rejected + d.error + d.timeout),
+    // Probes run in order; this last one resets the per-window baseline.
+    _tick: () => { lastTotals = { ...stats.totals }; return 0 },
   })
   rec.start()
   sim.run(bootSec + horizon)
@@ -86,5 +119,8 @@ export function runCpuScenario(p: CpuScenarioParams): CpuScenarioResult {
     cpu: rec.series.cpu,
     p99Ms: rec.series.p99Ms,
     rejected: rec.series.rejected,
+    offeredRps: rec.series.offeredRps,
+    okRps: rec.series.okRps,
+    failedRps: rec.series.failedRps,
   }
 }

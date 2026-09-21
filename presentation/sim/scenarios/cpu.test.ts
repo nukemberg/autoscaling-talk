@@ -31,3 +31,31 @@ describe('runCpuScenario', () => {
     expect(Math.max(...r.instances)).toBe(1)
   })
 })
+
+describe('ramp + throughput series', () => {
+  test('exposes offered, ok and failed rps series', () => {
+    const r = runCpuScenario({ rps: 100, latencyMs: 50, horizon: 300, sample: 10 })
+    expect(r.offeredRps.length).toBe(31)
+    expect(r.okRps.length).toBe(31)
+    expect(r.failedRps.length).toBe(31)
+    expect(Math.max(...r.okRps)).toBeGreaterThan(50)
+  })
+
+  test('step ramp: offered rate is full from t=0', () => {
+    const r = runCpuScenario({ rps: 100, latencyMs: 50, horizon: 100, ramp: 'step', rampSec: 300 })
+    expect(r.offeredRps[0]).toBe(100)
+  })
+
+  test('linear ramp reaches full rate at rampSec', () => {
+    const r = runCpuScenario({ rps: 100, latencyMs: 50, horizon: 400, sample: 10, ramp: 'linear', rampSec: 200 })
+    expect(r.offeredRps[0]).toBe(0)
+    expect(r.offeredRps[10]).toBeCloseTo(50)
+    expect(r.offeredRps[20]).toBeCloseTo(100)
+  })
+
+  test('logistic ramp is ~half at rampSec/2', () => {
+    const r = runCpuScenario({ rps: 100, latencyMs: 50, horizon: 400, sample: 10, ramp: 'logistic', rampSec: 200 })
+    expect(r.offeredRps[10]).toBeCloseTo(50, 3)
+    expect(r.offeredRps[30]).toBeCloseTo(100, 0)
+  })
+})

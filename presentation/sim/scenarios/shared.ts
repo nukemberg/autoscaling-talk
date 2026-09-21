@@ -8,6 +8,7 @@ import { AwsSimpleScaling, AwsStepScaling, AwsTargetTracking } from '../controll
 import { Hpa } from '../controllers/hpa'
 import { PodMetrics } from '../controllers/metrics'
 import type { Rng } from '../rng'
+import { distParams, sampleDist } from './dist'
 import { bool, num, str, type ParamSpec, type Params } from './types'
 
 // ---------------- load ----------------
@@ -45,8 +46,11 @@ export const unitParams: ParamSpec[] = [
     help: 'Mean time one request occupies a slot (exponentially distributed).' },
   { key: 'concurrency', label: 'slots per instance', group: 'unit', kind: 'range', min: 1, max: 256, step: 1, default: 16,
     help: 'Requests one instance handles at once (threads / workers). Beyond this it rejects. Capacity = slots × 1000 / service time.' },
-  { key: 'bootSec', label: 'boot time', group: 'unit', kind: 'range', min: 0, max: 600, step: 5, default: 120, unit: 's',
-    help: 'Delay from launch until an instance can serve. The main source of dead time.' },
+  ...distParams({
+    key: 'bootSec', label: 'boot time', group: 'unit',
+    help: 'Delay from launch until an instance can serve. The main source of dead time.',
+    base: { min: 0, max: 600, step: 5, default: 120, unit: 's' },
+  }),
   { key: 'healthCheckSec', label: 'LB health check interval', group: 'unit', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',
     help: 'How often the load balancer probes instances. 0 = LB sees instance state instantly (unrealistic).' },
   { key: 'unhealthyAfter', label: 'unhealthy after', group: 'unit', kind: 'range', min: 1, max: 10, step: 1, default: 3, unit: 'checks',
@@ -68,7 +72,7 @@ export function unitCapacity(p: Params): number {
 export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const hung = str(p, 'hungCpu')
   return {
-    bootTime: num(p, 'bootSec'),
+    bootTime: () => sampleDist(rng, p, 'bootSec'),
     serviceTime: () => rng.exp(1000 / num(p, 'latencyMs')),
     concurrency: num(p, 'concurrency'),
     queueLimit: 0,

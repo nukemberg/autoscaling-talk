@@ -11,6 +11,8 @@ transition: slide-left
 comark: true
 duration: 35min
 mdc: true
+# Deployed slides; QR codes (<Qr path=…>) resolve against this.
+baseUrl: https://autoscaling-talk.example.com
 ---
 
 # Autoscaling
@@ -179,7 +181,9 @@ class: tradeoffs
 
 </div>
 
-<div class="abs-br m-4 text-xs opacity-60">docs/controller-tradeoffs.md</div>
+<div class="abs-br m-4">
+  <Qr path="docs/controller-tradeoffs.md" :size="120" />
+</div>
 
 <!--
 Bonus slide — dense on purpose, for photos. Full notes in docs/controller-tradeoffs.md.

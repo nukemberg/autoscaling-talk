@@ -192,6 +192,10 @@ layout: default
 
 </div>
 
+<div class="abs-br m-4">
+  <Qr path="workbench/" :size="100" />
+</div>
+
 <!--
 [6 min]
 CPU-driven autoscaler oscillated so hard instances died before they
@@ -232,10 +236,6 @@ sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 # Oscillation, by Default
 
 <Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :height="130" />
-
-<div class="abs-br m-4">
-  <Qr path="workbench/" :size="100" />
-</div>
 
 <!--
 Live DES from presets/cpu-oscillation.json (scenario sim/scenarios/cpu.ts).

@@ -81,6 +81,7 @@ onMounted(() => {
   if (el.value)
     ro.observe(el.value)
   watchChartTheme(render)
+  watch([() => props.data, () => props.options], render)
 })
 onBeforeUnmount(() => {
   ro?.disconnect()

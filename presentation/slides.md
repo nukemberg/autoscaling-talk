@@ -60,11 +60,17 @@ to scale.
 layout: default
 ---
 
-# The Setup
+# What Could Possibly Go Wrong
 
 <div class="text-left">
 
-It's cost optimization with a feedback loop attached.
+- Autoscaling ≠ preserve static capacity — it's **dynamic**
+- Feedback loop attached → 🙄
+- Dynamic failure modes. Worse than static ones.
+
+</div>
+
+<div class="text-left mt-6">
 
 - Scaled the wrong signal — ran away
 - Oscillated — instances died before booting
@@ -74,7 +80,11 @@ It's cost optimization with a feedback loop attached.
 
 <!--
 [1.5 min]
-Why surprise bills and cascading failures are the norm rather than the
+Static capacity fails in ways you can enumerate ahead of time: it's
+either enough or it isn't. A feedback loop adds failure modes that only
+exist because the loop exists — oscillation, runaway, coupling to what
+it measures. Those are new categories, not more of the old one. Why
+surprise bills and cascading failures are the norm rather than the
 exception. Sets up the three war stories (wrong signal, oscillation,
 coupling) without naming them yet.
 -->

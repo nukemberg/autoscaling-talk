@@ -12,7 +12,7 @@ Budget: 35 min total (frontmatter `duration`). Status tracks `bd` content ticket
 | 4 | Scaling by Metrics, FTW! 🤦 | 5m | done | kur.2 | Load metrics vs system-response metrics, usually no load metrics, 2D (time+space via LB), queueing theory, compressible load → pivot to control theory |
 | 5 | Control Theory Crash Course | 6m | done | kur.3 | 4 insights: characteristic/dead time, gain, discrete sampling, stateful vs stateless controllers. No controller is perfect, always a tradeoff |
 | 6 | Oscillation, by Default | (in 5) | done | — | Live sim: AWS simple scaling, cooldown 0 → sustained flapping |
-| 7 | Coupling and Blast Radius | 4m | **todo** | kur.5 | N instances = N× connection pools; LB registration + health checks = dead time on the add side; recovery is a herd; fast-onset load beats any scaler with dead time > onset time |
+| 7 | Coupling and Blast Radius | 4m | done | kur.5 | N instances = N× connection pools; LB registration + health checks = dead time on the add side; recovery is a herd; fast-onset load beats any scaler with dead time > onset time |
 | 8 | Unstable Scaling Units | 3m | done | kur.6 | Well-behaved vs bad unit; live sim: loss vs node.js unit model, same load, 2% → 54% errors |
 | 9 | Loss vs. Node.js, Same Load | (in 8) | done | — | Live sim companion to #8 |
 | 10 | The Cost Problem | 3m | **todo** | kur.7 | External actors, runaway upstream costs, no max |

@@ -28,6 +28,37 @@ Total budget: 27 min net content + 3 min buffer = 30 min total.
 layout: default
 ---
 
+# We Love Autoscaling
+
+<div class="content">
+
+- Automagically handles extra load
+- Makes server issues go away
+- Simple, easy solution
+- Advanced tooling widely available
+
+</div>
+
+<v-click>
+
+<div class="abs-br m-4">
+  <img src="/memes/putin-laughing.gif" class="meme" alt="Putin laughing meme">
+</div>
+
+</v-click>
+
+<!--
+[0.5 min]
+Cold open, played straight — say each bullet like you mean it, let the
+room nod along. Click to reveal the laugh. Nothing here is wrong per
+se; it's the pitch everyone's heard, and it's also exactly what the
+next 25 minutes complicates.
+-->
+
+---
+layout: default
+---
+
 # Design for Max
 
 <div class="content">

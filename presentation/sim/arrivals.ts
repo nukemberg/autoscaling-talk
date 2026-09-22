@@ -39,8 +39,65 @@ export const logistic = (t0: number, duration: number, from: number, to: number)
 export const spike = (t0: number, duration: number, extra: number): Rate =>
   rate((t) => (t >= t0 && t < t0 + duration ? extra : 0), extra)
 
+/** Rectangular pulse: `from` outside [t0, t0 + duration), `to` inside it. */
+export const boxcar = (t0: number, duration: number, from: number, to: number): Rate =>
+  rate((t) => (t >= t0 && t < t0 + duration ? to : from), Math.max(from, to))
+
+/** Gaussian (bell-curve) pulse centered at `center`, width `sigma`, peaking at `to`. */
+export const gaussian = (center: number, sigma: number, from: number, to: number): Rate =>
+  rate((t) => from + (to - from) * Math.exp(-((t - center) ** 2) / (2 * sigma ** 2)), Math.max(from, to))
+
+/** Sine wave: mean `(from+to)/2`, amplitude `(to-from)/2`, period `periodSec`. Floors at 0. */
+export const sine = (t0: number, periodSec: number, from: number, to: number): Rate => {
+  const mean = (from + to) / 2, amp = (to - from) / 2
+  return rate((t) => Math.max(0, mean + amp * Math.sin((2 * Math.PI * (t - t0)) / periodSec)), Math.max(from, to))
+}
+
+/** Sawtooth: linear ramp from `from` to `to` over `periodSec`, then an instant reset. */
+export const sawtooth = (t0: number, periodSec: number, from: number, to: number): Rate =>
+  rate((t) => {
+    if (t < t0) return from
+    const frac = ((t - t0) % periodSec) / periodSec
+    return from + (to - from) * frac
+  }, Math.max(from, to))
+
+/** Square wave: `to` for the first `duty` fraction of each period, `from` otherwise. */
+export const squareWave = (t0: number, periodSec: number, duty: number, from: number, to: number): Rate =>
+  rate((t) => {
+    if (t < t0) return from
+    return ((t - t0) % periodSec) / periodSec < duty ? to : from
+  }, Math.max(from, to))
+
+/** Trapezoid: rise over `riseSec`, hold `to` for `holdSec`, fall back over `riseSec`. */
+export const trapezoid = (t0: number, riseSec: number, holdSec: number, from: number, to: number): Rate =>
+  rate((t) => {
+    const fallStart = t0 + riseSec + holdSec
+    const fallEnd = fallStart + riseSec
+    if (t < t0) return from
+    if (t < t0 + riseSec) return from + ((to - from) * (t - t0)) / riseSec
+    if (t < fallStart) return to
+    if (t < fallEnd) return to + ((from - to) * (t - fallStart)) / riseSec
+    return from
+  }, Math.max(from, to))
+
+/** Exponential growth from `from`, time constant `tauSec`, capped at `cap`. */
+export const expGrowth = (t0: number, tauSec: number, from: number, cap: number): Rate =>
+  rate((t) => (t < t0 ? from : Math.min(cap, from * Math.exp((t - t0) / tauSec))), cap)
+
+/** Flash crowd: near-instant rise to `peak` over `riseSec`, exponential decay back to `from` with time constant `decayTauSec`. */
+export const flashCrowd = (t0: number, riseSec: number, decayTauSec: number, from: number, peak: number): Rate =>
+  rate((t) => {
+    if (t < t0) return from
+    if (t < t0 + riseSec) return from + ((peak - from) * (t - t0)) / riseSec
+    return from + (peak - from) * Math.exp(-(t - t0 - riseSec) / decayTauSec)
+  }, peak)
+
 export const sum = (...rates: Rate[]): Rate =>
   rate((t) => rates.reduce((s, r) => s + r(t), 0), rates.reduce((s, r) => s + r.max, 0))
+
+/** Adds bounded multiplicative jitter (±`amplitudeFrac`) to any rate profile, seeded by `rng`. */
+export const noisy = (base: Rate, rng: Rng, amplitudeFrac: number): Rate =>
+  rate((t) => Math.max(0, base(t) * (1 + amplitudeFrac * (2 * rng.next() - 1))), base.max * (1 + amplitudeFrac))
 
 /** Non-homogeneous Poisson arrivals via thinning. */
 export class Arrivals {

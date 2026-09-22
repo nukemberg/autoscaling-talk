@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'vitest'
 import { Sim } from './engine'
 import { Rng } from './rng'
-import { Arrivals, constant, logistic, ramp, spike, step, sum } from './arrivals'
+import {
+  Arrivals, boxcar, constant, expGrowth, flashCrowd, gaussian, logistic, noisy, ramp, sawtooth, sine,
+  spike, squareWave, step, sum, trapezoid,
+} from './arrivals'
 import type { Request } from './types'
 
 function collect(sim: Sim) {
@@ -35,6 +38,71 @@ describe('rate profiles', () => {
     const r = sum(constant(1), spike(10, 5, 9))
     expect(r(0)).toBe(1)
     expect(r(12)).toBe(10)
+  })
+  test('boxcar holds `to` inside the window, `from` outside', () => {
+    const r = boxcar(10, 5, 2, 8)
+    expect(r(9)).toBe(2)
+    expect(r(12)).toBe(8)
+    expect(r(15)).toBe(2)
+    expect(r.max).toBe(8)
+  })
+  test('gaussian peaks at center, decays to ~from at the edges', () => {
+    const r = gaussian(100, 20, 10, 110)
+    expect(r(100)).toBeCloseTo(110, 5)
+    expect(r(0)).toBeCloseTo(10, 0)
+    expect(r(200)).toBeCloseTo(10, 0)
+    expect(r(80)).toBeGreaterThan(10)
+    expect(r(80)).toBeLessThan(110)
+  })
+  test('sine oscillates between from and to with the given period', () => {
+    const r = sine(0, 100, 0, 100)
+    expect(r(0)).toBeCloseTo(50, 5)
+    expect(r(25)).toBeCloseTo(100, 5)
+    expect(r(75)).toBeCloseTo(0, 5)
+    expect(r.max).toBe(100)
+  })
+  test('sawtooth ramps then resets each period', () => {
+    const r = sawtooth(0, 100, 0, 100)
+    expect(r(0)).toBeCloseTo(0, 5)
+    expect(r(50)).toBeCloseTo(50, 5)
+    expect(r(99.999)).toBeCloseTo(100, 1)
+    expect(r(100)).toBeCloseTo(0, 5)
+  })
+  test('squareWave holds `to` for the duty fraction, `from` otherwise', () => {
+    const r = squareWave(0, 100, 0.3, 2, 8)
+    expect(r(10)).toBe(8)
+    expect(r(50)).toBe(2)
+    expect(r(110)).toBe(8)
+  })
+  test('trapezoid rises, holds, and falls', () => {
+    const r = trapezoid(0, 10, 20, 0, 100)
+    expect(r(5)).toBeCloseTo(50, 5)
+    expect(r(20)).toBeCloseTo(100, 5)
+    expect(r(35)).toBeCloseTo(50, 5)
+    expect(r(50)).toBeCloseTo(0, 5)
+  })
+  test('expGrowth grows from `from`, caps at `cap`', () => {
+    const r = expGrowth(0, 50, 10, 1000)
+    expect(r(0)).toBeCloseTo(10, 5)
+    expect(r(50)).toBeCloseTo(10 * Math.E, 3)
+    expect(r(1000)).toBe(1000)
+    expect(r.max).toBe(1000)
+  })
+  test('flashCrowd spikes then decays exponentially back toward `from`', () => {
+    const r = flashCrowd(0, 5, 30, 10, 500)
+    expect(r(0)).toBeCloseTo(10, 5)
+    expect(r(5)).toBeCloseTo(500, 5)
+    expect(r(35)).toBeCloseTo(10 + 490 / Math.E, 1)
+    expect(r(1000)).toBeCloseTo(10, 0)
+  })
+  test('noisy jitters a base profile within bounds, seeded reproducibly', () => {
+    const r = noisy(constant(100), new Rng(1), 0.2)
+    for (let t = 0; t < 50; t++) {
+      const v = r(t)
+      expect(v).toBeGreaterThanOrEqual(80)
+      expect(v).toBeLessThanOrEqual(120)
+    }
+    expect(noisy(constant(100), new Rng(1), 0.2)(5)).toBe(noisy(constant(100), new Rng(1), 0.2)(5))
   })
 })
 

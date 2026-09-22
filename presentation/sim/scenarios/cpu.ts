@@ -70,7 +70,7 @@ export const cpuScenario: ScenarioDef = {
     sim.run(warmupEnd)
     const t0 = sim.now
 
-    const offered = loadProfile(p, t0 + quietSec)
+    const offered = loadProfile(p, t0 + quietSec, rng)
     new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
     attachController(sim, cluster, p)
     const faultList = faults(p, t0)

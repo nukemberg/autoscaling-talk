@@ -1,4 +1,7 @@
-import { logistic, ramp as linear, step, type Rate } from '../arrivals'
+import {
+  boxcar, expGrowth, flashCrowd, gaussian, logistic, noisy, ramp as linear, sawtooth, sine, squareWave, step,
+  trapezoid, type Rate,
+} from '../arrivals'
 import type { Sim } from '../engine'
 import type { Cluster, ClusterOpts } from '../cluster'
 import type { Fault } from '../faults'
@@ -20,23 +23,47 @@ export const loadParams: ParamSpec[] = [
     help: 'Request rate the ramp ends at, held until the end of the run.' },
   { key: 'ramp', label: 'ramp', group: 'load', kind: 'select', default: 'step', options: [
     { value: 'step', label: 'heaviside (step)' }, { value: 'linear', label: 'linear' }, { value: 'logistic', label: 'logistic' },
+    { value: 'pulse-box', label: 'pulse (box)' }, { value: 'pulse-gaussian', label: 'pulse (gaussian)' },
+    { value: 'trapezoid', label: 'trapezoid' }, { value: 'exp-growth', label: 'exponential growth' },
+    { value: 'flash-crowd', label: 'flash crowd' }, { value: 'sine', label: 'sine wave' },
+    { value: 'sawtooth', label: 'sawtooth' }, { value: 'square', label: 'square wave' },
   ], help: 'Shape of the transition from base load to final load.' },
   { key: 'rampSec', label: 'ramp time', group: 'load', kind: 'range', min: 10, max: 1800, step: 10, default: 300, unit: 's',
-    help: 'How long the ramp takes (linear / logistic only).', activeWhen: { ramp: ['linear', 'logistic'] } },
+    help: 'Rise time: ramp duration, pulse/gaussian width, trapezoid rise, or exp-growth/flash-crowd time constant.',
+    activeWhen: { ramp: ['linear', 'logistic', 'pulse-box', 'pulse-gaussian', 'trapezoid', 'exp-growth', 'flash-crowd'] } },
+  { key: 'periodSec', label: 'period', group: 'load', kind: 'range', min: 10, max: 1800, step: 10, default: 200, unit: 's',
+    help: 'Period of the repeating waveform.', activeWhen: { ramp: ['sine', 'sawtooth', 'square'] } },
+  { key: 'holdSec', label: 'hold time', group: 'load', kind: 'range', min: 0, max: 1800, step: 10, default: 200, unit: 's',
+    help: 'Trapezoid: time held at peak. Square wave: fraction of the period held high, ×1800s.',
+    activeWhen: { ramp: ['trapezoid', 'square'] } },
   { key: 'quietSec', label: 'stable period before ramp', group: 'load', kind: 'range', min: 0, max: 900, step: 30, default: 300, unit: 's',
     help: 'Time at base load before the ramp starts, so the "before" state is visible.' },
+  { key: 'noisyLoad', label: 'noisy base', group: 'load', kind: 'toggle', default: false,
+    help: 'Adds bounded random jitter on top of whichever shape is chosen, so "steady" load is never perfectly flat.' },
+  { key: 'noiseAmpPct', label: 'noise amplitude', group: 'load', kind: 'range', min: 1, max: 50, step: 1, default: 10, unit: '%',
+    help: 'Jitter as a fraction of the instantaneous rate.', activeWhen: { noisyLoad: 'true' } },
 ]
 
 /** Rate profile: baseRps until t0, then ramp to rps. Absolute time. */
-export function loadProfile(p: Params, t0: number): Rate {
+export function loadProfile(p: Params, t0: number, rng: Rng): Rate {
   const from = num(p, 'baseRps'), to = num(p, 'rps'), dur = num(p, 'rampSec')
+  const period = num(p, 'periodSec'), hold = num(p, 'holdSec')
   let shape: Rate
   switch (str(p, 'ramp')) {
     case 'linear': shape = linear(0, dur, from, to); break
     case 'logistic': shape = logistic(0, dur, from, to); break
+    case 'pulse-box': shape = boxcar(0, dur, from, to); break
+    case 'pulse-gaussian': shape = gaussian(dur, dur / 3, from, to); break
+    case 'trapezoid': shape = trapezoid(0, dur, hold, from, to); break
+    case 'exp-growth': shape = expGrowth(0, dur, from, to); break
+    case 'flash-crowd': shape = flashCrowd(0, Math.max(1, dur / 20), dur, from, to); break
+    case 'sine': shape = sine(0, period, from, to); break
+    case 'sawtooth': shape = sawtooth(0, period, from, to); break
+    case 'square': shape = squareWave(0, period, Math.min(1, hold / 1800), from, to); break
     default: shape = step(0, from, to)
   }
-  return Object.assign((t: number) => (t < t0 ? from : shape(t - t0)), { max: Math.max(from, to) })
+  const withT0 = Object.assign((t: number) => (t < t0 ? from : shape(t - t0)), { max: Math.max(from, to) })
+  return bool(p, 'noisyLoad') ? noisy(withT0, rng, num(p, 'noiseAmpPct') / 100) : withT0
 }
 
 // ---------------- scaling unit ----------------

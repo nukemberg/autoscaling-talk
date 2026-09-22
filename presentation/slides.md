@@ -59,6 +59,45 @@ next 25 minutes complicates.
 layout: default
 ---
 
+# What Could Possibly Go Wrong
+
+<v-click>
+
+<div class="content">
+
+- Runaway bills
+- Dynamic, cascading failures — escalating minor faults
+- Low-utilization clusters
+- Hard to tune — engineers fiddling with params forever
+
+</div>
+
+</v-click>
+
+<!--
+[1.5 min]
+Audience-participation beat: ask the room. Let a few answers land
+before clicking to reveal — most of what people shout out lands on
+this list somewhere. Don't rush the click.
+
+Verbal framing once the list is up (this used to be on-slide text,
+now it's just said): static capacity fails in ways you can enumerate
+ahead of time — it's either enough or it isn't. A feedback loop adds
+failure modes that only exist because the loop exists: oscillation,
+runaway, coupling to what it measures. Those are new categories, not
+more of the old one. That's why surprise bills and cascading failures
+are the norm rather than the exception, not bad luck.
+
+Each bullet maps to a section: runaway bills → The Cost Problem,
+cascading failures → Coupling and Blast Radius / Unstable Scaling
+Units, low utilization → the cost side of Responsible Autoscaling,
+hard to tune → Control Theory Crash Course.
+-->
+
+---
+layout: default
+---
+
 # Design for Max
 
 <div class="content">
@@ -89,39 +128,6 @@ job is just: don't run at max when you don't have to. That's cost
 optimization, not capacity engineering. Teams that skip this step find
 out their "elastic" system hits the wall the first time it actually needs
 to scale.
--->
-
----
-layout: default
----
-
-# What Could Possibly Go Wrong
-
-<div class="content">
-
-- Autoscaling ≠ preserve static capacity — it's **dynamic**
-- Feedback loop attached → 🙄
-- Dynamic failure modes. Worse than static ones.
-
-</div>
-
-<div class="takeaway">
-
-- Scaled the wrong signal — ran away
-- Oscillated — instances died before booting
-- Overwhelmed the thing it depended on
-
-</div>
-
-<!--
-[1.5 min]
-Static capacity fails in ways you can enumerate ahead of time: it's
-either enough or it isn't. A feedback loop adds failure modes that only
-exist because the loop exists — oscillation, runaway, coupling to what
-it measures. Those are new categories, not more of the old one. Why
-surprise bills and cascading failures are the norm rather than the
-exception. Sets up the three war stories (wrong signal, oscillation,
-coupling) without naming them yet.
 -->
 
 ---
@@ -463,8 +469,8 @@ Autoscaling is a cost optimization with a feedback loop attached — and every f
 [2 min]
 Simpler is often better. Don't run before you walk.
 
-Full circle to The Setup / What Could Possibly Go Wrong: the reframe
-was the point all along. Land on it, don't add anything new here.
+Full circle to What Could Possibly Go Wrong: the reframe was the
+point all along. Land on it, don't add anything new here.
 -->
 
 ---

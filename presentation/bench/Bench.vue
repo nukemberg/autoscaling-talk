@@ -13,6 +13,7 @@ const scenarioId = ref(scenarios[0].id)
 const def = computed(() => scenarios.find((s) => s.id === scenarioId.value)!)
 const params = ref<Params>(defaults(def.value.params))
 const name = ref('untitled')
+const notes = ref('')
 
 // Runs happen in a worker so heavy sims never block the UI; the main thread
 // only updates params (and the JSON/URL) instantly. The debounce delay adapts
@@ -78,7 +79,7 @@ function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(localPresets.value))
 }
 
-const preset = computed(() => toPreset(def.value, params.value, name.value))
+const preset = computed(() => toPreset(def.value, params.value, name.value, notes.value))
 const json = computed(() => JSON.stringify(preset.value, null, 2))
 const isSaved = computed(() => localPresets.value.some((p) => p.name === name.value))
 const status = ref('')
@@ -93,6 +94,7 @@ function applyPreset(p: Preset) {
   scenarioId.value = r.def.id
   params.value = r.params
   name.value = p.name ?? 'untitled'
+  notes.value = p.notes ?? ''
 }
 
 function newPreset() {
@@ -100,6 +102,7 @@ function newPreset() {
   let n = 1
   while (localPresets.value.some((p) => p.name === `preset ${n}`)) n++
   name.value = `preset ${n}`
+  notes.value = ''
 }
 
 function save() {
@@ -183,6 +186,10 @@ onMounted(() => {
           <button title="Save to this browser" @click="save">{{ isSaved ? 'update' : 'save' }}</button>
           <button v-if="isSaved" title="Delete from this browser" @click="remove">delete</button>
         </div>
+        <textarea
+          v-model="notes" class="notes" rows="3"
+          placeholder="notes: what this preset shows and why it looks the way it does — shown in the slide widget's fold"
+        />
       </section>
 
       <nav class="tabs">
@@ -230,6 +237,7 @@ aside header h1 { margin: 0; font-size: 1rem; }
 .presets { display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.85rem; }
 .presets select { flex: 1; }
 .presets .name { flex: 1; font-size: 0.85rem; }
+.presets .notes { width: 100%; box-sizing: border-box; font-size: 0.8rem; font-family: inherit; resize: vertical; }
 .row { display: flex; gap: 0.4rem; align-items: center; }
 .tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; }
 .tabs button { padding: 0.2rem 0.6rem; border: 1px solid #ccc; background: #f4f4f4; border-radius: 3px; cursor: pointer; }

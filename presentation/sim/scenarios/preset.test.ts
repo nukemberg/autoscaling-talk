@@ -22,4 +22,14 @@ describe('presets', () => {
     expect(preset).toEqual({ id: 'cpu-step', params: { rps: 900, awsDisableScaleIn: true } })
     expect(resolvePreset(preset).params).toEqual(full)
   })
+
+  test('toPreset includes name/notes only when given', () => {
+    const full = defaults(cpuScenario.params)
+    expect(toPreset(cpuScenario, full)).toEqual({ id: 'cpu-step', params: {} })
+    expect(toPreset(cpuScenario, full, 'my preset')).toEqual({ id: 'cpu-step', params: {}, name: 'my preset' })
+    expect(toPreset(cpuScenario, full, undefined, 'explains itself'))
+      .toEqual({ id: 'cpu-step', params: {}, notes: 'explains itself' })
+    expect(toPreset(cpuScenario, full, 'n', 'notes'))
+      .toEqual({ id: 'cpu-step', params: {}, name: 'n', notes: 'notes' })
+  })
 })

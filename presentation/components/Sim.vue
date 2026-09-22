@@ -33,6 +33,7 @@ function load(name: string): Preset {
 const resolved = computed(() => resolvePreset(load(props.preset), props.params))
 const params = ref<Params>(resolved.value.params)
 watch(resolved, (r) => { params.value = r.params })
+const notes = computed(() => load(props.preset).notes)
 
 const def = computed(() => resolved.value.def)
 
@@ -102,10 +103,11 @@ const summary = computed(() => {
 
 <template>
   <div class="sim">
-    <details v-if="expose.length" class="fold">
+    <details v-if="expose.length || notes" class="fold">
       <summary>{{ summary }}</summary>
       <div class="panel">
-        <ParamPanel v-model="params" :specs="def.params" :only="expose" />
+        <p v-if="notes" class="notes">{{ notes }}</p>
+        <ParamPanel v-if="expose.length" v-model="params" :specs="def.params" :only="expose" />
       </div>
     </details>
     <div v-else class="summary-line">{{ summary }}</div>
@@ -132,6 +134,7 @@ const summary = computed(() => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   max-height: 70vh; overflow-y: auto; box-sizing: border-box;
 }
+.notes { margin: 0 0 0.6rem; font-size: 0.8rem; line-height: 1.4; color: #333; white-space: pre-wrap; min-width: 20rem; max-width: 28rem; }
 .charts-wrap { position: relative; }
 .progress {
   position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 5; overflow: hidden;

@@ -16,5 +16,6 @@
     "maxInstances": 50,
     "horizonSec": 3000,
     "sampleSec": 10
-  }
+  },
+  "notes": "Deliberate worst case: AWS simple scaling with every knob turned to 'responsive' — thresholds close together (0.55/0.45), 1 datapoint, 15s period, zero cooldown. There's nothing here to damp a correction once it starts. Same unit as cpu-step, same target math, just no anti-windup and no cooldown. Sustained flapping is the point: peak overshoots the needed instance count by 2-3x, then it settles for a while and flaps again later in the run because the sine-free load step alone is enough to excite it once the gains are this high. Contrast with cpu-step's k8s defaults, which have the unready-pod set-aside (anti-windup) this preset deliberately lacks."
 }

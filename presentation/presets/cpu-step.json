@@ -4,5 +4,6 @@
     "baseRps": 100,
     "rps": 400,
     "ramp": "step"
-  }
+  },
+  "notes": "Baseline: default k8s-HPA-style controller (target tracking on busy fraction, 50% target, 16 slots/instance, 120s boot, 30s sync, 60s window) under a clean step from 100 to 400 rps. No faults, no degradation. Scales 2 -> 4 -> 6 with no overshoot and ~2.3% errors, all of it dead-time exposure during the boot window, none of it the controller's fault. This is the well-behaved reference case everything else in the deck is compared against."
 }

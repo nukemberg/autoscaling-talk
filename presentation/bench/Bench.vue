@@ -243,7 +243,7 @@ aside header h1 { margin: 0; font-size: 1rem; }
 main { padding: 1rem 2rem; display: flex; flex-direction: column; gap: 0.5rem; }
 .progress { height: 4px; border-radius: 2px; background: #eee; overflow: hidden; opacity: 0; transition: opacity 0.15s; }
 .progress:not(.hidden) { opacity: 1; }
-.progress .bar { height: 100%; background: #2980b9; transition: width 0.2s; }
+.progress .bar { height: 100%; background: #2980b9; }
 .summary { display: flex; gap: 1.5rem; font-family: monospace; }
 .muted { color: #999; }
 </style>

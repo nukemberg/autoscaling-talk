@@ -58,6 +58,10 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 <!-- END BEADS INTEGRATION -->
 
 
+## Agent Git Policy (overrides Beads block above)
+
+Commits are pre-approved in this repo — commit after each unit of work without asking. Pushes still need explicit ask.
+
 ## Build & Test
 
 _Add your build and test commands here_

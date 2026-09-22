@@ -30,11 +30,20 @@ layout: section
 
 # The Setup
 
+Autoscaling is sold as reliability. It's a cost optimization with a feedback loop attached.
+
+- A signal that scaled the wrong thing — and ran away
+- A loop that oscillated until instances died before booting
+- A scaler that overwhelmed the thing it depended on
+
+Surprise bills and cascading failures aren't the exception. They're the default.
+
 <!--
 [3 min]
 Autoscaling is sold as reliability, but it's really a cost optimization
 with a feedback loop attached. Why surprise bills and cascading failures
-are the norm rather than the exception.
+are the norm rather than the exception. Sets up the three war stories
+(wrong signal, oscillation, coupling) without naming them yet.
 -->
 
 ---

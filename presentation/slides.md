@@ -140,7 +140,7 @@ layout: default
 - **Characteristic time vs. dead time** — how fast load moves vs. how long you take to react
 - **Gain** — how hard you react to error
 - **Discrete sampling** — can't react faster than you sample; cooldown is a second limit
-- **Stateful vs. stateless controllers** — memory of what's already in flight, or windup
+- **Stateful vs. stateless controllers** — memory rides out momentary fluctuations, at the cost of speed and complexity
 
 </div>
 
@@ -166,10 +166,11 @@ useful fast — the simulator is standing in for the formal model.
    the load changes and you're steering blind between samples — why
    "just poll faster" isn't free (Nyquist-ish, no math needed).
 4. A stateless controller recomputes purely from current error each
-   tick — no memory of orders already placed but not yet reflected in
-   the metric. It keeps ordering more of what's already coming, then
-   all of it lands at once: windup, then overshoot. A controller with
-   memory nets out in-flight actuation before deciding. Most
+   tick — reacts fast, cheap, but jumpy: a momentary blip moves it same
+   as a real trend. A controller with memory (smoothing, integral
+   term, tracking in-flight orders) rides out noise and doesn't
+   double-order capacity that's already coming — but it's slower to
+   react and more machinery to build and reason about. Most
    autoscalers you get by default are the naive stateless kind — guess
    what happens. (k8s's unready-pod set-aside is memory bolted onto an
    otherwise stateless loop — the exception, not the rule.)

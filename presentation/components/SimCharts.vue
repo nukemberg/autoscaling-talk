@@ -10,7 +10,11 @@ const props = withDefaults(defineProps<{
   height?: number
 }>(), { height: 180 })
 
-const grid = { stroke: '#ddd', width: 1 }
+// A factory, not a shared constant: uPlot mutates axis/grid config objects in
+// place (see Chart.vue's render()), and each panel is a separate uPlot
+// instance — sharing one object across panels let a later panel's instance
+// corrupt an earlier one's tick state.
+function mkGrid() { return { stroke: '#ddd', width: 1 } }
 
 function markerHook(labelled: boolean) {
   return (u: uPlot) => {
@@ -46,6 +50,15 @@ const LEFT_AXIS_SIZE = 56
 const RIGHT_AXIS_SIZE = 50
 const hasSecondary = computed(() => props.charts.some((c) => c.scales && Object.keys(c.scales).length))
 
+// Primary y-scale always anchors at 0 and keeps a non-degenerate span, so a
+// near-flat series (e.g. steady-state latency) still gets a readable axis
+// with real tick spacing instead of collapsing to a single "0" label.
+function yRange(_u: uPlot, dataMin: number, dataMax: number): [number, number] {
+  const lo = Math.min(0, dataMin)
+  const hi = Math.max(dataMax, lo + 1)
+  return [lo, hi + (hi - lo) * 0.1]
+}
+
 const panels = computed(() => props.charts.map((c, i) => {
   const last = i === props.charts.length - 1
   const data: AlignedData = [props.result.t, ...c.series.map((s) => props.result.series[s.key])]
@@ -78,11 +91,12 @@ const panels = computed(() => props.charts.map((c, i) => {
     ],
     scales: {
       x: { time: false },
+      y: { range: yRange },
       ...Object.fromEntries(Object.entries(c.scales ?? {}).map(([k, v]) => [k, { range: v.range }])),
     },
     axes: [
-      last ? { stroke: 'black', grid, label: 'seconds' } : { show: false },
-      { stroke: 'black', grid, label: c.yLabel, size: LEFT_AXIS_SIZE },
+      last ? { stroke: 'black', grid: mkGrid(), label: 'seconds' } : { show: false },
+      { stroke: 'black', grid: mkGrid(), label: c.yLabel, size: LEFT_AXIS_SIZE },
       ...rightAxes,
     ],
     legend: { show: last },
@@ -90,7 +104,13 @@ const panels = computed(() => props.charts.map((c, i) => {
     // Reserve room above the plot for marker labels so they don't overlap the series.
     ...(i === 0 ? { padding: [24, 8, null, null] as unknown as [number, number, number, number] } : {}),
   }
-  return { data, options, height: c.height ?? props.height }
+  // The last panel also carries the x-axis (ticks + "seconds" label) and the
+  // legend row, inside the same height budget — without extra room its own
+  // plot area shrinks well below the other panels', leaving too little
+  // vertical space for uPlot to fit more than one y-axis tick label.
+  const LAST_PANEL_EXTRA = 60
+  const height = (c.height ?? props.height) + (last ? LAST_PANEL_EXTRA : 0)
+  return { data, options, height }
 }))
 </script>
 

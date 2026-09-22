@@ -41,7 +41,7 @@ export const cpuScenario: ScenarioDef = {
     {
       yLabel: 'req/s',
       series: [
-        { key: 'offeredRps', label: 'incoming', color: '#888', width: 1, dash: [4, 4] },
+        { key: 'offeredRps', label: 'incoming', color: '#2980b9', width: 1.5 },
         { key: 'okRps', label: 'OK', color: '#27ae60', width: 2 },
         { key: 'failedRps', label: 'errors', color: '#c0392b', width: 2 },
       ],

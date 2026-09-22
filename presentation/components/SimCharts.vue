@@ -31,7 +31,8 @@ function markerHook(labelled: boolean) {
         ctx.fillStyle = '#2980b9'
         ctx.font = `${12 * devicePixelRatio}px sans-serif`
         ctx.textAlign = 'right'
-        ctx.fillText(m.label, x - 6 * devicePixelRatio, top + 14 * devicePixelRatio)
+        ctx.textBaseline = 'bottom'
+        ctx.fillText(m.label, x - 6 * devicePixelRatio, top - 6 * devicePixelRatio)
       }
       ctx.restore()
     }
@@ -64,6 +65,8 @@ const panels = computed(() => props.charts.map((c, i) => {
     ],
     legend: { show: last },
     hooks: { draw: [markerHook(i === 0)] },
+    // Reserve room above the plot for marker labels so they don't overlap the series.
+    ...(i === 0 ? { padding: [24, 8, null, null] as unknown as [number, number, number, number] } : {}),
   }
   return { data, options, height: c.height ?? props.height }
 }))

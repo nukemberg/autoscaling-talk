@@ -204,11 +204,32 @@ layout: section
 
 # Coupling and Blast Radius
 
+<div class="text-left">
+
+- N instances = **N× connection pools** on the same upstream — not just more capacity
+- LB registration + health checks are dead time too — new instances aren't helping yet
+- Recovery is a **herd** — everything reconnects at once
+- Fast-onset load beats any scaler whose dead time > onset time. No controller fixes that.
+
+</div>
+
 <!--
 [4 min]
 Autoscaler overwhelmed the very database it depended on and triggered a
 cascading failure. How scaling couples to upstream dependencies, the load
 balancer, and fast-onset load.
+
+Scaling out doesn't just add compute — it multiplies whatever each
+instance holds open against a shared dependency (DB connections, cache
+clients, outbound sockets). The database didn't get more capacity when
+the app did; it got hit harder. LB registration delay and health-check
+grace periods are dead time on the way *in*, same physics as boot time,
+just usually smaller and ignored. And when something recovers —
+upstream comes back, instances pass health checks again — everything
+that was waiting fires at once: a self-inflicted thundering herd.
+Fast-onset load (viral post, cache stampede, flash sale) can move
+faster than dead time + reaction time no matter how well-tuned the
+loop is — headroom, not a smarter controller, is what survives it.
 -->
 
 ---

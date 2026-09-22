@@ -233,11 +233,16 @@ sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 
 <Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :height="130" />
 
+<div class="abs-br m-4">
+  <Qr path="workbench/" :size="100" />
+</div>
+
 <!--
 Live DES from presets/cpu-oscillation.json (scenario sim/scenarios/cpu.ts).
 AWS simple scaling ±1, thresholds 0.55/0.45, cooldown 0, 15s period —
 every knob turned to "responsive". Sustained flapping, by design. Tune
-in the workbench (npm run bench), export JSON.
+in the workbench (npm run bench), export JSON. QR points at the
+deployed SimCluster workbench so people can try it themselves.
 -->
 
 ---
@@ -470,6 +475,10 @@ class: text-center
 # Thank You
 
 Questions?
+
+<div class="mt-6">
+  <Qr path="" :size="140" />
+</div>
 
 ---
 layout: default

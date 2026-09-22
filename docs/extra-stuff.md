@@ -93,3 +93,13 @@ Things the sims taught us that we didn't expect:
 4. Latency-driven runaway (`foh.3`).
 5. Spot interruption with pool exhaustion.
 6. Two-level HPA + node autoscaler + consolidation.
+
+## Related talks
+
+Deeper treatments of ideas this talk only has time to gesture at:
+
+- [Queue Theory for Node Developers](https://blog.nukemberg.com/presentation/queue-theory-for-node-developers/) — the queueing-theory background behind the M/M/c/c model and the "load metrics vs. system-response metrics" split
+- [What's the Cost of a Millisecond](https://blog.nukemberg.com/presentation/whats-the-cost-of-a-millisecond/) — latency budgets and why a millisecond isn't free
+- [The Math of Scalability](https://blog.nukemberg.com/presentation/the-math-of-scalability/) — the Universal Scalability Law behind "design for max, shared resources don't scale linearly"
+- [Beyond Big O](https://blog.nukemberg.com/presentation/beyond-big-o/) — why asymptotic complexity alone doesn't predict real system behavior
+- [We Need to Talk About Limits](https://blog.nukemberg.com/presentation/we-need-to-talk-about-limits/) — on `max`, ceilings, and why every system needs one

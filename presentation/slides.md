@@ -18,7 +18,11 @@ baseUrl: https://autoscaling-talk.example.com
 # Autoscaling
 ## Cost Optimization Turned Reliability Nightmare
 
-Reversim 2026
+Avishai Ish-Shalom
+
+<div class="social">
+  <a href="https://x.com/nukemberg" target="_blank"><XLogo /> @nukemberg</a>
+</div>
 
 <!--
 Total budget: 27 min net content + 3 min buffer = 30 min total.
@@ -484,6 +488,10 @@ Questions?
 
 <div class="mt-6">
   <Qr path="" :size="140" />
+</div>
+
+<div class="social">
+  <a href="https://x.com/nukemberg" target="_blank"><XLogo /> @nukemberg</a>
 </div>
 
 ---

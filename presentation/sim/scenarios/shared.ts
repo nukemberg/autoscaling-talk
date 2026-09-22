@@ -44,7 +44,7 @@ export function loadProfile(p: Params, t0: number): Rate {
 export const unitParams: ParamSpec[] = [
   { key: 'latencyMs', label: 'service time', group: 'unit', kind: 'range', min: 5, max: 2000, step: 5, default: 100, unit: 'ms',
     help: 'Mean time one request occupies a slot (exponentially distributed).' },
-  { key: 'concurrency', label: 'slots per instance', group: 'unit', kind: 'range', min: 1, max: 256, step: 1, default: 16,
+  { key: 'concurrency', label: 'Instance concurrency', group: 'unit', kind: 'range', min: 1, max: 256, step: 1, default: 16,
     help: 'Requests one instance handles at once (threads / workers). Beyond this it rejects. Capacity = slots × 1000 / service time.' },
   ...distParams({
     key: 'bootSec', label: 'boot time', group: 'unit',

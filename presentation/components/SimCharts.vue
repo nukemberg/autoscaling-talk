@@ -49,15 +49,19 @@ const hasSecondary = computed(() => props.charts.some((c) => c.scales && Object.
 const panels = computed(() => props.charts.map((c, i) => {
   const last = i === props.charts.length - 1
   const data: AlignedData = [props.result.t, ...c.series.map((s) => props.result.series[s.key])]
+  // No axis `label` here (a rotated title reserves extra width beyond `size`,
+  // and only a non-empty one does — that extra was the actual misalignment
+  // between panels with a real secondary axis and placeholder ones below).
+  // The color-coded series + legend already say what the scale is.
   const rightAxes = Object.entries(c.scales ?? {}).map(([k, v]) => ({
-    stroke: v.color ?? 'black', side: 1, scale: k, grid: { show: false }, label: v.label, size: RIGHT_AXIS_SIZE,
+    stroke: v.color ?? 'black', side: 1, scale: k, grid: { show: false }, size: RIGHT_AXIS_SIZE,
   }))
   // No secondary scale of its own, but a sibling panel has one: reserve the same
   // gutter with an invisible placeholder so the plot columns still line up.
   if (!rightAxes.length && hasSecondary.value) {
     rightAxes.push({
       stroke: 'transparent', side: 1, scale: undefined as unknown as string, grid: { show: false },
-      label: '', size: RIGHT_AXIS_SIZE, ticks: { show: false }, values: () => [] as unknown as string[],
+      size: RIGHT_AXIS_SIZE, ticks: { show: false }, values: () => [] as unknown as string[],
     } as never)
   }
   const options: Partial<Options> = {

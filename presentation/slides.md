@@ -72,6 +72,15 @@ layout: section
 
 # It's a Control System
 
+- **Dead time** — boot time + metric delay. The gap between "order more capacity" and "capacity exists"
+- **Characteristic time** — how fast the load itself changes. If it moves faster than dead time, the controller is always chasing
+- **Gain** — how hard you react to error. Too high, you overshoot; too low, you never catch up
+- **Sample period + cooldown** — a discrete controller. Can't react faster than it samples, can't correct a mistake faster than cooldown lets it move again
+
+Sample slower than the load changes, and you're steering blind between samples — the textbook argument for why "just poll faster" isn't free.
+
+k8s HPA and AWS ASG hand you these knobs with names that don't say so: `--horizontal-pod-autoscaler-sync-period`, stabilization windows, cooldowns, warm-up. Same physics, different defaults.
+
 <!--
 [6 min]
 CPU-driven autoscaler oscillated so hard instances died before they

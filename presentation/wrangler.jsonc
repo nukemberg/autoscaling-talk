@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "autoscaling-rant",
+  "compatibility_date": "2026-09-21",
+  "routes": [
+    { "pattern": "autoscaling-rant.fewbytes.com", "custom_domain": true }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "single-page-application"
+  }
+}

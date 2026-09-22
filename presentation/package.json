@@ -10,7 +10,10 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p sim",
     "bench": "vite --config bench/vite.config.ts",
-    "bench:build": "vite build --config bench/vite.config.ts"
+    "bench:build": "vite build --config bench/vite.config.ts",
+    "build:site": "npm run build && rm -f dist/_redirects && npm run bench:build && rm -rf dist/workbench && mv dist-bench dist/workbench",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "dependencies": {
     "@slidev/cli": "^53.0.0",
@@ -23,6 +26,7 @@
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.136.2"
   }
 }

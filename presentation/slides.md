@@ -287,10 +287,29 @@ layout: section
 
 # The Cost Problem
 
+<div class="text-left">
+
+- Autoscaling means **someone else controls your bill** — retry storms, scrapers, a bug in a client
+- Scaling costs your upstream too — DB tiers, egress, per-connection pricing
+- Scaling is an attack surface — economic DoS
+- **Always set `max`.** It's the rate limit on your own wallet.
+
+</div>
+
 <!--
 [3 min]
 External actors, runaway upstream costs, no max. Autoscaling optimizes
 cost until it doesn't — the failure mode nobody budgets for.
+
+You don't control what drives your scaling signal — a retry storm, a
+scraper, a misbehaving client, an external actor probing for exactly
+this. Scaling out isn't free even when it "works": every new instance
+is more connections, more egress, more log volume, more load on
+whatever it depends on — costs that don't show up in the compute bill
+line. Without `max`, autoscaling has no ceiling: an attacker (or a bug)
+that can drive your load can drive your spend, unbounded. `max` isn't
+a nice-to-have, it's the one knob that turns "runaway" into "an outage
+you chose" instead of "a bill you didn't."
 -->
 
 ---

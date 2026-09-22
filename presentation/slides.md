@@ -9,7 +9,7 @@ drawings:
   persist: false
 transition: slide-left
 comark: true
-duration: 35min
+duration: 30min
 mdc: true
 # Deployed slides; QR codes (<Qr path=…>) resolve against this.
 baseUrl: https://autoscaling-talk.example.com
@@ -21,7 +21,7 @@ baseUrl: https://autoscaling-talk.example.com
 Reversim 2026
 
 <!--
-Total budget: ~32 min content + buffer to 35.
+Total budget: 27 min net content + 3 min buffer = 30 min total.
 -->
 
 ---
@@ -95,24 +95,37 @@ layout: default
 
 # Scaling by Metrics, FTW! 🤦
 
-<div class="text-left">
+<div class="grid grid-cols-2 gap-6 mt-6 text-left">
+  <!-- Card 1: Demand -->
+  <div class="p-5 border border-emerald-500/30 rounded-xl bg-emerald-500/5">
+    <div class="text-emerald-500 font-mono text-xs uppercase tracking-wider font-semibold">1. Demand (Cause)</div>
+    <div class="text-xl font-bold mt-1 mb-1">What you want to scale on</div>
+    <p class="text-sm opacity-85">Incoming work, queue depth</p>
+    <p class="text-xs opacity-50 mt-3 font-mono">Hard to isolate per instance (LB distribution)</p>
+  </div>
 
-- **Load** metrics (queue depth, incoming throughput) vs **system response** (CPU, load avg, latency)
-- Load metrics: usually not available
-- Two dimensions to handle — time, and space (LB spreads load across servers)
-- Know exactly what one server can handle? → queueing theory
-- Load is compressible
-
+  <!-- Card 2: Symptoms -->
+  <div class="p-5 border border-rose-500/30 rounded-xl bg-rose-500/5">
+    <div class="text-rose-500 font-mono text-xs uppercase tracking-wider font-semibold">2. Symptoms (Effect)</div>
+    <div class="text-xl font-bold mt-1 mb-1">What you actually have</div>
+    <p class="text-sm opacity-85">CPU utilization, latency</p>
+    <p class="text-xs opacity-50 mt-3 font-mono">Readily available proxies — but deceptive</p>
+  </div>
 </div>
 
-<div class="text-left mt-6">
-
-→ Most people end up on system response metrics. Welcome to a control theory problem.
-
+<div class="text-left mt-7 space-y-2">
+  <div class="text-xl font-medium">
+    <span class="text-amber-500 font-bold">3. Latency</span> is an <em>effect</em>, not a capacity shortage.
+  </div>
+  <div class="text-lg font-bold">
+    → When you scale on symptoms, you've built a closed feedback loop.
+  </div>
 </div>
 
 <!--
 [5 min]
+Layout: two cards (Demand vs. Symptoms) + the 3-beat punchline at the bottom.
+
 The FTW is the setup, the facepalm is the reveal: metrics-based scaling
 sounds obviously right, then doesn't work as advertised. Load metrics
 (queue depth, incoming throughput) directly measure the thing you care
@@ -241,13 +254,13 @@ layout: default
 <div class="text-left">
 
 - **Well-behaved unit** — bounded concurrency, sheds fast, predictable capacity, boots fast, honest metrics
-- **Bad unit** — unbounded threads, degrades instead of rejecting, lies about load
+- **Bad unit** — unbounded concurrency, degrades instead of rejecting, lies about load
 
 </div>
 
 <div class="text-left mt-6">
 
-→ The scaler can only be as good as the unit it's scaling.
+→ Your controller doesn't know the server load if it hides it!
 
 </div>
 
@@ -258,12 +271,13 @@ still gets traffic. Why unstable units make every other problem worse.
 
 Loss (Erlang-B, reject when full) is the well-behaved case — bounded
 concurrency, predictable, and the CPU/busy-fraction metric tracks real
-load honestly. The node.js-style unit never rejects; service time
-inflates instead (event-loop contention, not thread exhaustion), so
-the busy-fraction metric stays low relative to the inflated concurrency
+load honestly. A degrading unit (like Node.js event-loop saturation or
+unbounded worker pools) never rejects; service time inflates instead,
+so the busy-fraction metric stays low relative to the inflated concurrency
 ceiling right up until backlog explodes. The autoscaler sees a healthy
-signal on an unhealthy system — it can't shed what it can't see. Live
-demo on the next slide: flip unit model, same input, same knobs.
+signal on an unhealthy system — your controller doesn't know the server load
+if it hides it! Live demo on the next slide: flip unit model, same input,
+same knobs.
 -->
 
 ---

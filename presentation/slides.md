@@ -189,7 +189,7 @@ sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 
 # Oscillation, by Default
 
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :height="130" />
 
 <!--
 Live DES from presets/cpu-oscillation.json (scenario sim/scenarios/cpu.ts).
@@ -270,7 +270,7 @@ demo on the next slide: flip unit model, same input, same knobs.
 
 # Loss vs. Node.js, Same Load
 
-<Sim preset="unit-model-compare" :expose="['unitModel', 'degradeGain', 'concurrency', 'queueSlots']" />
+<Sim preset="unit-model-compare" :expose="['unitModel', 'degradeGain', 'concurrency', 'queueSlots']" :height="130" />
 
 <!--
 Live DES from presets/unit-model-compare.json. Sine-wave load (period

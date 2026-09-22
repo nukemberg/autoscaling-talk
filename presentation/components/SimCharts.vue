@@ -39,9 +39,27 @@ function markerHook(labelled: boolean) {
   }
 }
 
+// Fixed axis widths so stacked panels' plot areas line up — otherwise a panel with
+// a secondary (right-side) scale narrows relative to one without, and left-axis
+// width can drift with tick label digit count.
+const LEFT_AXIS_SIZE = 56
+const RIGHT_AXIS_SIZE = 50
+const hasSecondary = computed(() => props.charts.some((c) => c.scales && Object.keys(c.scales).length))
+
 const panels = computed(() => props.charts.map((c, i) => {
   const last = i === props.charts.length - 1
   const data: AlignedData = [props.result.t, ...c.series.map((s) => props.result.series[s.key])]
+  const rightAxes = Object.entries(c.scales ?? {}).map(([k, v]) => ({
+    stroke: v.color ?? 'black', side: 1, scale: k, grid: { show: false }, label: v.label, size: RIGHT_AXIS_SIZE,
+  }))
+  // No secondary scale of its own, but a sibling panel has one: reserve the same
+  // gutter with an invisible placeholder so the plot columns still line up.
+  if (!rightAxes.length && hasSecondary.value) {
+    rightAxes.push({
+      stroke: 'transparent', side: 1, scale: undefined as unknown as string, grid: { show: false },
+      label: '', size: RIGHT_AXIS_SIZE, ticks: { show: false }, values: () => [] as unknown as string[],
+    } as never)
+  }
   const options: Partial<Options> = {
     series: [
       {},
@@ -58,10 +76,8 @@ const panels = computed(() => props.charts.map((c, i) => {
     },
     axes: [
       last ? { stroke: 'black', grid, label: 'seconds' } : { show: false },
-      { stroke: 'black', grid, label: c.yLabel },
-      ...Object.entries(c.scales ?? {}).map(([k, v]) => ({
-        stroke: v.color ?? 'black', side: 1, scale: k, grid: { show: false }, label: v.label,
-      })),
+      { stroke: 'black', grid, label: c.yLabel, size: LEFT_AXIS_SIZE },
+      ...rightAxes,
     ],
     legend: { show: last },
     hooks: { draw: [markerHook(i === 0)] },

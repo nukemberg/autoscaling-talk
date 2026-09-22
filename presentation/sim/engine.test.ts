@@ -110,4 +110,22 @@ describe('Sim', () => {
     sim.run()
     expect(fired).toEqual([...times].sort((a, b) => a - b))
   })
+
+  test('onProgress fires coarsely with current time and once at the end', () => {
+    const sim = new Sim()
+    for (let i = 1; i <= 10_000; i++) sim.schedule(i, () => {})
+    const calls: number[] = []
+    sim.onProgress = (now) => calls.push(now)
+    sim.run(10_000)
+    // Throttled to once per 4096 events, plus exactly one final call at `until`.
+    expect(calls.length).toBeLessThanOrEqual(3 + 1)
+    expect(calls[calls.length - 1]).toBe(10_000)
+    expect(calls).toEqual([...calls].sort((a, b) => a - b))
+  })
+
+  test('onProgress is silent when unset', () => {
+    const sim = new Sim()
+    sim.schedule(1, () => {})
+    expect(() => sim.run()).not.toThrow()
+  })
 })

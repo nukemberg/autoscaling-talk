@@ -23,12 +23,16 @@ export interface InstanceOpts {
   hungCpu?: number
 }
 
-interface Active {
-  req: Request
+/**
+ * One service slot: occupied by at most one request at a time. Slots and their
+ * completion callbacks are allocated once per instance, so the per-request
+ * hot path allocates nothing (the Request itself excepted).
+ */
+interface Slot {
+  req: Request | null
   handle?: EventHandle
   /** When the default work would finish, so a hang can push it out. */
   finishAt?: number
-  finish?: (outcome: Outcome) => void
 }
 
 /** One scaling unit: boots, then serves requests up to `concurrency` at a time. */
@@ -39,7 +43,10 @@ export class Instance {
   readonly launchedAt: number
   readySince?: number
 
-  private active = new Map<number, Active>()
+  private slots: Slot[]
+  private free: number[] = []
+  /** Pre-bound completion callback per slot — the scheduled event fires it with no args → 'ok'. */
+  private slotFinish: ((outcome?: Outcome) => void)[]
   private queue: Request[] = []
   private bootHandle?: EventHandle
   private hungUntil = -Infinity
@@ -49,15 +56,23 @@ export class Instance {
   constructor(private sim: Sim, private opts: InstanceOpts) {
     this.busy = new TimeWeighted(sim, 0)
     this.launchedAt = sim.now
+    const n = opts.concurrency
+    this.slots = new Array(n)
+    this.slotFinish = new Array(n)
+    for (let i = 0; i < n; i++) {
+      this.slots[i] = { req: null }
+      this.free.push(i)
+      this.slotFinish[i] = (outcome) => this.complete(i, outcome)
+    }
     const boot = typeof opts.bootTime === 'function' ? opts.bootTime() : opts.bootTime
     const ready = () => { this.state = 'ready'; this.readySince = this.sim.now }
     if (boot === 0) ready()
     else this.bootHandle = sim.schedule(boot, ready)
   }
 
-  get inFlight(): number { return this.active.size }
+  get inFlight(): number { return this.opts.concurrency - this.free.length }
   get queued(): number { return this.queue.length }
-  get utilization(): number { return this.active.size / this.opts.concurrency }
+  get utilization(): number { return this.inFlight / this.opts.concurrency }
   get hung(): boolean { return this.sim.now < this.hungUntil }
   /** What a health check sees: serving and not stuck. */
   get healthy(): boolean { return this.state === 'ready' && !this.hung }
@@ -67,11 +82,12 @@ export class Instance {
   /** Stop completing anything for `duration`; requests keep piling into slots. */
   hang(duration: number): void {
     this.hungUntil = Math.max(this.hungUntil, this.sim.now + duration)
-    for (const a of this.active.values()) {
-      if (a.handle && a.finishAt !== undefined && a.finish) {
-        a.handle.cancel()
-        a.finishAt = this.hungUntil + Math.max(0, a.finishAt - this.sim.now)
-        a.handle = this.sim.scheduleAt(a.finishAt, () => a.finish!('ok'))
+    for (let i = 0; i < this.slots.length; i++) {
+      const s = this.slots[i]!
+      if (s.req && s.handle && s.finishAt !== undefined) {
+        s.handle.cancel()
+        s.finishAt = this.hungUntil + Math.max(0, s.finishAt - this.sim.now)
+        s.handle = this.sim.scheduleAt(s.finishAt, this.slotFinish[i]!)
       }
     }
   }
@@ -84,7 +100,7 @@ export class Instance {
 
   handle(req: Request): void {
     if (this.state !== 'ready') return this.finish(req, 'rejected')
-    if (this.active.size < this.opts.concurrency) return this.start(req)
+    if (this.free.length > 0) return this.start(req)
     if (this.queue.length < this.opts.queueLimit) { this.queue.push(req); return }
     this.finish(req, 'rejected')
   }
@@ -92,36 +108,52 @@ export class Instance {
   terminate(): void {
     this.state = 'terminated'
     this.bootHandle?.cancel()
-    for (const a of this.active.values()) a.handle?.cancel()
-    const victims = [...this.active.values()].map((a) => a.req).concat(this.queue)
-    this.active.clear()
+    const victims: Request[] = []
+    for (const s of this.slots) {
+      s.handle?.cancel()
+      if (s.req) victims.push(s.req)
+      s.req = null
+      s.handle = undefined
+      s.finishAt = undefined
+    }
+    victims.push(...this.queue)
     this.queue = []
+    this.free.length = 0
+    for (let i = 0; i < this.slots.length; i++) this.free.push(i)
     this.busy.set(0)
     for (const r of victims) this.finish(r, 'error')
   }
 
   private start(req: Request): void {
+    const i = this.free.pop()!
     req.startedAt = this.sim.now
-    const entry: Active = { req }
-    this.active.set(req.id, entry)
+    const s = this.slots[i]!
+    s.req = req
     this.busy.set(this.utilization)
-    const finish = (outcome: Outcome) => {
-      if (!this.active.delete(req.id)) return // already killed by terminate()
-      this.busy.set(this.utilization)
-      this.finish(req, outcome)
-      const next = this.queue.shift()
-      if (next) this.start(next)
-    }
     if (this.opts.work) {
-      this.opts.work(req, finish)
+      // The guard req keeps a late or duplicate finish from completing a slot's next occupant.
+      this.opts.work(req, (outcome) => this.complete(i, outcome, req))
     } else {
-      let factor = this.opts.slowdown ? this.opts.slowdown(this.active.size) : 1
+      let factor = this.opts.slowdown ? this.opts.slowdown(this.inFlight) : 1
       if (this.sim.now < this.slowUntil) factor *= this.slowFactor
       const service = this.opts.serviceTime() * factor
-      entry.finish = finish
-      entry.finishAt = Math.max(this.sim.now, this.hungUntil) + service
-      entry.handle = this.sim.scheduleAt(entry.finishAt, () => finish('ok'))
+      s.finishAt = Math.max(this.sim.now, this.hungUntil) + service
+      s.handle = this.sim.scheduleAt(s.finishAt, this.slotFinish[i]!)
     }
+  }
+
+  /** Finish whatever occupies slot `i` (default path) or `req`'s slot (work path). */
+  private complete(i: number, outcome: Outcome | undefined, expect?: Request): void {
+    const s = this.slots[i]!
+    const req = s.req
+    if (!req || (expect !== undefined && req !== expect)) return // already completed or terminated
+    s.req = null
+    s.handle = undefined
+    s.finishAt = undefined
+    this.free.push(i)
+    this.busy.set(this.utilization)
+    this.finish(req, outcome ?? 'ok')
+    if (this.queue.length) this.start(this.queue.shift()!)
   }
 
   private finish(req: Request, outcome: Outcome): void {

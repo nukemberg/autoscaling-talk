@@ -59,7 +59,11 @@ export interface ScenarioDef {
   description: string
   params: ParamSpec[]
   charts: ChartSpec[]
-  run(params: Params): ScenarioResult
+  /**
+   * Run the scenario. The optional progress callback receives a 0..1 fraction
+   * of the run; it fires coarsely (engine-throttled) so callers can show a bar.
+   */
+  run(params: Params, progress?: (fraction: number) => void): ScenarioResult
 }
 
 export function defaults(specs: ParamSpec[]): Params {

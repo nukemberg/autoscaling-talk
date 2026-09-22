@@ -48,21 +48,26 @@ export const cpuScenario: ScenarioDef = {
     },
   ],
 
-  run(p: Params) {
+  run(p: Params, progress?: (fraction: number) => void) {
     const bootSec = num(p, 'bootSec'), quietSec = num(p, 'quietSec')
     const horizon = num(p, 'horizonSec'), sample = num(p, 'sampleSec')
+    // Total simulated span: warmup + horizon. `t0` below equals the warmup end
+    // (run() ends the clock exactly at `until`), so this is the run's full extent.
+    const warmupEnd = bootSec + num(p, 'healthCheckSec') * (num(p, 'healthyAfter') + 1)
+    const end = warmupEnd + horizon
 
     const sim = new Sim()
     const rng = new Rng(num(p, 'seed'))
-    const stats = new Stats(sim)
+    const stats = new Stats(sim, { track: false }) // totals only — record() must stay allocation-free
     const lb = new LoadBalancer(sim, lbOpts(p))
     lb.onDone = (r) => stats.record(r)
     const cluster = new Cluster(sim, lb, instanceOpts(p, rng), clusterOpts(p))
+    if (progress) sim.onProgress = (now) => progress(Math.min(1, now / end))
 
     // Start already sized for the base load, warm — the steady state before anything happens.
     const needed = Math.ceil(neededInstances(p, num(p, 'baseRps')))
     cluster.scaleTo(Math.min(num(p, 'maxInstances'), Math.max(num(p, 'minInstances'), needed)))
-    sim.run(bootSec + num(p, 'healthCheckSec') * (num(p, 'healthyAfter') + 1))
+    sim.run(warmupEnd)
     const t0 = sim.now
 
     const offered = loadProfile(p, t0 + quietSec)

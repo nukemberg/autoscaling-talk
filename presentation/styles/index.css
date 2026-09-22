@@ -97,7 +97,7 @@
    bonus slide's QR code) — never the main content, just a visual accent. */
 
 .meme {
-  max-width: 200px;
+  max-width: 400px;
   border-radius: 0.5rem;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }

@@ -133,14 +133,14 @@ itself, you've built a feedback loop, with everything that implies.
 layout: default
 ---
 
-# It's a Control System
+# Control Theory Crash Course
 
 <div class="text-left">
 
-- **Dead time** — boot + metric delay
-- **Characteristic time** — how fast load moves
-- **Gain** — how hard you react
-- **Sample period + cooldown** — a discrete controller
+- **Characteristic time vs. dead time** — how fast load moves vs. how long you take to react
+- **Gain** — how hard you react to error
+- **Discrete sampling** — can't react faster than you sample; cooldown is a second limit
+- **Stateful vs. stateless controllers** — memory of what's already in flight, or windup
 
 </div>
 
@@ -150,13 +150,31 @@ CPU-driven autoscaler oscillated so hard instances died before they
 finished booting. Dead time, gain, cooldown, loop period — the knobs
 everyone inherits as defaults and nobody tunes.
 
-Dead time = gap between "order more capacity" and "capacity exists".
-Characteristic time = if load moves faster than dead time, controller
-always chases. Gain too high = overshoot, too low = never catches up.
-Discrete controller: can't react faster than it samples, can't correct
-faster than cooldown lets it move. Sample slower than the load changes
-and you're steering blind between samples — why "just poll faster"
-isn't free. k8s HPA / AWS ASG give these knobs names that don't say so:
+Quick framing before the four insights: continuous control (thermostat,
+cruise control) vs discrete/sampled control (everything here — you only
+see the world every sync-period). Same theory, sampling adds the extra
+constraint below. We're using sims, not closed-form models, because
+these loops are nonlinear and coupled enough that hand math stops being
+useful fast — the simulator is standing in for the formal model.
+
+1. Dead time = gap between "order more capacity" and "capacity exists".
+   Characteristic time = how fast load itself moves. If load moves
+   faster than dead time, the controller is always chasing, structurally.
+2. Gain too high = overshoot/oscillation. Too low = never catches up.
+3. Discrete controller: can't react faster than it samples, can't
+   correct faster than cooldown lets it move again. Sample slower than
+   the load changes and you're steering blind between samples — why
+   "just poll faster" isn't free (Nyquist-ish, no math needed).
+4. A stateless controller recomputes purely from current error each
+   tick — no memory of orders already placed but not yet reflected in
+   the metric. It keeps ordering more of what's already coming, then
+   all of it lands at once: windup, then overshoot. A controller with
+   memory nets out in-flight actuation before deciding. Most
+   autoscalers you get by default are the naive stateless kind — guess
+   what happens. (k8s's unready-pod set-aside is memory bolted onto an
+   otherwise stateless loop — the exception, not the rule.)
+
+k8s HPA / AWS ASG give these knobs names that don't say so:
 sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 -->
 

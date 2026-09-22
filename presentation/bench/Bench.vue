@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { resolvePreset, toPreset, type Preset } from '../sim/scenarios/preset'
 import { scenarios } from '../sim/scenarios/registry'
 import { defaults, type ParamGroup, type Params } from '../sim/scenarios/types'
+import RunWorker from './runWorker?worker'
+import type { RunRequest, RunResponse } from './runWorker'
 
 const GROUPS: ParamGroup[] = ['load', 'unit', 'scaler', 'upstream', 'fault', 'sim']
 const STORAGE_KEY = 'bench.presets'
@@ -12,12 +14,51 @@ const def = computed(() => scenarios.find((s) => s.id === scenarioId.value)!)
 const params = ref<Params>(defaults(def.value.params))
 const name = ref('untitled')
 
+// Runs happen in a worker so heavy sims never block the UI; the main thread
+// only updates params (and the JSON/URL) instantly. The debounce delay adapts
+// to the last run's duration — fast scenarios stay near-instant while dragging,
+// slow ones wait longer so runs don't stack up in the worker's queue.
+const MIN_RUN_DELAY_MS = 50
+const MAX_RUN_DELAY_MS = 500
 const runMs = ref(0)
-const result = computed(() => {
-  const t0 = performance.now()
-  const r = def.value.run(params.value)
-  runMs.value = performance.now() - t0
-  return r
+const dirty = ref(false)
+const progress = ref(0)
+const result = ref(def.value.run(params.value))
+
+const runDelayMs = computed(() =>
+  Math.min(MAX_RUN_DELAY_MS, Math.max(MIN_RUN_DELAY_MS, runMs.value * 2)))
+
+const worker = new RunWorker()
+onUnmounted(() => worker.terminate())
+
+let reqId = 0
+worker.onmessage = (e: MessageEvent<RunResponse>) => {
+  const m = e.data
+  if (m.id !== reqId) return // stale run — a newer request superseded it
+  if (m.type === 'progress') { progress.value = m.fraction; return }
+  dirty.value = false
+  if (m.type === 'done') {
+    result.value = m.result
+    runMs.value = m.runMs
+    progress.value = 1
+  } else {
+    flash(`error: ${m.message}`)
+  }
+}
+
+function runNow(p: Params) {
+  const id = ++reqId
+  // structuredClone can't handle Vue's reactive proxies — send a plain copy
+  const msg: RunRequest = { id, scenarioId: def.value.id, params: JSON.parse(JSON.stringify(p)) }
+  worker.postMessage(msg)
+}
+
+let runTimer: ReturnType<typeof setTimeout> | undefined
+watch(params, (p) => {
+  dirty.value = true
+  progress.value = 0
+  clearTimeout(runTimer)
+  runTimer = setTimeout(() => runNow(p), runDelayMs.value)
 })
 
 const groups = computed(() => GROUPS.filter((g) => def.value.params.some((p) => p.group === g)))
@@ -114,6 +155,10 @@ onMounted(() => {
 
 <template>
   <div class="bench">
+    <header class="app-header">
+      <h1>SimCluster<span class="tm">™</span></h1>
+      <p class="tagline">an autoscaling workbench</p>
+    </header>
     <aside>
       <header>
         <h1>{{ def.title }}</h1>
@@ -158,9 +203,14 @@ onMounted(() => {
     </aside>
 
     <main>
+      <div class="progress" :class="{ hidden: !dirty }" aria-hidden="true">
+        <div class="bar" :style="{ width: `${Math.max(2, Math.round(progress * 100))}%` }" />
+      </div>
       <div class="summary">
         <span v-for="(v, k) in result.summary" :key="k"><b>{{ k }}</b> {{ v }}</span>
-        <span class="muted">{{ runMs.toFixed(0) }} ms</span>
+        <span class="muted" :title="`sim re-runs ${runDelayMs.toFixed(0)} ms after the last change (adapts to run duration)`">
+                {{ dirty ? `calculating… ${(progress * 100).toFixed(0)}%` : `${runMs.toFixed(0)} ms` }}
+        </span>
       </div>
       <SimCharts :charts="def.charts" :result="result" :height="280" />
     </main>
@@ -169,7 +219,11 @@ onMounted(() => {
 
 <style>
 body { margin: 0; font-family: system-ui, sans-serif; font-size: 14px; color: #111; background: #fafafa; }
-.bench { display: grid; grid-template-columns: 22rem 1fr; min-height: 100vh; }
+.bench { display: grid; grid-template-columns: 22rem 1fr; grid-template-rows: auto 1fr; min-height: 100vh; }
+.app-header { grid-column: 1 / -1; padding: 0.6rem 1rem; border-bottom: 1px solid #ddd; background: white; display: flex; align-items: baseline; gap: 0.6rem; }
+.app-header h1 { margin: 0; font-size: 1.1rem; letter-spacing: -0.02em; }
+.app-header .tm { font-size: 0.55em; vertical-align: super; color: #999; }
+.app-header .tagline { margin: 0; color: #999; font-size: 0.8rem; }
 aside { padding: 1rem; border-right: 1px solid #ddd; background: white; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
 aside header h1 { margin: 0; font-size: 1rem; }
 .desc { margin: 0.4rem 0 0; color: #555; font-size: 0.8rem; }
@@ -187,6 +241,9 @@ aside header h1 { margin: 0; font-size: 1rem; }
 .export textarea { width: 100%; font-family: monospace; font-size: 0.75rem; box-sizing: border-box; }
 .status { color: #27ae60; }
 main { padding: 1rem 2rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.progress { height: 4px; border-radius: 2px; background: #eee; overflow: hidden; opacity: 0; transition: opacity 0.15s; }
+.progress:not(.hidden) { opacity: 1; }
+.progress .bar { height: 100%; background: #2980b9; transition: width 0.2s; }
 .summary { display: flex; gap: 1.5rem; font-family: monospace; }
 .muted { color: #999; }
 </style>

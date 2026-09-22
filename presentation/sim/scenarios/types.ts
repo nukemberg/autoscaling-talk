@@ -37,6 +37,8 @@ export interface ScenarioResult {
 export interface SeriesSpec {
   key: string
   label: string
+  /** Palette role name (resolved to a theme color at render time, see
+   *  components/theme.ts) or a literal CSS color. */
   color: string
   width?: number
   dash?: number[]
@@ -48,7 +50,8 @@ export interface ChartSpec {
   title?: string
   yLabel: string
   series: SeriesSpec[]
-  /** Extra scales, e.g. { pct: [0, 100] }. */
+  /** Extra scales, e.g. { pct: [0, 100] }. `color` is a palette role name or
+   *  literal CSS color, same as SeriesSpec. */
   scales?: Record<string, { range: [number, number]; label: string; color?: string }>
   height?: number
 }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type uPlot from 'uplot'
 import type { AlignedData, Options } from 'uplot'
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { ChartSpec, ScenarioResult } from '../sim/scenarios/types'
+import { chartColors, resolveColor, watchChartTheme } from './theme'
 
 const props = withDefaults(defineProps<{
   charts: ChartSpec[]
@@ -14,16 +15,19 @@ const props = withDefaults(defineProps<{
 // place (see Chart.vue's render()), and each panel is a separate uPlot
 // instance — sharing one object across panels let a later panel's instance
 // corrupt an earlier one's tick state.
-function mkGrid() { return { stroke: '#ddd', width: 1 } }
+function mkGrid() {
+  return { stroke: chartColors().grid, width: 1 }
+}
 
 function markerHook(labelled: boolean) {
   return (u: uPlot) => {
     const { top, height } = u.bbox
     const ctx = u.ctx
+    const marker = chartColors().marker
     for (const m of props.result.markers) {
       const x = u.valToPos(m.t, 'x', true)
       ctx.save()
-      ctx.strokeStyle = '#2980b9'
+      ctx.strokeStyle = marker
       ctx.lineWidth = 2
       ctx.setLineDash([6, 4])
       ctx.beginPath()
@@ -32,7 +36,7 @@ function markerHook(labelled: boolean) {
       ctx.stroke()
       if (labelled) {
         ctx.setLineDash([])
-        ctx.fillStyle = '#2980b9'
+        ctx.fillStyle = marker
         ctx.font = `${12 * devicePixelRatio}px sans-serif`
         ctx.textAlign = 'right'
         ctx.textBaseline = 'bottom'
@@ -59,7 +63,13 @@ function yRange(_u: uPlot, dataMin: number, dataMax: number): [number, number] {
   return [lo, hi + (hi - lo) * 0.1]
 }
 
-const panels = computed(() => props.charts.map((c, i) => {
+const panelsTrigger = ref(0)
+// Chart palette is read inside via chartColors(); bumping the trigger on theme
+// flip re-evaluates it so every uPlot instance gets rebuilt with new colors.
+const panels = computed(() => {
+  void panelsTrigger.value
+  const C = chartColors()
+  return props.charts.map((c, i) => {
   const last = i === props.charts.length - 1
   const data: AlignedData = [props.result.t, ...c.series.map((s) => props.result.series[s.key])]
   // No axis `label` here (a rotated title reserves extra width beyond `size`,
@@ -67,7 +77,7 @@ const panels = computed(() => props.charts.map((c, i) => {
   // between panels with a real secondary axis and placeholder ones below).
   // The color-coded series + legend already say what the scale is.
   const rightAxes = Object.entries(c.scales ?? {}).map(([k, v]) => ({
-    stroke: v.color ?? 'black', side: 1, scale: k, grid: { show: false }, size: RIGHT_AXIS_SIZE,
+    stroke: resolveColor(v.color, C), side: 1, scale: k, grid: { show: false }, size: RIGHT_AXIS_SIZE,
   }))
   // No secondary scale of its own, but a sibling panel has one: reserve the same
   // gutter with an invisible placeholder so the plot columns still line up.
@@ -83,7 +93,7 @@ const panels = computed(() => props.charts.map((c, i) => {
     series: [
       {},
       ...c.series.map((s) => ({
-        label: s.label, stroke: s.color, width: s.width ?? 1.5, points: { show: false },
+        label: s.label, stroke: resolveColor(s.color, C), width: s.width ?? 1.5, points: { show: false },
         // uPlot treats an explicit `scale: undefined` differently from an absent key.
         ...(s.dash ? { dash: s.dash } : {}),
         ...(s.scale ? { scale: s.scale } : {}),
@@ -95,8 +105,8 @@ const panels = computed(() => props.charts.map((c, i) => {
       ...Object.fromEntries(Object.entries(c.scales ?? {}).map(([k, v]) => [k, { range: v.range }])),
     },
     axes: [
-      last ? { stroke: 'black', grid: mkGrid(), label: 'seconds' } : { show: false },
-      { stroke: 'black', grid: mkGrid(), label: c.yLabel, size: LEFT_AXIS_SIZE },
+      last ? { stroke: C.text, grid: mkGrid(), label: 'seconds' } : { show: false },
+      { stroke: C.text, grid: mkGrid(), label: c.yLabel, size: LEFT_AXIS_SIZE },
       ...rightAxes,
     ],
     legend: { show: last },
@@ -111,7 +121,12 @@ const panels = computed(() => props.charts.map((c, i) => {
   const LAST_PANEL_EXTRA = 60
   const height = (c.height ?? props.height) + (last ? LAST_PANEL_EXTRA : 0)
   return { data, options, height }
-}))
+  })
+})
+
+// Re-evaluate `panels` (rebuilding every uPlot instance with new colors) when
+// Slidev's dark/light toggle flips.
+watchChartTheme(() => { panelsTrigger.value++ })
 </script>
 
 <template>

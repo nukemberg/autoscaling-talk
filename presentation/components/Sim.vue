@@ -130,22 +130,22 @@ const summary = computed(() => {
 .fold summary, .summary-line { cursor: pointer; opacity: 0.8; overflow-wrap: anywhere; }
 .panel {
   position: absolute; z-index: 100; top: 1.4rem; left: 0; max-width: 100%; font-family: sans-serif;
-  padding: 0.6rem 0.8rem; background: white; border: 1px solid #ccc; border-radius: 4px;
+  padding: 0.6rem 0.8rem; background: var(--chart-panel-bg, white); border: 1px solid var(--chart-panel-border, #ccc); border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   max-height: 70vh; overflow-y: auto; box-sizing: border-box;
 }
-.notes { margin: 0 0 0.6rem; font-size: 0.8rem; line-height: 1.4; color: #333; white-space: pre-wrap; min-width: 20rem; max-width: 28rem; }
+.notes { margin: 0 0 0.6rem; font-size: 0.8rem; line-height: 1.4; color: var(--chart-text, #333); white-space: pre-wrap; min-width: 20rem; max-width: 28rem; }
 .charts-wrap { position: relative; }
 .progress {
   position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 5; overflow: hidden;
-  background: rgba(41, 128, 185, 0.15); opacity: 0; transition: opacity 0.15s;
+  background: color-mix(in srgb, var(--chart-accent, #2980b9) 15%, transparent); opacity: 0; transition: opacity 0.15s;
 }
 .progress.active { opacity: 1; }
-.progress .bar { height: 100%; background: #2980b9; }
+.progress .bar { height: 100%; background: var(--chart-accent, #2980b9); }
 .placeholder { display: grid; place-items: center; }
 .spinner {
   width: 18px; height: 18px; border-radius: 50%;
-  border: 2px solid #ddd; border-top-color: #2980b9;
+  border: 2px solid var(--chart-grid, #ddd); border-top-color: var(--chart-accent, #2980b9);
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -31,25 +31,25 @@ export const cpuScenario: ScenarioDef = {
     {
       yLabel: 'instances',
       series: [
-        { key: 'instances', label: 'instances', color: 'black', width: 2 },
-        { key: 'ready', label: 'ready', color: '#888', width: 1, dash: [4, 4] },
-        { key: 'inRotation', label: 'in LB rotation', color: '#2980b9', width: 1, dash: [2, 3] },
-        { key: 'cpu', label: 'cpu %', color: '#c0392b', width: 1.5, scale: 'pct' },
+        { key: 'instances', label: 'instances', color: 'inst', width: 2 },
+        { key: 'ready', label: 'ready', color: 'muted', width: 1, dash: [4, 4] },
+        { key: 'inRotation', label: 'in LB rotation', color: 'accent', width: 1, dash: [2, 3] },
+        { key: 'cpu', label: 'cpu %', color: 'cpu', width: 1.5, scale: 'pct' },
       ],
-      scales: { pct: { range: [0, 100], label: 'cpu %', color: '#c0392b' } },
+      scales: { pct: { range: [0, 100], label: 'cpu %', color: 'cpu' } },
     },
     {
       yLabel: 'req/s',
       series: [
-        { key: 'offeredRps', label: 'incoming', color: '#2980b9', width: 1.5 },
-        { key: 'okRps', label: 'OK', color: '#27ae60', width: 2 },
-        { key: 'failedRps', label: 'errors', color: '#c0392b', width: 2 },
+        { key: 'offeredRps', label: 'incoming', color: 'accent', width: 1.5 },
+        { key: 'okRps', label: 'OK', color: 'ok', width: 2 },
+        { key: 'failedRps', label: 'errors', color: 'cpu', width: 2 },
       ],
     },
     {
       yLabel: 'ms',
       series: [
-        { key: 'latencyMs', label: 'latency (mean, OK requests)', color: '#8e44ad', width: 2 },
+        { key: 'latencyMs', label: 'latency (mean, OK requests)', color: 'latency', width: 2 },
       ],
     },
   ],

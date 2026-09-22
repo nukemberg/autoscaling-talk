@@ -59,10 +59,12 @@ const panels = computed(() => props.charts.map((c, i) => {
   // No secondary scale of its own, but a sibling panel has one: reserve the same
   // gutter with an invisible placeholder so the plot columns still line up.
   if (!rightAxes.length && hasSecondary.value) {
+    // No `scale` key: defaults to the panel's own primary scale, same as the
+    // main left axis — ticks/grid stay off so nothing draws from it, only size.
     rightAxes.push({
-      stroke: 'transparent', side: 1, scale: undefined as unknown as string, grid: { show: false },
+      stroke: 'transparent', side: 1, grid: { show: false },
       size: RIGHT_AXIS_SIZE, ticks: { show: false }, values: () => [] as unknown as string[],
-    } as never)
+    })
   }
   const options: Partial<Options> = {
     series: [

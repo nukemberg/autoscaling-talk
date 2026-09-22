@@ -73,6 +73,15 @@ export const unitParams: ParamSpec[] = [
     help: 'Mean time one request occupies a slot (exponentially distributed).' },
   { key: 'concurrency', label: 'Instance concurrency', group: 'unit', kind: 'range', min: 1, max: 256, step: 1, default: 16,
     help: 'Requests one instance handles at once (threads / workers). Beyond this it rejects. Capacity = slots × 1000 / service time.' },
+  { key: 'unitModel', label: 'load-shedding model', group: 'unit', kind: 'select', default: 'loss', options: [
+    { value: 'loss', label: 'loss (reject when full)' }, { value: 'bounded-queue', label: 'bounded queue' },
+    { value: 'nodejs', label: "node.js (doesn't shed)" },
+  ], help: 'What happens beyond concurrency. Loss = M/M/c/c (Erlang-B). Bounded queue = waits for a slot, still rejects past the queue. node.js never rejects; instead every request gets slower as more pile in (event-loop contention) — the load-shedding-by-accident failure mode.' },
+  { key: 'queueSlots', label: 'queue slots', group: 'unit', kind: 'range', min: 1, max: 512, step: 1, default: 32,
+    help: 'Waiting room beyond concurrency before rejecting.', activeWhen: { unitModel: 'bounded-queue' } },
+  { key: 'degradeGain', label: 'degradation gain', group: 'unit', kind: 'range', min: 1, max: 50, step: 1, default: 8,
+    help: 'How sharply service time inflates once concurrent requests exceed nominal concurrency. Higher = falls off a cliff sooner.',
+    activeWhen: { unitModel: 'nodejs' } },
   ...distParams({
     key: 'bootSec', label: 'boot time', group: 'unit',
     help: 'Delay from launch until an instance can serve. The main source of dead time.',
@@ -96,13 +105,29 @@ export function unitCapacity(p: Params): number {
   return num(p, 'concurrency') * 1000 / num(p, 'latencyMs')
 }
 
+/** Requests one instance can hold "in flight" without instant rejection — huge for the node.js model. */
+const UNBOUNDED_CONCURRENCY = 5_000
+
 export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const hung = str(p, 'hungCpu')
+  const nominal = num(p, 'concurrency')
+  const model = str(p, 'unitModel')
+
+  let concurrency = nominal, queueLimit = 0, slowdown: InstanceOpts['slowdown']
+  if (model === 'bounded-queue') {
+    queueLimit = num(p, 'queueSlots')
+  } else if (model === 'nodejs') {
+    concurrency = UNBOUNDED_CONCURRENCY
+    const gain = num(p, 'degradeGain')
+    slowdown = (inFlight) => 1 + gain * Math.max(0, inFlight / nominal - 1) ** 2
+  }
+
   return {
     bootTime: () => sampleDist(rng, p, 'bootSec'),
     serviceTime: () => rng.exp(1000 / num(p, 'latencyMs')),
-    concurrency: num(p, 'concurrency'),
-    queueLimit: 0,
+    concurrency,
+    queueLimit,
+    slowdown,
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
   }
 }

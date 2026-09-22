@@ -120,10 +120,6 @@ layout: default
   <div class="punchline">→ When you scale on symptoms, you've built a closed feedback loop.</div>
 </div>
 
-<div class="abs-br m-4">
-  <img src="/memes/drake-autoscaling.jpg" class="meme" alt="Drake meme: rejects solving performance issues, prefers autoscaling to 1000 servers">
-</div>
-
 <!--
 [5 min]
 Layout: two cards (Demand vs. Symptoms) + the 3-beat punchline at the bottom.
@@ -330,6 +326,42 @@ line. Without `max`, autoscaling has no ceiling: an attacker (or a bug)
 that can drive your load can drive your spend, unbounded. `max` isn't
 a nice-to-have, it's the one knob that turns "runaway" into "an outage
 you chose" instead of "a bill you didn't."
+-->
+
+---
+layout: image-right
+image: /memes/drake-autoscaling.jpg
+backgroundSize: contain
+---
+
+# Comfortable Patch
+
+<div class="content">
+
+- Autoscaling absorbs perf problems painlessly — so nothing forces you to actually fix them
+- You're not reducing cost **per request**. You're paying for more capacity, forever.
+
+</div>
+
+<div class="takeaway">
+
+You are reducing per-request cost, right?
+
+**Right??**
+
+</div>
+
+<!--
+[1 min]
+The engineering feedback loop, not the control one: autoscaling makes
+a capacity problem invisible by paying for it automatically, which
+removes the organizational pressure that would otherwise force someone
+to fix the actual inefficiency. It feels like cost optimization
+because the bill per request looks flat or even improves relative to
+peak provisioning — but compare it to what fixing the underlying
+perf issue would have cost, and it's usually not close. Comfortable
+beats cheap, every time, unless someone's watching the per-request
+number specifically.
 -->
 
 ---

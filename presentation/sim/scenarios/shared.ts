@@ -113,13 +113,19 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const nominal = num(p, 'concurrency')
   const model = str(p, 'unitModel')
 
-  let concurrency = nominal, queueLimit = 0, slowdown: InstanceOpts['slowdown']
+  let concurrency = nominal, queueLimit = 0
+  let slowdown: InstanceOpts['slowdown']
+  let cpuReport: InstanceOpts['cpuReport']
   if (model === 'bounded-queue') {
     queueLimit = num(p, 'queueSlots')
   } else if (model === 'nodejs') {
     concurrency = UNBOUNDED_CONCURRENCY
     const gain = num(p, 'degradeGain')
     slowdown = (inFlight) => 1 + gain * Math.max(0, inFlight / nominal - 1) ** 2
+    // Event-loop utilization, not thread occupancy: rises with real work and
+    // saturates at 1 around nominal concurrency, same as plain utilization
+    // would if concurrency weren't inflated to model the unbounded pool.
+    cpuReport = (inFlight) => Math.min(1, inFlight / nominal)
   }
 
   return {
@@ -128,6 +134,7 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
     concurrency,
     queueLimit,
     slowdown,
+    cpuReport,
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
   }
 }

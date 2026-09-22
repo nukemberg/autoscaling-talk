@@ -189,6 +189,27 @@ describe('Instance faults', () => {
     expect(inst.cpu).toBe(0.25)
   })
 
+  test('cpu: cpuReport overrides plain utilization when set', () => {
+    const sim = new Sim()
+    const { inst } = make(sim, {
+      concurrency: 1000, serviceTime: () => 10, cpuReport: (inFlight) => Math.min(1, inFlight / 4),
+    })
+    expect(inst.cpu).toBe(0) // 0 in flight
+    inst.handle(req(sim, 0))
+    inst.handle(req(sim, 1))
+    expect(inst.cpu).toBe(0.5) // 2/4, not 2/1000
+  })
+
+  test('cpu: cpuReport is bypassed while hung', () => {
+    const sim = new Sim()
+    const { inst } = make(sim, {
+      concurrency: 1000, serviceTime: () => 10, hungCpu: 0, cpuReport: () => 1,
+    })
+    inst.handle(req(sim, 0))
+    inst.hang(5)
+    expect(inst.cpu).toBe(0)
+  })
+
   test('slow: service time multiplied for the duration', () => {
     const sim = new Sim()
     const { inst, done } = make(sim, { concurrency: 4, serviceTime: () => 1 })

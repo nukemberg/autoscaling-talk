@@ -30,4 +30,17 @@ describe('instanceOpts unit models', () => {
     expect(o.slowdown!(32)).toBeCloseTo(1 + 8 * 1 ** 2, 5) // 1x over nominal
     expect(o.slowdown!(48)).toBeCloseTo(1 + 8 * 2 ** 2, 5) // 2x over nominal
   })
+
+  test('nodejs: cpuReport saturates at nominal concurrency, not the inflated one', () => {
+    const o = instanceOpts({ ...base, unitModel: 'nodejs', concurrency: 16 }, new Rng(1))
+    expect(o.cpuReport).toBeDefined()
+    expect(o.cpuReport!(8)).toBeCloseTo(0.5, 5)
+    expect(o.cpuReport!(16)).toBeCloseTo(1, 5)
+    expect(o.cpuReport!(48)).toBeCloseTo(1, 5) // caps at 1, doesn't grow with further backlog
+  })
+
+  test('loss and bounded-queue: no cpuReport override', () => {
+    expect(instanceOpts(base, new Rng(1)).cpuReport).toBeUndefined()
+    expect(instanceOpts({ ...base, unitModel: 'bounded-queue' }, new Rng(1)).cpuReport).toBeUndefined()
+  })
 })

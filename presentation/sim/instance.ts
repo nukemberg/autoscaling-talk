@@ -21,6 +21,14 @@ export interface InstanceOpts {
   work?: Work
   /** CPU reported while hung (0 = stuck on I/O, 1 = spinning). Default: slots busy. */
   hungCpu?: number
+  /**
+   * Override what "busy" is reported as, given current inFlight (0..1).
+   * Default: inFlight / concurrency. Needed when concurrency is set high to
+   * model an effectively-unbounded pool (e.g. the node.js unit model) —
+   * plain utilization would then never approach 1, but a real event-loop
+   * utilization metric saturates at 1 well before that.
+   */
+  cpuReport?: (inFlight: number) => number
 }
 
 /**
@@ -77,7 +85,10 @@ export class Instance {
   /** What a health check sees: serving and not stuck. */
   get healthy(): boolean { return this.state === 'ready' && !this.hung }
   /** What a metrics agent reports — lies while hung, by design. */
-  get cpu(): number { return this.hung ? (this.opts.hungCpu ?? this.utilization) : this.utilization }
+  get cpu(): number {
+    if (this.hung) return this.opts.hungCpu ?? this.utilization
+    return this.opts.cpuReport ? this.opts.cpuReport(this.inFlight) : this.utilization
+  }
 
   /** Stop completing anything for `duration`; requests keep piling into slots. */
   hang(duration: number): void {

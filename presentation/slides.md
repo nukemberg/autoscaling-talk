@@ -283,13 +283,13 @@ layout: default
 <div class="content">
 
 - **Well-behaved unit** — bounded concurrency, sheds fast, predictable capacity, boots fast, honest metrics
-- **Bad unit** — unbounded concurrency, degrades instead of rejecting, lies about load
+- **Bad unit** — doesn't shed, but its signal saturates: 100% whether you're 10% over or 10x over
 
 </div>
 
 <div class="takeaway">
 
-→ Your controller doesn't know the server load if it hides it!
+→ A pinned signal still reacts — just too late, and blind to how much capacity you actually need.
 
 </div>
 
@@ -300,13 +300,17 @@ still gets traffic. Why unstable units make every other problem worse.
 
 Loss (Erlang-B, reject when full) is the well-behaved case — bounded
 concurrency, predictable, and the CPU/busy-fraction metric tracks real
-load honestly. A degrading unit (like Node.js event-loop saturation or
-unbounded worker pools) never rejects; service time inflates instead,
-so the busy-fraction metric stays low relative to the inflated concurrency
-ceiling right up until backlog explodes. The autoscaler sees a healthy
-signal on an unhealthy system — your controller doesn't know the server load
-if it hides it! Live demo on the next slide: flip unit model, same input,
-same knobs.
+load honestly. A degrading unit (Node.js event-loop saturation, or an
+unbounded worker pool) never rejects — it doesn't lie exactly, event-loop
+utilization does rise with real work, same as CPU would. But it's a
+saturating signal: once it hits 100%, it can't tell you whether you're
+10% over capacity or 10x over, and it got there through dead time same
+as everything else, so the autoscaler is reacting to a signal that's
+already stale and directionless. The controller does eventually catch
+up and stabilize — at a higher instance count than the well-behaved
+case, and after a much rougher transient. It's not "the scaler doesn't
+see it," it's "the scaler sees it late and can't judge magnitude."
+Live demo on the next slide: flip unit model, same input, same knobs.
 -->
 
 ---
@@ -319,9 +323,14 @@ same knobs.
 Live DES from presets/unit-model-compare.json. Sine-wave load (period
 200s) so the unit sees sustained variation, not just one step. Flip
 "load-shedding model" from loss to node.js live: same input, errors go
-from ~2% to over 50%, and the CPU metric barely moves because the
-scaler's signal doesn't reflect the real backlog. That's the whole
-point — the scaler is only as good as what the unit tells it.
+from ~2% to ~30%, peak instances jumps from 6 to 9 (vs. loss's clean
+5→6), and there's a visible latency spike during the transient that
+settles back down once capacity catches up. The controller isn't
+blind — cpu/ELU does rise and it does react — but the signal saturates
+at 100% and offers no sense of magnitude, and it's already lagging by
+the time it moves. That's the point: reacting late to a saturating
+signal is a different, less dramatic failure than "never reacts," but
+it's still strictly worse than the well-behaved case.
 -->
 
 ---

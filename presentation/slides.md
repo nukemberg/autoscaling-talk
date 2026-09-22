@@ -93,29 +93,40 @@ coupling) without naming them yet.
 layout: default
 ---
 
-# Scaling on the Wrong Signal
+# Scaling by Metrics, FTW! 🤦
 
 <div class="text-left">
 
-- **CPU** — lies under IO wait, GC, degraded units
-- **Throughput/instance** — breaks when upstream fails
-- **Latency** — not a capacity signal, caused by anything
-- **Queue depth** — closest to the truth
+- **Load** metrics (queue depth, incoming throughput) vs **system response** (CPU, load avg, latency)
+- Load metrics: usually not available
+- Two dimensions to handle — time, and space (LB spreads load across servers)
+- Know exactly what one server can handle? → queueing theory
+- Load is compressible
 
-**L = λW**
+</div>
+
+<div class="text-left mt-6">
+
+→ Most people end up on system response metrics. Welcome to a control theory problem.
 
 </div>
 
 <!--
 [5 min]
-A system scaled on latency ran away to hundreds of instances while fixing
-nothing. Autoscaling can't solve problems that aren't capacity problems —
-you still have to design and load-test for peak yourself.
-
-Little's Law: work in flight = arrival rate × time in system. Everything
-on this slide is a proxy for one side of that equation. Throughput/instance
-looks like less load exactly when upstream fails and the scaler pulls
-capacity out — the opposite of what's needed.
+The FTW is the setup, the facepalm is the reveal: metrics-based scaling
+sounds obviously right, then doesn't work as advertised. Load metrics
+(queue depth, incoming throughput) directly measure the thing you care
+about, but they're rarely exposed and rarely per-instance — the LB
+spreads load across servers, so it's a two-dimensional problem, time and
+space, not just time. If you actually knew how much work one server can
+handle, that's queueing theory (Little's Law: L = λW, work in flight =
+arrival rate × time in system) — and load is compressible, so "how much
+work" isn't even a fixed number. Nobody has that, so everyone falls back
+to system response metrics (CPU, latency) as a proxy. A system scaled on
+latency ran away to hundreds of instances while fixing nothing — latency
+is caused by anything, not just capacity. That's the pivot into control
+theory: once you're reacting to a response signal instead of the load
+itself, you've built a feedback loop, with everything that implies.
 -->
 
 ---

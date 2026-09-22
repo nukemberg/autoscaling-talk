@@ -52,6 +52,13 @@ layout: section
 
 # Scaling on the Wrong Signal
 
+- **CPU** — lags, and lies under IO wait, GC, or a degraded unit spinning idle
+- **Throughput/instance** — good proxy, until upstream fails: less gets served, looks like less load, scaler pulls capacity *out*
+- **Latency** — not a capacity signal. Caused by anything: upstream, GC, a bad deploy, a lock
+- **Queue depth / concurrency** — closest to the truth
+
+Little's Law grounds it: **L = λW**. Work in flight = arrival rate × time in system. Everything above is a proxy for one side of that equation.
+
 <!--
 [5 min]
 A system scaled on latency ran away to hundreds of instances while fixing

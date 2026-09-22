@@ -68,9 +68,22 @@ function render() {
   chart.value = new uPlot(opts, chartData(), el.value)
 }
 
-onMounted(render)
+let ro: ResizeObserver | undefined
+
+onMounted(() => {
+  render()
+  ro = new ResizeObserver(() => {
+    if (chart.value && el.value)
+      chart.value.setSize({ width: el.value.clientWidth, height: props.height })
+  })
+  if (el.value)
+    ro.observe(el.value)
+})
 watch(() => [props.data, props.options], render)
-onBeforeUnmount(() => chart.value?.destroy())
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  chart.value?.destroy()
+})
 </script>
 
 <template>

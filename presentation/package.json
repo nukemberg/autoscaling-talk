@@ -8,7 +8,7 @@
     "export": "slidev export",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit -p sim",
+    "typecheck": "tsc --noEmit -p sim && tsc --noEmit -p bench",
     "bench": "vite --config bench/vite.config.ts",
     "bench:build": "vite build --config bench/vite.config.ts",
     "build:site": "npm run build && rm -f dist/_redirects && npm run bench:build && rm -rf dist/workbench && mv dist-bench dist/workbench",

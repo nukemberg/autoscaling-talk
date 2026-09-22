@@ -144,6 +144,12 @@ layout: default
 
 </div>
 
+<div class="text-left mt-6">
+
+→ No control algorithm is perfect. There's **always** a tradeoff.
+
+</div>
+
 <!--
 [6 min]
 CPU-driven autoscaler oscillated so hard instances died before they

@@ -46,6 +46,12 @@ export const cpuScenario: ScenarioDef = {
         { key: 'failedRps', label: 'errors', color: '#c0392b', width: 2 },
       ],
     },
+    {
+      yLabel: 'ms',
+      series: [
+        { key: 'latencyMs', label: 'latency (mean, OK requests)', color: '#8e44ad', width: 2 },
+      ],
+    },
   ],
 
   run(p: Params, progress?: (fraction: number) => void) {
@@ -59,8 +65,12 @@ export const cpuScenario: ScenarioDef = {
     const sim = new Sim()
     const rng = new Rng(num(p, 'seed'))
     const stats = new Stats(sim, { track: false }) // totals only — record() must stay allocation-free
+    let latencySum = 0, latencyCount = 0 // running sum for OK requests, reset each sample window
     const lb = new LoadBalancer(sim, lbOpts(p))
-    lb.onDone = (r) => stats.record(r)
+    lb.onDone = (r) => {
+      stats.record(r)
+      if (r.outcome === 'ok') { latencySum += ((r.doneAt ?? sim.now) - r.arrivedAt) * 1000; latencyCount++ }
+    }
     const cluster = new Cluster(sim, lb, instanceOpts(p, rng), clusterOpts(p))
     if (progress) sim.onProgress = (now) => progress(Math.min(1, now / end))
 
@@ -86,8 +96,9 @@ export const cpuScenario: ScenarioDef = {
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,
-      // Probes run in order; this last one resets the per-window baseline.
-      _tick: () => { lastTotals = { ...stats.totals }; return 0 },
+      latencyMs: () => latencyCount ? latencySum / latencyCount : 0,
+      // Probes run in order; this last one resets the per-window baselines.
+      _tick: () => { lastTotals = { ...stats.totals }; latencySum = 0; latencyCount = 0; return 0 },
     })
     rec.start()
     sim.run(t0 + horizon)

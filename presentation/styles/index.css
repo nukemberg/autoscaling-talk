@@ -17,6 +17,42 @@
   --c-takeaway: #f59e0b;  /* amber 500 */
 }
 
+/* ---- chart palette ---------------------------------------------------- */
+
+/* Chart series + chrome colors. .dark is set on <html> by Slidev's theme
+   toggle, so these follow the deck theme. Canvas colors are resolved from
+   these vars in JS at render time (see components/theme.ts) and re-rendered
+   when isDark flips. */
+:root {
+  --chart-text: #1a1a1a;
+  --chart-muted: #888888;
+  --chart-grid: #dddddd;
+  --chart-marker: #2980b9;
+  --chart-accent: #2980b9;  /* secondary-axis strokes, progress bar */
+  --chart-inst: #1a1a1a;    /* instances (primary series) */
+  --chart-cpu: #c0392b;     /* cpu / errors / hot signal */
+  --chart-ok: #27ae60;      /* throughput, healthy */
+  --chart-latency: #8e44ad; /* latency */
+  --chart-panel-bg: #ffffff;
+  --chart-panel-border: #cccccc;
+  --chart-spinner: #2980b9;
+}
+
+.dark {
+  --chart-text: #e8e8e8;
+  --chart-muted: #999999;
+  --chart-grid: #3f3f46;
+  --chart-marker: #5dade2;
+  --chart-accent: #5dade2;
+  --chart-inst: #f0f0f0;
+  --chart-cpu: #ff6b5e;
+  --chart-ok: #2ecc71;
+  --chart-latency: #bb8fce;
+  --chart-panel-bg: #1b1b1f;
+  --chart-panel-border: #44444a;
+  --chart-spinner: #5dade2;
+}
+
 /* ---- body blocks ---------------------------------------------------- */
 
 .content {
@@ -29,6 +65,7 @@
   text-align: left;
   margin-top: 1.5rem;
   font-weight: 600;
+  font-size: 1.3rem;
 }
 
 /* The final word of a takeaway — slightly larger for hierarchy. */

@@ -12,7 +12,7 @@ comark: true
 duration: 30min
 mdc: true
 # Deployed slides; QR codes (<Qr path=…>) resolve against this.
-baseUrl: https://autoscaling-talk.example.com
+baseUrl: https://autoscaling-talk.fewbytes.com
 ---
 
 # Autoscaling

@@ -28,11 +28,43 @@ Total budget: ~32 min content + buffer to 35.
 layout: default
 ---
 
+# Design for Max
+
+<div class="text-left">
+
+- You design and load-test for max load — autoscaling or not
+- Shared resources don't scale linearly (USL)
+- You're scaling **down** from max, not up from min
+
+→ Autoscaling is a **cost optimization**, not a scaleout solution.
+
+Treat it as scaleout, and you find out in prod you can't actually scale.
+
+</div>
+
+<!--
+[1.5 min]
+Why design-for-max is non-negotiable: shared resources (locks, DB
+connections, caches) mean throughput doesn't scale linearly with
+instance count — Universal Scalability Law, contention + coherency
+terms. So "add more instances" has a ceiling regardless of autoscaler.
+That ceiling has to be found and tested before prod, not discovered by
+the autoscaler trying to climb to it live. Once max is known, autoscaling's
+job is just: don't run at max when you don't have to. That's cost
+optimization, not capacity engineering. Teams that skip this step find
+out their "elastic" system hits the wall the first time it actually needs
+to scale.
+-->
+
+---
+layout: default
+---
+
 # The Setup
 
 <div class="text-left">
 
-Reliability, they said. It's cost optimization with a feedback loop attached.
+It's cost optimization with a feedback loop attached.
 
 - Scaled the wrong signal — ran away
 - Oscillated — instances died before booting
@@ -41,11 +73,10 @@ Reliability, they said. It's cost optimization with a feedback loop attached.
 </div>
 
 <!--
-[3 min]
-Autoscaling is sold as reliability, but it's really a cost optimization
-with a feedback loop attached. Why surprise bills and cascading failures
-are the norm rather than the exception. Sets up the three war stories
-(wrong signal, oscillation, coupling) without naming them yet.
+[1.5 min]
+Why surprise bills and cascading failures are the norm rather than the
+exception. Sets up the three war stories (wrong signal, oscillation,
+coupling) without naming them yet.
 -->
 
 ---

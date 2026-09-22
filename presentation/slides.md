@@ -189,12 +189,13 @@ sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 
 # Oscillation, by Default
 
-<Sim preset="cpu-step" :expose="['baseRps', 'rps', 'ramp', 'rampSec', 'algo', 'hpaScaleUpPods', 'hpaDownStabilizationSec', 'awsWarmupSec']" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" />
 
 <!--
-Live DES from presets/cpu-step.json (scenario sim/scenarios/cpu.ts).
-HPA-style target tracking on busy fraction ("CPU"), target 50%, 16 slots/instance,
-120s boot, 30s period, 60s window. Tune in the workbench (npm run bench), export JSON.
+Live DES from presets/cpu-oscillation.json (scenario sim/scenarios/cpu.ts).
+AWS simple scaling ±1, thresholds 0.55/0.45, cooldown 0, 15s period —
+every knob turned to "responsive". Sustained flapping, by design. Tune
+in the workbench (npm run bench), export JSON.
 -->
 
 ---

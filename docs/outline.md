@@ -15,7 +15,7 @@ Budget: 35 min total (frontmatter `duration`). Status tracks `bd` content ticket
 | 7 | Coupling and Blast Radius | 4m | done | kur.5 | N instances = N× connection pools; LB registration + health checks = dead time on the add side; recovery is a herd; fast-onset load beats any scaler with dead time > onset time |
 | 8 | Unstable Scaling Units | 3m | done | kur.6 | Well-behaved vs bad unit; live sim: loss vs node.js unit model, same load, 2% → 54% errors |
 | 9 | Loss vs. Node.js, Same Load | (in 8) | done | — | Live sim companion to #8 |
-| 10 | The Cost Problem | 3m | **todo** | kur.7 | External actors, runaway upstream costs, no max |
+| 10 | The Cost Problem | 3m | done | kur.7 | External actors, runaway upstream costs, no max |
 | 11 | Responsible Autoscaling | 6m | **todo** | kur.8 | Design for max first, well-behaved units, right signal, tune the loop, protect upstream — less autoscaling is often the fix |
 | 12 | Summary | 2m | **todo** | kur.8 | Simpler is often better |
 | 13 | Thank You | — | done | — | — |

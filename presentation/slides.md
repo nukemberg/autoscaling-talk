@@ -30,11 +30,15 @@ layout: default
 
 # Design for Max
 
-<div class="text-left">
+<div class="content">
 
 - You design and load-test for max load — autoscaling or not
 - Shared resources don't scale linearly (USL)
 - You're scaling **down** from max, not up from min
+
+</div>
+
+<div class="takeaway">
 
 → Autoscaling is a **cost optimization**, not a scaleout solution.
 
@@ -62,7 +66,7 @@ layout: default
 
 # What Could Possibly Go Wrong
 
-<div class="text-left">
+<div class="content">
 
 - Autoscaling ≠ preserve static capacity — it's **dynamic**
 - Feedback loop attached → 🙄
@@ -70,7 +74,7 @@ layout: default
 
 </div>
 
-<div class="text-left mt-6">
+<div class="takeaway">
 
 - Scaled the wrong signal — ran away
 - Oscillated — instances died before booting
@@ -95,31 +99,25 @@ layout: default
 
 # Scaling by Metrics, FTW! 🤦
 
-<div class="grid grid-cols-2 gap-6 mt-6 text-left">
-  <!-- Card 1: Demand -->
-  <div class="p-5 border border-emerald-500/30 rounded-xl bg-emerald-500/5">
-    <div class="text-emerald-500 font-mono text-xs uppercase tracking-wider font-semibold">1. Demand (Cause)</div>
-    <div class="text-xl font-bold mt-1 mb-1">What you want to scale on</div>
-    <p class="text-sm opacity-85">Incoming work, queue depth</p>
-    <p class="text-xs opacity-50 mt-3 font-mono">Hard to isolate per instance (LB distribution)</p>
+<div class="cards">
+  <div class="card">
+    <div class="card-label">1. Demand (Cause)</div>
+    <div class="card-title">What you want to scale on</div>
+    <p class="card-body">Incoming work, queue depth</p>
+    <p class="card-note">Hard to isolate per instance (LB distribution)</p>
   </div>
 
-  <!-- Card 2: Symptoms -->
-  <div class="p-5 border border-rose-500/30 rounded-xl bg-rose-500/5">
-    <div class="text-rose-500 font-mono text-xs uppercase tracking-wider font-semibold">2. Symptoms (Effect)</div>
-    <div class="text-xl font-bold mt-1 mb-1">What you actually have</div>
-    <p class="text-sm opacity-85">CPU utilization, latency</p>
-    <p class="text-xs opacity-50 mt-3 font-mono">Readily available proxies — but deceptive</p>
+  <div class="card card-symptom">
+    <div class="card-label">2. Symptoms (Effect)</div>
+    <div class="card-title">What you actually have</div>
+    <p class="card-body">CPU utilization, latency</p>
+    <p class="card-note">Readily available proxies — but deceptive</p>
   </div>
 </div>
 
-<div class="text-left mt-7 space-y-2">
-  <div class="text-xl font-medium">
-    <span class="text-amber-500 font-bold">3. Latency</span> is an <em>effect</em>, not a capacity shortage.
-  </div>
-  <div class="text-lg font-bold">
-    → When you scale on symptoms, you've built a closed feedback loop.
-  </div>
+<div class="takeaway">
+  <div><strong class="accent-takeaway">3. Latency</strong> is an <em>effect</em>, not a capacity shortage.</div>
+  <div class="punchline">→ When you scale on symptoms, you've built a closed feedback loop.</div>
 </div>
 
 <!--
@@ -148,7 +146,7 @@ layout: default
 
 # Control Theory Crash Course
 
-<div class="text-left">
+<div class="content">
 
 - **Characteristic time vs. dead time** — how fast load moves vs. how long you take to react
 - **Gain** — how hard you react to error
@@ -157,7 +155,7 @@ layout: default
 
 </div>
 
-<div class="text-left mt-6">
+<div class="takeaway">
 
 → No control algorithm is perfect. There's **always** a tradeoff.
 
@@ -217,7 +215,7 @@ layout: default
 
 # Coupling and Blast Radius
 
-<div class="text-left">
+<div class="content">
 
 - N instances = **N× connection pools** on the same upstream — not just more capacity
 - LB registration + health checks are dead time too — new instances aren't helping yet
@@ -251,14 +249,14 @@ layout: default
 
 # Unstable Scaling Units
 
-<div class="text-left">
+<div class="content">
 
 - **Well-behaved unit** — bounded concurrency, sheds fast, predictable capacity, boots fast, honest metrics
 - **Bad unit** — unbounded concurrency, degrades instead of rejecting, lies about load
 
 </div>
 
-<div class="text-left mt-6">
+<div class="takeaway">
 
 → Your controller doesn't know the server load if it hides it!
 
@@ -301,7 +299,7 @@ layout: default
 
 # The Cost Problem
 
-<div class="text-left">
+<div class="content">
 
 - Autoscaling means **someone else controls your bill** — retry storms, scrapers, a bug in a client
 - Scaling costs your upstream too — DB tiers, egress, per-connection pricing
@@ -332,7 +330,7 @@ layout: default
 
 # Responsible Autoscaling
 
-<div class="text-left">
+<div class="content">
 
 - Design for max scale first. Load-test it. Autoscaling is cost, not capacity.
 - Well-behaved units — bounded, shed fast, honest metrics
@@ -342,7 +340,7 @@ layout: default
 
 </div>
 
-<div class="text-left mt-6">
+<div class="takeaway">
 
 → The real fix is often **less** autoscaling: warm headroom, load shedding, backpressure.
 
@@ -368,7 +366,7 @@ layout: default
 
 # Summary
 
-<div class="text-left">
+<div class="content">
 
 Autoscaling is a cost optimization with a feedback loop attached — and every feedback loop has failure modes the static version didn't.
 
@@ -400,15 +398,7 @@ class: tradeoffs
 
 # Bonus: every knob is a trade
 
-<style>
-.tradeoffs h1 { font-size: 1.6rem; margin-bottom: 0.4rem; }
-.tradeoffs table { font-size: 0.8rem; line-height: 1.25; }
-.tradeoffs td, .tradeoffs th { padding: 0.3rem 0.5rem; }
-.tradeoffs th { font-weight: 700; text-align: left; }
-.tradeoffs code { font-size: 0.75rem; }
-</style>
-
-<div>
+<div class="tradeoffs">
 
 | Knob | Kills | Costs |
 |---|---|---|
@@ -424,7 +414,7 @@ class: tradeoffs
 
 </div>
 
-<div class="mt-3 text-sm">
+<div class="tradeoffs-note">
 
 **No controller covers all cases.** Dead time · sampling period · saturating signal · gain on the wrong base — every fix for one is a cost on another. Headroom is the only thing that works *inside* the dead time.
 

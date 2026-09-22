@@ -1,0 +1,125 @@
+/*
+ * Deck design system — the single source of truth for slide formatting.
+ * Slidev auto-imports this file; use these classes in slides.md instead of
+ * ad-hoc utility stacks so every slide stays visually consistent.
+ *
+ * Vocabulary:
+ *   .content            — standard left-aligned body block
+ *   .takeaway           — the "→" conclusion block that ends a slide
+ *   .cards/.card        — side-by-side comparison cards (color via modifier)
+ *   .accent-*           — inline accent color for a word/phrase
+ *   .tradeoffs          — bonus knob-table slide
+ */
+
+:root {
+  --c-demand: #10b981;    /* emerald 500 */
+  --c-symptom: #f43f5e;   /* rose 500 */
+  --c-takeaway: #f59e0b;  /* amber 500 */
+}
+
+/* ---- body blocks ---------------------------------------------------- */
+
+.content {
+  text-align: left;
+}
+
+/* The slide's conclusion line ("→ ..."). Semibold so it reads as the
+   point of the slide without fighting the theme. */
+.takeaway {
+  text-align: left;
+  margin-top: 1.5rem;
+  font-weight: 600;
+}
+
+/* The final word of a takeaway — slightly larger for hierarchy. */
+.punchline {
+  font-size: 1.125rem;
+}
+
+/* ---- comparison cards ------------------------------------------------ */
+
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  text-align: left;
+}
+
+.card {
+  --card-accent: var(--c-demand); /* default; overridden by modifiers */
+  padding: 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--card-accent) 30%, transparent);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--card-accent) 5%, transparent);
+}
+
+.card-symptom {
+  --card-accent: var(--c-symptom);
+}
+
+.card-label {
+  color: var(--card-accent);
+  font-family: var(--slidev-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0.25rem 0;
+}
+
+.card-body {
+  font-size: 0.875rem;
+  opacity: 0.85;
+  margin: 0;
+}
+
+.card-note {
+  font-size: 0.75rem;
+  opacity: 0.5;
+  margin: 0.75rem 0 0;
+  font-family: var(--slidev-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+/* ---- inline accents --------------------------------------------------- */
+
+.accent-demand   { color: var(--c-demand); }
+.accent-symptom  { color: var(--c-symptom); }
+.accent-takeaway { color: var(--c-takeaway); }
+
+/* ---- bonus slide: knob tradeoff table --------------------------------- */
+
+.tradeoffs h1 {
+  font-size: 1.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.tradeoffs table {
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.tradeoffs td,
+.tradeoffs th {
+  padding: 0.3rem 0.5rem;
+}
+
+.tradeoffs th {
+  font-weight: 700;
+  text-align: left;
+}
+
+.tradeoffs code {
+  font-size: 0.75rem;
+}
+
+.tradeoffs-note {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}

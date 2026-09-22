@@ -1,0 +1,11 @@
+{
+  "id": "cpu-step",
+  "name": "unit-model-compare",
+  "params": {
+    "baseRps": 100,
+    "rps": 400,
+    "ramp": "sine",
+    "periodSec": 200,
+    "unitModel": "loss"
+  }
+}

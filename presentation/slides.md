@@ -199,7 +199,7 @@ in the workbench (npm run bench), export JSON.
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # Coupling and Blast Radius
@@ -233,7 +233,7 @@ loop is — headroom, not a smarter controller, is what survives it.
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # Unstable Scaling Units
@@ -282,7 +282,7 @@ point — the scaler is only as good as what the unit tells it.
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # The Cost Problem
@@ -313,27 +313,61 @@ you chose" instead of "a bill you didn't."
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # Responsible Autoscaling
+
+<div class="text-left">
+
+- Design for max scale first. Load-test it. Autoscaling is cost, not capacity.
+- Well-behaved units — bounded, shed fast, honest metrics
+- A signal that actually tracks load
+- Tune the loop **on purpose**. Slow is fine.
+- Protect upstream. Set `max`.
+
+</div>
+
+<div class="text-left mt-6">
+
+→ The real fix is often **less** autoscaling: warm headroom, load shedding, backpressure.
+
+</div>
 
 <!--
 [6 min]
 Design for max scale first, keep scaling units well-behaved, pick a
 signal that tracks load, tune the loop, protect upstream. The real fix
 is often less autoscaling: warm headroom, load shedding, backpressure.
+
+This is the callback slide — every bullet maps to a section: Design
+for Max, Unstable Scaling Units, Scaling by Metrics, Control Theory
+Crash Course, Coupling and Blast Radius / The Cost Problem. Nothing
+here is new; it's the same five ideas restated as a checklist. "Tune
+the loop on purpose" — slow and boring beats fast and wrong; dead time
+is physics, you can't out-tune it, only build headroom for it.
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # Summary
 
+<div class="text-left">
+
+Autoscaling is a cost optimization with a feedback loop attached — and every feedback loop has failure modes the static version didn't.
+
+**Simpler is often better. Don't run before you walk.**
+
+</div>
+
 <!--
 [2 min]
 Simpler is often better. Don't run before you walk.
+
+Full circle to The Setup / What Could Possibly Go Wrong: the reframe
+was the point all along. Land on it, don't add anything new here.
 -->
 
 ---

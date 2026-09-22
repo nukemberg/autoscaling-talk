@@ -110,7 +110,7 @@ layout: default
 
 <div class="takeaway">
 
-→ Autoscaling is a **cost optimization**, not a scaleout solution.
+Autoscaling is a **cost optimization**, not a scaleout solution.
 
 Treat it as scaleout, and you find out in prod you can't actually scale.
 
@@ -154,7 +154,7 @@ layout: default
 
 <div class="takeaway">
   <div><strong class="accent-takeaway">3. Latency</strong> is an <em>effect</em>, not a capacity shortage.</div>
-  <div class="punchline">→ When you scale on symptoms, you've built a closed feedback loop.</div>
+  <div class="punchline">When you scale on symptoms, you've built a closed feedback loop.</div>
 </div>
 
 <!--
@@ -194,7 +194,7 @@ layout: default
 
 <div class="takeaway">
 
-→ No control algorithm is perfect. There's **always** a tradeoff.
+No control algorithm is perfect. There's **always** a tradeoff.
 
 </div>
 
@@ -300,7 +300,7 @@ layout: default
 
 <div class="takeaway">
 
-→ A pinned signal still reacts — just too late, and blind to how much capacity you actually need.
+A pinned signal still reacts — just too late, and blind to how much capacity you actually need.
 
 </div>
 
@@ -433,7 +433,7 @@ layout: default
 
 <div class="takeaway">
 
-→ The real fix is often **less** autoscaling: warm headroom, load shedding, backpressure.
+The real fix is often **less** autoscaling: warm headroom, load shedding, backpressure.
 
 </div>
 

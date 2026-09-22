@@ -59,8 +59,11 @@
   text-align: left;
 }
 
-/* The slide's conclusion line ("→ ..."). Semibold so it reads as the
-   point of the slide without fighting the theme. */
+/* The slide's conclusion line. Semibold so it reads as the point of the
+   slide without fighting the theme. The "→ " prefix is CSS, not text —
+   write the line without it; it lands on the takeaway's first paragraph,
+   or on .punchline when a slide marks a later line as the arrow line
+   instead (see Scaling by Metrics). */
 .takeaway {
   text-align: left;
   margin-top: 1.5rem;
@@ -68,9 +71,17 @@
   font-size: 1.3rem;
 }
 
+.takeaway > p:first-of-type::before {
+  content: '→ ';
+}
+
 /* The final word of a takeaway — slightly larger for hierarchy. */
 .punchline {
   font-size: 1.125rem;
+}
+
+.punchline::before {
+  content: '→ ';
 }
 
 /* ---- comparison cards ------------------------------------------------ */

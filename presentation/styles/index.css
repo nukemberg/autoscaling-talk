@@ -92,6 +92,16 @@
 .accent-symptom  { color: var(--c-symptom); }
 .accent-takeaway { color: var(--c-takeaway); }
 
+/* ---- meme corner -------------------------------------------------------
+   Small illustrative image tucked in a corner (same abs-br placement as the
+   bonus slide's QR code) — never the main content, just a visual accent. */
+
+.meme {
+  max-width: 200px;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
 /* ---- bonus slide: knob tradeoff table --------------------------------- */
 
 .tradeoffs h1 {

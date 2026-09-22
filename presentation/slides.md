@@ -120,6 +120,10 @@ layout: default
   <div class="punchline">→ When you scale on symptoms, you've built a closed feedback loop.</div>
 </div>
 
+<div class="abs-br m-4">
+  <img src="/memes/drake-autoscaling.jpg" class="meme" alt="Drake meme: rejects solving performance issues, prefers autoscaling to 1000 servers">
+</div>
+
 <!--
 [5 min]
 Layout: two cards (Demand vs. Symptoms) + the 3-beat punchline at the bottom.
@@ -306,6 +310,10 @@ layout: default
 - Scaling is an attack surface — economic DoS
 - **Always set `max`.** It's the rate limit on your own wallet.
 
+</div>
+
+<div class="abs-br m-4">
+  <img src="/memes/agent-hpa-license-to-spend.jpeg" class="meme" alt="James Bond-style 'Agent HPA: License to Spend' meme">
 </div>
 
 <!--

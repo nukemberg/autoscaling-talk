@@ -7,7 +7,7 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 
 1. **Autoscaling** (title) — done — cold open
 2. **We Love Autoscaling** — done — the pitch played straight (automagic, makes issues go away, simple, widely-tooled); click reveals Putin-laughing meme
-3. **Design for Max** — 1.5m — done — `kur` (pre-epic)
+3. **You're Not Scaling Up, You're Scaling Down** — 1.5m — done — `kur` (pre-epic)
    Design/test for max regardless; USL; scaling down from max not up from min → autoscaling is cost optimization, not scaleout
 4. **What Could Possibly Go Wrong** — 1.5m — done — `kur.1`
    Autoscaling ≠ static capacity, it's dynamic; feedback loop → new failure modes; teases 3 war stories

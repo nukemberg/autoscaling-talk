@@ -98,7 +98,7 @@ hard to tune → Control Theory Crash Course.
 layout: default
 ---
 
-# Design for Max
+# You're Not Scaling Up, You're Scaling Down
 
 <div class="content">
 

@@ -25,18 +25,20 @@ Total budget: ~32 min content + buffer to 35.
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # The Setup
 
-Autoscaling is sold as reliability. It's a cost optimization with a feedback loop attached.
+<div class="text-left">
 
-- A signal that scaled the wrong thing — and ran away
-- A loop that oscillated until instances died before booting
-- A scaler that overwhelmed the thing it depended on
+Reliability, they said. It's cost optimization with a feedback loop attached.
 
-Surprise bills and cascading failures aren't the exception. They're the default.
+- Scaled the wrong signal — ran away
+- Oscillated — instances died before booting
+- Overwhelmed the thing it depended on
+
+</div>
 
 <!--
 [3 min]
@@ -47,45 +49,63 @@ are the norm rather than the exception. Sets up the three war stories
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # Scaling on the Wrong Signal
 
-- **CPU** — lags, and lies under IO wait, GC, or a degraded unit spinning idle
-- **Throughput/instance** — good proxy, until upstream fails: less gets served, looks like less load, scaler pulls capacity *out*
-- **Latency** — not a capacity signal. Caused by anything: upstream, GC, a bad deploy, a lock
-- **Queue depth / concurrency** — closest to the truth
+<div class="text-left">
 
-Little's Law grounds it: **L = λW**. Work in flight = arrival rate × time in system. Everything above is a proxy for one side of that equation.
+- **CPU** — lies under IO wait, GC, degraded units
+- **Throughput/instance** — breaks when upstream fails
+- **Latency** — not a capacity signal, caused by anything
+- **Queue depth** — closest to the truth
+
+**L = λW**
+
+</div>
 
 <!--
 [5 min]
 A system scaled on latency ran away to hundreds of instances while fixing
 nothing. Autoscaling can't solve problems that aren't capacity problems —
 you still have to design and load-test for peak yourself.
+
+Little's Law: work in flight = arrival rate × time in system. Everything
+on this slide is a proxy for one side of that equation. Throughput/instance
+looks like less load exactly when upstream fails and the scaler pulls
+capacity out — the opposite of what's needed.
 -->
 
 ---
-layout: section
+layout: default
 ---
 
 # It's a Control System
 
-- **Dead time** — boot time + metric delay. The gap between "order more capacity" and "capacity exists"
-- **Characteristic time** — how fast the load itself changes. If it moves faster than dead time, the controller is always chasing
-- **Gain** — how hard you react to error. Too high, you overshoot; too low, you never catch up
-- **Sample period + cooldown** — a discrete controller. Can't react faster than it samples, can't correct a mistake faster than cooldown lets it move again
+<div class="text-left">
 
-Sample slower than the load changes, and you're steering blind between samples — the textbook argument for why "just poll faster" isn't free.
+- **Dead time** — boot + metric delay
+- **Characteristic time** — how fast load moves
+- **Gain** — how hard you react
+- **Sample period + cooldown** — a discrete controller
 
-k8s HPA and AWS ASG hand you these knobs with names that don't say so: `--horizontal-pod-autoscaler-sync-period`, stabilization windows, cooldowns, warm-up. Same physics, different defaults.
+</div>
 
 <!--
 [6 min]
 CPU-driven autoscaler oscillated so hard instances died before they
 finished booting. Dead time, gain, cooldown, loop period — the knobs
 everyone inherits as defaults and nobody tunes.
+
+Dead time = gap between "order more capacity" and "capacity exists".
+Characteristic time = if load moves faster than dead time, controller
+always chases. Gain too high = overshoot, too low = never catches up.
+Discrete controller: can't react faster than it samples, can't correct
+faster than cooldown lets it move. Sample slower than the load changes
+and you're steering blind between samples — why "just poll faster"
+isn't free. k8s HPA / AWS ASG give these knobs names that don't say so:
+sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 -->
 
 ---

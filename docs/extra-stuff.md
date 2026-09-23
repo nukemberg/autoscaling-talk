@@ -50,7 +50,7 @@ what the control-theory view says, and whether we could sim it.
 ### Threaded servers are their own nested autoscaler
 - A threaded/worker-pool server (Java thread pools, Gunicorn/Puma workers, connection-pool-backed services) is a scaling system inside your scaling system: it has its own admission control (accept vs. queue vs. reject a new connection/request), its own "capacity" (pool size, often dynamically resized between min/max), and sometimes its own feedback loop (dynamic pool sizing based on queue depth or load).
 - That inner loop has its own dead time (thread/worker spin-up), its own gain, its own saturation behavior — and it's invisible to the outer autoscaler, which only sees the outer unit's aggregate metric. Two nested control loops, same resonance risk as HPA-on-cluster-autoscaler (see "Double scaling" above), except this one is usually undocumented and untuned by whoever owns the outer autoscaler.
-- Practical implication: "instance concurrency" in our sim (`unitParams.concurrency`) is really standing in for whatever this inner pool's effective ceiling is — which may itself be a moving target, not a fixed config value.
+- Practical implication: "instance concurrency" in our sim (the worker pool derived from `cores`/`cpuTimeMs`/`ioWaitMs` in `unitParams`) is really standing in for whatever this inner pool's effective ceiling is — which may itself be a moving target, not a fixed config value.
 
 ### Small servers vs. big servers — autoscaling and efficiency want different things
 - Autoscaling likes small units: finer granularity (add/remove capacity in small increments, less overshoot per step), faster boot-to-useful ratio relative to unit size, lower blast radius per unit lost.

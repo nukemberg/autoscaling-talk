@@ -250,7 +250,12 @@ sync-period, stabilization windows, cooldowns, warm-up. Same physics.
 <!--
 Live DES from presets/cpu-oscillation.json (scenario sim/scenarios/cpu.ts).
 AWS simple scaling ±1, thresholds 0.55/0.45, cooldown 0, 15s period —
-every knob turned to "responsive". Sustained flapping, by design. Tune
+every knob turned to "responsive". Sustained flapping, by design:
++1 every 15s against a 240s boot orders ~16 instances before the first
+one helps, and at 690 rps there's no count to rest at (3 instances =
+58%, 4 = 43% — the band is narrower than one instance). Needed 3.5;
+it swings 3 <-> 20 for the whole run. Drag rps to 1360 and 7 instances
+land at 49% inside the band: one overshoot, then it settles. Tune
 in the workbench (npm run bench), export JSON. QR points at the
 deployed SimCluster workbench so people can try it themselves.
 -->
@@ -297,55 +302,68 @@ layout: default
 
 <div class="content">
 
-- **Well-behaved unit** — bounded concurrency, sheds fast, predictable capacity, boots fast, honest metrics
-- **Bad unit** — doesn't shed, but its signal saturates: 100% whether you're 10% over or 10x over
+- **Well-behaved unit** — bounded workers = admission control: sheds fast when full, predictable capacity, bounded latency, boots fast, honest metrics
+- **Bad unit** — never says no: an unbounded worker pool admits everything, then queues it all on the same finite CPU
 
 </div>
 
 <div class="takeaway">
 
-A pinned signal still reacts — just too late, and blind to how much capacity you actually need.
+A unit that can't reject still runs out of CPU — it just fails as latency instead of errors.
 
 </div>
 
 <!--
 [3 min]
-Degrade vs. reject: what happens when a scaling unit is unhealthy but
+Degrade vs. reject: what happens when a scaling unit is overloaded but
 still gets traffic. Why unstable units make every other problem worse.
 
 Loss (Erlang-B, reject when full) is the well-behaved case — bounded
-concurrency, predictable, and the CPU/busy-fraction metric tracks real
-load honestly. A degrading unit (Node.js event-loop saturation, or an
-unbounded worker pool) never rejects — it doesn't lie exactly, event-loop
-utilization does rise with real work, same as CPU would. But it's a
-saturating signal: once it hits 100%, it can't tell you whether you're
-10% over capacity or 10x over, and it got there through dead time same
-as everything else, so the autoscaler is reacting to a signal that's
-already stale and directionless. The controller does eventually catch
-up and stabilize — at a higher instance count than the well-behaved
-case, and after a much rougher transient. It's not "the scaler doesn't
-see it," it's "the scaler sees it late and can't judge magnitude."
-Live demo on the next slide: flip unit model, same input, same knobs.
+workers are admission control: past capacity a request is rejected
+immediately and visibly, and everything that IS admitted keeps a
+predictable, bounded latency. A degrading unit (Node.js-style unlimited
+concurrency, or an unbounded thread/worker pool) never rejects — but
+never rejecting doesn't add capacity. The CPU is exactly as finite as
+before, so the overload turns into a queue for a core: every request
+gets slower, the backlog grows for as long as the autoscaler's dead
+time lasts, and it keeps draining long after new capacity arrives.
+The metric isn't the difference: CPU is honest in both units, and it
+pins at 100% in both (so neither can tell 10% over from 10x over), so
+the autoscaler reacts the same way and lands on the same instance
+count. What differs is where the overload goes during the dead time —
+fast, honest failures vs. silent, unbounded waits. Zero errors on the
+dashboard, a minute of latency for the user.
+Live demo on the next slide: flip "unlimited workers", same input, same knobs.
 -->
 
 ---
 
-# Loss vs. Node.js, Same Load
+# Bounded Workers vs. Unlimited Workers
 
-<Sim preset="unit-model-compare" :expose="['unitModel', 'degradeGain', 'concurrency', 'queueSlots']" :height="130" />
+<Sim preset="unit-model-compare" :expose="['unlimitedWorkers', 'cores', 'cpuTimeMs', 'queueSlots']" :height="130" />
 
 <!--
 Live DES from presets/unit-model-compare.json. Sine-wave load (period
 200s) so the unit sees sustained variation, not just one step. Flip
-"load-shedding model" from loss to node.js live: same input, errors go
-from ~2% to ~30%, peak instances jumps from 6 to 9 (vs. loss's clean
-5→6), and there's a visible latency spike during the transient that
-settles back down once capacity catches up. The controller isn't
-blind — cpu/ELU does rise and it does react — but the signal saturates
-at 100% and offers no sense of magnitude, and it's already lagging by
-the time it moves. That's the point: reacting late to a saturating
-signal is a different, less dramatic failure than "never reacts," but
-it's still strictly worse than the well-behaved case.
+"unlimited workers" off to on live: same input, same knobs. Off, the
+per-instance worker pool is derived from the CPU/IO ratio (10 slots
+here, plus 8 queue slots) and acts as real admission control — it
+rejects past capacity, cleanly and immediately: ~3% errors, all of
+them during the scale-out dead time, and latency stays bounded (max
+~260ms, mean ~155ms across the run). On, workers never reject — but
+the CPU pool (2 cores) still saturates for real, so requests that
+used to get a fast, honest rejection now just queue for a core
+instead: errors drop to 0%, but mean latency jumps to ~4.6s (~30x
+worse) and worst-case latency spikes to ~65 SECONDS. Instance count
+is identical either way (3 -> 12, exactly the needed 12): "cpu" is an
+honest, time-averaged busy fraction of the real CPU pool in both
+variants, it pins at 100% during the overload in both, and the
+controller reacts identically. Watch the cpu line instead: unlimited
+stays pinned at 100% noticeably longer — that's the backlog draining
+after capacity has already arrived. Instance count isn't the story
+here (unlike "the bad unit ends up bigger" — it doesn't); where the
+overload goes is. Zero errors looks like success on a dashboard that
+only tracks error rate — it isn't.
 -->
 
 ---

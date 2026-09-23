@@ -22,8 +22,9 @@ p1.awsPeriodSec = 15
 p1.maxInstances = 50
 p1.horizonSec = 3000
 p1.sampleSec = 10
-p1.latencyMs = 100
-p1.concurrency = 16
+p1.cpuTimeMs = 100
+p1.ioWaitMs = 0
+p1.cores = 16
 
 // A heavier, HPA-flavored run: higher load, longer horizon, finer sampling.
 const p2 = defaults(cpuScenario.params)
@@ -36,8 +37,9 @@ p2.algo = 'hpa'
 p2.maxInstances = 200
 p2.horizonSec = 3600
 p2.sampleSec = 5
-p2.latencyMs = 100
-p2.concurrency = 16
+p2.cpuTimeMs = 100
+p2.ioWaitMs = 0
+p2.cores = 16
 
 // warmup (JIT)
 timeRun({ ...p1, horizonSec: 300 }, 'warmup')

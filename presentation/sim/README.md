@@ -16,13 +16,14 @@ Arrivals ──▶ LoadBalancer ──▶ Instance ──▶ (Upstream)
 | `rng.ts` | seeded mulberry32 + exp/uniform/normal/poisson |
 | `metrics.ts` | `Tally` (percentiles), `TimeWeighted`, `Recorder` (uPlot-shaped series) |
 | `arrivals.ts` | non-homogeneous Poisson via thinning; `constant/step/ramp/spike/sum` |
-| `instance.ts` | scaling unit: boot delay, concurrency, queue, `slowdown` (degradation), custom `work` |
+| `pool.ts` | `Pool`: generic slot resource — acquire / FIFO queue up to `queueLimit` / reject, optional poisoning (leaked slots), time-weighted `busy` |
+| `instance.ts` | scaling unit: boot delay; a request holds a worker-pool slot (envelope) while walking a per-request `Step` plan, each step holding a named pool (`cpuPool`, other `instancePools`, or shared `clusterPools`) for its duration; `cpu` (instantaneous) and `cpuSeconds` (cumulative, for scraping); hang / slow faults; custom `work` |
 | `lb.ts` | round-robin / least-conn; optional health-check interval (registration lag) |
 | `upstream.ts` | shared dependency: capacity, queue, slowdown, timeout (query keeps running), collapse + recovery |
-| `cluster.ts` | launches/terminates instances (youngest first), `instanceTime` for billing |
+| `cluster.ts` | launches/terminates instances (youngest first), `instanceTime` for billing; builds `clusterPools` once and shares them into every instance |
 | `stats.ts` | windowed throughput / error rate / latency percentiles |
 | `scaler.ts` | generic sampled controller (reference / tests); scenarios use `controllers/` |
-| `controllers/metrics.ts` | per-instance cpu scrape history (metrics-server / CloudWatch stand-in) |
+| `controllers/metrics.ts` | per-instance cpu scrape history (metrics-server / CloudWatch stand-in); scrapes the cumulative `cpuSeconds` counter and reports its rate over the window |
 | `controllers/hpa.ts` | Kubernetes HPA: sync 15 s, tolerance 0.1, unready pods set aside (0% up / 100% down), 300 s down-stabilization, scaleUp max(4 pods, 100%)/15 s |
 | `controllers/aws.ts` | AWS target tracking (1-min datapoints, AlarmHigh 3 / AlarmLow 15 @ 90%, instance warm-up), step scaling (step tables, AWS rounding), simple scaling (cooldown 300 s) |
 | `faults.ts` | kill / hang / slow / rollingRestart / upstreamOutage / upstreamSlow |

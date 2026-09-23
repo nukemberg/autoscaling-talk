@@ -1,9 +1,15 @@
 import { describe, expect, test } from 'vitest'
+import cpuOscillation from '../../presets/cpu-oscillation.json'
+import cpuStep from '../../presets/cpu-step.json'
 import { cpuScenario } from './cpu'
+import { resolvePreset, type Preset } from './preset'
 import { defaults, type Params } from './types'
 
 const base = defaults(cpuScenario.params)
 const run = (over: Params = {}) => cpuScenario.run({ ...base, ...over })
+/** Runs the preset JSON the slides actually load, so these tests track what's on stage. */
+const presets: Record<string, Preset> = { 'cpu-oscillation': cpuOscillation, 'cpu-step': cpuStep }
+const runPreset = (name: string) => cpuScenario.run(resolvePreset(presets[name]).params)
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
 describe('cpu scenario', () => {
@@ -25,11 +31,17 @@ describe('cpu scenario', () => {
   })
 
   test('kill fault: instances drop, then are replaced', () => {
-    const r = run({ faultKind: 'kill', faultAtSec: 1200, faultCount: 2, replaceDeadSec: 60, sampleSec: 10 })
+    // faultAtSec avoids being a multiple of the default hpaSyncSec (15): warmupEnd (t0) is a fixed
+    // 150s from bootSec/healthCheckSec, so t0 + faultAtSec landing on an HPA sync tick would let a
+    // same-instant scale-up recommendation fire (in scheduling order) before the very next sample,
+    // masking the crash. Traced via instrumented run: with faultAtSec: 1200 (a multiple of 15), the
+    // recorded "instances" sample at the fault's own tick showed no drop at all, even though
+    // Cluster.crash() had already reduced cluster.size moments earlier in the same event batch.
+    const r = run({ faultKind: 'kill', faultAtSec: 1210, faultCount: 2, replaceDeadSec: 60, sampleSec: 10, cores: 16, cpuTimeMs: 100 })
     const i = (t: number) => r.series.instances[t / 10]
-    const before = i(1190)
-    expect(i(1200)).toBe(before - 2)
-    expect(i(1270)).toBe(before)
+    const before = i(1200)
+    expect(i(1210)).toBe(before - 2)
+    expect(i(1280)).toBe(before)
   })
 
   test('hang fault with spinning CPU: scaler sees 100% and adds instances it does not need', () => {
@@ -42,8 +54,8 @@ describe('cpu scenario', () => {
   })
 
   test('stable base load: cluster pre-sized, ~no errors before the ramp', () => {
-    // 400 rps × 0.1 s = 40 slots; 16 per instance at 50% → 5
-    const r = run({ rps: 800, baseRps: 400, quietSec: 300, horizonSec: 300, sampleSec: 10 })
+    // capacity = cores * 1000 / cpuTimeMs = 16 * 1000 / 100 = 160 rps/instance; 400 rps at 50% → 5
+    const r = run({ rps: 800, baseRps: 400, quietSec: 300, horizonSec: 300, sampleSec: 10, cores: 16, cpuTimeMs: 100 })
     expect(r.series.instances[0]).toBe(5)
     const failed = sum(r.series.failedRps), ok = sum(r.series.okRps)
     expect(failed / (ok + failed)).toBeLessThan(0.01)
@@ -64,7 +76,7 @@ describe('cpu scenario', () => {
 
   test('every algorithm converges near the needed size for a step', () => {
     for (const algo of ['hpa', 'aws-target', 'aws-step', 'aws-simple']) {
-      const r = run({ algo, horizonSec: 3000 })
+      const r = run({ algo, horizonSec: 3000, cores: 16, cpuTimeMs: 100 })
       const end = r.series.instances.slice(-20)
       expect(Math.max(...r.series.instances), algo).toBeGreaterThan(2)
       expect(Math.min(...end), algo).toBeGreaterThanOrEqual(4)
@@ -72,20 +84,25 @@ describe('cpu scenario', () => {
     }
   })
 
-  test('cpu-oscillation preset: overshoot, undershoot, then sustained chatter', () => {
-    const r = run({
-      baseRps: 300, rps: 1360, algo: 'aws-simple', awsOutThreshold: 0.55, awsInThreshold: 0.45,
-      awsOutPeriods: 1, awsInPeriods: 1, awsPeriodSec: 15, awsMetricDelaySec: 0, awsCooldownSec: 0,
-      bootSec: 240, maxInstances: 50, horizonSec: 3000, sampleSec: 10,
-    })
-    const settled = 4 // cluster pre-sized for baseRps
+  test('cpu-oscillation preset (as shipped): overshoot, undershoot, then sustained flapping', () => {
+    const r = runPreset('cpu-oscillation')
+    const needed = Number(r.summary.needed)
     const peak = Math.max(...r.series.instances)
-    const trough = Math.min(...r.series.instances.slice(30)) // after the ramp starts
-    expect(peak).toBeGreaterThan(settled * 2) // overshoot well past what the new load needs
-    expect(trough).toBeLessThan(peak - 5) // scale-in undershoots below the eventual band
+    const trough = Math.min(...r.series.instances.slice(90)) // after the first overshoot has formed
+    expect(peak).toBeGreaterThan(needed * 2) // overshoot well past what the new load needs
+    expect(trough).toBeLessThan(needed) // scale-in undershoots below it
     // keeps flapping in the second half instead of settling to one value
     const tail = r.series.instances.slice(150)
-    expect(new Set(tail).size).toBeGreaterThan(1)
+    expect(Math.max(...tail) - Math.min(...tail)).toBeGreaterThan(5)
+  })
+
+  test('cpu-step preset (as shipped): the well-behaved reference — scales 2 → 4 → 5-6, no overshoot', () => {
+    const r = runPreset('cpu-step')
+    expect(r.series.instances[0]).toBe(2)
+    expect(Number(r.summary.needed)).toBe(5)
+    expect(r.summary.peak).toBeLessThanOrEqual(6)
+    expect(r.summary.final).toBeGreaterThanOrEqual(5)
+    expect(r.summary.final).toBe(r.summary.peak) // never scales past where it ends up
   })
 
   test('summary reports needed / peak / final / error %', () => {

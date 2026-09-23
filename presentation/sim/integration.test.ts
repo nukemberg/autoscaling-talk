@@ -8,13 +8,14 @@ import { Recorder } from './metrics'
 import { Rng } from './rng'
 import { Autoscaler, threshold } from './scaler'
 import { Stats } from './stats'
+import { flatOpts } from './test-helpers'
 
 describe('queueing sanity', () => {
   test('M/M/1 with ρ=0.5: mean sojourn ≈ 1/(μ-λ) = 2', () => {
     const sim = new Sim()
     const rng = new Rng(1)
     const stats = new Stats(sim)
-    const inst = new Instance(sim, { bootTime: 0, serviceTime: () => rng.exp(1), concurrency: 1, queueLimit: Infinity })
+    const inst = new Instance(sim, flatOpts({ bootTime: 0, serviceTime: () => rng.exp(1), concurrency: 1, queueLimit: Infinity }))
     inst.onDone = (r) => stats.record(r)
     new Arrivals(sim, rng, constant(0.5), (r) => inst.handle(r)).start()
     sim.run(200_000)
@@ -27,7 +28,7 @@ describe('queueing sanity', () => {
     const sim = new Sim()
     const rng = new Rng(2)
     const stats = new Stats(sim)
-    const inst = new Instance(sim, { bootTime: 0, serviceTime: () => rng.exp(1), concurrency: 2, queueLimit: Infinity })
+    const inst = new Instance(sim, flatOpts({ bootTime: 0, serviceTime: () => rng.exp(1), concurrency: 2, queueLimit: Infinity }))
     inst.onDone = (r) => stats.record(r)
     new Arrivals(sim, rng, constant(1.5), (r) => inst.handle(r)).start()
     sim.run(200_000)
@@ -43,9 +44,9 @@ function oscillationScenario(seed: number) {
   const stats = new Stats(sim)
   const lb = new LoadBalancer(sim)
   lb.onDone = (r) => stats.record(r)
-  const cluster = new Cluster(sim, lb, {
+  const cluster = new Cluster(sim, lb, flatOpts({
     bootTime: 120, serviceTime: () => rng.exp(10), concurrency: 8, queueLimit: 0,
-  })
+  }))
   cluster.scaleTo(2)
   new Arrivals(sim, rng, step(300, 40, 120), (r) => lb.handle(r)).start()
   const scaler = new Autoscaler(sim, cluster, () => cluster.utilization, {

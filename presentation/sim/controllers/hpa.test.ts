@@ -5,6 +5,7 @@ import type { Instance } from '../instance'
 import { LoadBalancer } from '../lb'
 import { Hpa, type HpaOpts } from './hpa'
 import { PodMetrics } from './metrics'
+import { flatOpts } from '../test-helpers'
 
 /**
  * Cluster where the first `ready` launches boot instantly and later ones take
@@ -13,14 +14,14 @@ import { PodMetrics } from './metrics'
 function setup(sim: Sim, ready: number, over: Partial<HpaOpts> = {}, boot = 1000) {
   const lb = new LoadBalancer(sim)
   let launches = 0
-  const cluster = new Cluster(sim, lb, {
+  const cluster = new Cluster(sim, lb, flatOpts({
     bootTime: () => (launches++ < ready ? 0 : boot), serviceTime: () => 1, concurrency: 10, queueLimit: 0,
-  })
+  }))
   cluster.scaleTo(ready)
   const cpu = new Map<Instance, number>()
   let all = 0
   const setAll = (v: number) => { all = v; cpu.clear() }
-  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, read: (i) => cpu.get(i) ?? all })
+  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: (i) => cpu.get(i) ?? all } })
   sim.run(60)                      // past initialReadinessDelay
   metrics.start()
   const hpa = new Hpa(sim, cluster, metrics, { target: 0.5, min: 1, max: 100, ...over })

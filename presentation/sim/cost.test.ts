@@ -3,10 +3,11 @@ import { Sim } from './engine'
 import { Cluster } from './cluster'
 import { Cost } from './cost'
 import { LoadBalancer } from './lb'
+import { flatOpts } from './test-helpers'
 
 function setup(sim: Sim) {
   const lb = new LoadBalancer(sim)
-  const cluster = new Cluster(sim, lb, { bootTime: 0, serviceTime: () => 1, concurrency: 1, queueLimit: 0 })
+  const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 0, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }))
   return { lb, cluster }
 }
 

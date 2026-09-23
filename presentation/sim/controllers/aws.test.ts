@@ -5,18 +5,19 @@ import type { Instance } from '../instance'
 import { LoadBalancer } from '../lb'
 import { AwsSimpleScaling, AwsStepScaling, AwsTargetTracking, parseSteps } from './aws'
 import { PodMetrics } from './metrics'
+import { flatOpts } from '../test-helpers'
 
 function setup(sim: Sim, ready: number, boot = 1000) {
   const lb = new LoadBalancer(sim)
   let launches = 0
-  const cluster = new Cluster(sim, lb, {
+  const cluster = new Cluster(sim, lb, flatOpts({
     bootTime: () => (launches++ < ready ? 0 : boot), serviceTime: () => 1, concurrency: 10, queueLimit: 0,
-  })
+  }))
   cluster.scaleTo(ready)
   const cpu = new Map<Instance, number>()
   let all = 0
   const setAll = (v: number) => { all = v; cpu.clear() }
-  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, read: (i) => cpu.get(i) ?? all })
+  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: (i) => cpu.get(i) ?? all } })
   sim.run(400)                     // past warmup for the initial instances
   metrics.start()
   return { cluster, metrics, cpu, setAll }

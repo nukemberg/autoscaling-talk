@@ -69,19 +69,24 @@ export function loadProfile(p: Params, t0: number, rng: Rng): Rate {
 // ---------------- scaling unit ----------------
 
 export const unitParams: ParamSpec[] = [
-  { key: 'latencyMs', label: 'service time', group: 'unit', kind: 'range', min: 5, max: 2000, step: 5, default: 100, unit: 'ms',
-    help: 'Mean time one request occupies a slot (exponentially distributed).' },
-  { key: 'concurrency', label: 'Instance concurrency', group: 'unit', kind: 'range', min: 1, max: 256, step: 1, default: 16,
-    help: 'Requests one instance handles at once (threads / workers). Beyond this it rejects. Capacity = slots × 1000 / service time.' },
-  { key: 'unitModel', label: 'load-shedding model', group: 'unit', kind: 'select', default: 'loss', options: [
-    { value: 'loss', label: 'loss (reject when full)' }, { value: 'bounded-queue', label: 'bounded queue' },
-    { value: 'nodejs', label: "node.js (doesn't shed)" },
-  ], help: 'What happens beyond concurrency. Loss = M/M/c/c (Erlang-B). Bounded queue = waits for a slot, still rejects past the queue. node.js never rejects; instead every request gets slower as more pile in (event-loop contention) — the load-shedding-by-accident failure mode.' },
-  { key: 'queueSlots', label: 'queue slots', group: 'unit', kind: 'range', min: 1, max: 512, step: 1, default: 32,
-    help: 'Waiting room beyond concurrency before rejecting.', activeWhen: { unitModel: 'bounded-queue' } },
-  { key: 'degradeGain', label: 'degradation gain', group: 'unit', kind: 'range', min: 1, max: 50, step: 1, default: 8,
-    help: 'How sharply service time inflates once concurrent requests exceed nominal concurrency. Higher = falls off a cliff sooner.',
-    activeWhen: { unitModel: 'nodejs' } },
+  { key: 'cores', label: 'CPU cores', group: 'unit', kind: 'range', min: 1, max: 64, step: 1, default: 4,
+    help: 'Physical cores per instance — the real bottleneck. Sizes the CPU pool. With cores: 1, cpu is literally Node\'s eventLoopUtilization.' },
+  ...distParams({
+    key: 'cpuTimeMs', label: 'CPU time', group: 'unit',
+    help: 'Per-request CPU demand: time actually spent executing on a core.',
+    base: { min: 1, max: 500, step: 1, default: 10, unit: 'ms' },
+  }),
+  ...distParams({
+    key: 'ioWaitMs', label: 'I/O wait', group: 'unit',
+    help: 'Per-request time spent waiting on I/O (DB, network) — doesn\'t consume a core, but still occupies the worker holding the request.',
+    base: { min: 0, max: 2000, step: 10, default: 90, unit: 'ms' },
+  }),
+  { key: 'unlimitedWorkers', label: 'unlimited workers', group: 'unit', kind: 'toggle', default: false,
+    help: 'Bypass the derived worker-pool size with an effectively-unbounded one — an explicit node.js-style "don\'t bound the worker pool" knob, on top of whatever the CPU/IO ratio already implies.' },
+  { key: 'queueSlots', label: 'queue slots', group: 'unit', kind: 'range', min: 0, max: 512, step: 1, default: 32,
+    help: 'Waiting room beyond the worker pool before rejecting. 0 = reject immediately when full.' },
+  { key: 'poisonProb', label: 'worker poison probability', group: 'unit', kind: 'range', min: 0, max: 0.01, step: 0.0001, default: 0,
+    help: 'Chance a served request permanently retires the worker that served it (never returns to the pool) — models a leaked thread in a misconfigured server that never recycles workers.' },
   ...distParams({
     key: 'bootSec', label: 'boot time', group: 'unit',
     help: 'Delay from launch until an instance can serve. The main source of dead time.',
@@ -100,42 +105,52 @@ export const unitParams: ParamSpec[] = [
   ], help: 'What the metrics agent reports for a hung instance. The autoscaler believes it.' },
 ]
 
-/** Requests per second one instance can serve at 100%. */
+/** Requests per second one instance can serve at 100% CPU — the CPU-bound ceiling. I/O overlaps for free given enough workers. */
 export function unitCapacity(p: Params): number {
-  return num(p, 'concurrency') * 1000 / num(p, 'latencyMs')
+  return num(p, 'cores') * 1000 / num(p, 'cpuTimeMs')
 }
 
-/** Requests one instance can hold "in flight" without instant rejection — huge for the node.js model. */
-const UNBOUNDED_CONCURRENCY = 5_000
+/** Requests one instance can hold "in flight" without instant rejection when `unlimitedWorkers` is set. */
+const UNBOUNDED_WORKERS = 5_000
 
+/**
+ * Builds `InstanceOpts` from scenario params.
+ *
+ * Two easy-to-miss fixes baked in below:
+ * - `cpuPool.queueLimit` is set to `workers`, not left at its default of 0. Admission control
+ *   happens once, at `workerPool.tryAcquire()`; a request that's already "in" the envelope must be
+ *   able to wait for a free core rather than being rejected mid-flight just because the io/cpu steps
+ *   run sequentially. Without this, any transient cpu contention would reject requests outright,
+ *   defeating the point of sizing `workerPool` larger than `cores` in the first place.
+ * - `steps[].duration` is a raw sim-time value (the sim's base unit is seconds — see `bootSec`,
+ *   `healthCheckSec`), but `cpuTimeMs`/`ioWaitMs` are authored in milliseconds, so each sampled draw
+ *   must be divided by 1000. Missing this divides nothing: a request would hold its worker for
+ *   `cpuTimeMs + ioWaitMs` *seconds* instead of milliseconds — 1000x too long, saturating the
+ *   worker/cpu pools almost instantly.
+ *
+ * The `io` pool is sized to `workers` (derived or the unlimited sentinel), so it can never be the
+ * bottleneck: every request holding a worker can always be in its I/O step at once.
+ */
 export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const hung = str(p, 'hungCpu')
-  const nominal = num(p, 'concurrency')
-  const model = str(p, 'unitModel')
+  const cores = num(p, 'cores')
+  const cpuTimeMs = num(p, 'cpuTimeMs'), ioWaitMs = num(p, 'ioWaitMs')
 
-  let concurrency = nominal, queueLimit = 0
-  let slowdown: InstanceOpts['slowdown']
-  let cpuReport: InstanceOpts['cpuReport']
-  if (model === 'bounded-queue') {
-    queueLimit = num(p, 'queueSlots')
-  } else if (model === 'nodejs') {
-    concurrency = UNBOUNDED_CONCURRENCY
-    const gain = num(p, 'degradeGain')
-    slowdown = (inFlight) => 1 + gain * Math.max(0, inFlight / nominal - 1) ** 2
-    // Event-loop utilization, not thread occupancy: rises with real work and
-    // saturates at 1 around nominal concurrency, same as plain utilization
-    // would if concurrency weren't inflated to model the unbounded pool.
-    cpuReport = (inFlight) => Math.min(1, inFlight / nominal)
-  }
+  const derived = Math.ceil(cores * (cpuTimeMs + ioWaitMs) / cpuTimeMs)
+  // "Unlimited" must never mean fewer workers than the derived size (extreme sliders can exceed the sentinel).
+  const workers = bool(p, 'unlimitedWorkers') ? Math.max(UNBOUNDED_WORKERS, derived) : derived
 
   return {
     bootTime: () => sampleDist(rng, p, 'bootSec'),
-    serviceTime: () => rng.exp(1000 / num(p, 'latencyMs')),
-    concurrency,
-    queueLimit,
-    slowdown,
-    cpuReport,
+    workerPool: { slots: workers, queueLimit: num(p, 'queueSlots'), poisonProb: num(p, 'poisonProb') },
+    cpuPool: { slots: cores, queueLimit: workers },
+    steps: () => [
+      { pool: 'io', scope: 'instance', duration: sampleDist(rng, p, 'ioWaitMs') / 1000 },
+      { pool: 'cpu', scope: 'instance', duration: sampleDist(rng, p, 'cpuTimeMs') / 1000 },
+    ],
+    instancePools: { io: { slots: workers } }, // I/O wait doesn't contend on a bounded resource of its own; the worker envelope already bounds concurrency
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
+    rollUniform: () => rng.next(), // real roll for workerPool.poisonProb — Instance's own default (rollUniform omitted) never poisons, so this must be supplied for poisonProb to do anything
   }
 }
 

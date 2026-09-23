@@ -23,7 +23,7 @@ a bug in a product; it is what feedback with delay does.
 |---|---|---|---|---|
 | Scale-up rate limit | HPA `scaleUp.policies` max(4 pods, 100 %)/15 s | geometric overshoot | reaching a big jump takes several periods → longer under-capacity | HPA on 100→400 rps step: 2→4→6, peak 6, needed 5 |
 | Scale-down stabilization | HPA `stabilizationWindowSeconds: 300` | downward overshoot → second storm | pay for peak capacity 5 more minutes after every spike | — |
-| Cooldown | AWS simple scaling `Cooldown: 300` | flapping | exactly one action per 5 min; a 4× step needs 4 cooldowns = 20 min at ±1 | `cpu-oscillation` preset with cooldown 0 flaps forever; with 300 s it converges slowly |
+| Cooldown | AWS simple scaling `Cooldown: 300` | flapping | exactly one action per 5 min; a 4× step needs 4 cooldowns = 20 min at ±1 | `cpu-oscillation` preset with cooldown 0 flaps forever (3 ↔ 20); with 300 s it shrinks to a slow 3 ↔ 4 toggle (no count sits inside its 0.45–0.55 band at 690 rps) |
 | Instance warm-up | AWS `DefaultInstanceWarmup: 300` | compounding orders (warming instances excluded from metric, counted toward desired) | scale-in blocked while anything warms; second scale-out step waits a full warm-up | AWS TT on the step: 4 at t≈540, 6 at t≈1000, ~7 min of errors, zero overshoot |
 | Alarm evaluation periods | AWS AlarmHigh 3 datapoints, AlarmLow 15 | reacting to noise; scale-in on transient dips | +3 min dead time on every scale-out; 15 min before any scale-in | — |
 | Tolerance / dead band | HPA `tolerance: 0.1`, AWS AlarmLow at 90 % of target | chatter around the setpoint | steady-state sits anywhere in the band; small clusters look "far from target" | AWS docs say this explicitly |

@@ -3,11 +3,12 @@ import { Cluster } from './cluster'
 import { Sim } from './engine'
 import { injectFaults, type Fault } from './faults'
 import { LoadBalancer } from './lb'
+import { flatOpts } from './test-helpers'
 import { Upstream } from './upstream'
 
 function setup(sim: Sim, n = 6) {
   const lb = new LoadBalancer(sim)
-  const cluster = new Cluster(sim, lb, { bootTime: 0, serviceTime: () => 1, concurrency: 4, queueLimit: 0 })
+  const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 0, serviceTime: () => 1, concurrency: 4, queueLimit: 0 }))
   cluster.scaleTo(n)
   const upstream = new Upstream(sim, { capacity: 10, serviceTime: () => 1, queueLimit: 10 })
   return { lb, cluster, upstream }
@@ -74,7 +75,7 @@ describe('injectFaults', () => {
     const sim = new Sim()
     const lb = new LoadBalancer(sim)
     // replaceDeadAfter must not double-launch during a deploy
-    const cluster = new Cluster(sim, lb, { bootTime: 5, serviceTime: () => 1, concurrency: 4, queueLimit: 0 }, { replaceDeadAfter: 1 })
+    const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 5, serviceTime: () => 1, concurrency: 4, queueLimit: 0 }), { replaceDeadAfter: 1 })
     cluster.scaleTo(4)
     sim.run(5)
     const original = [...cluster.instances]

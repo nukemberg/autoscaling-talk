@@ -124,22 +124,37 @@ export class Instance {
     else this.finish(req, 'rejected')
   }
 
+  /**
+   * NOTE: a terminated instance's waiters queued in a *shared* cluster pool are not removed
+   * from that pool's queue (only instance-scoped pools get `forceReset()`, which clears their
+   * queues — cluster pools are shared and deliberately left untouched). Such a dead waiter
+   * spuriously counts against that pool's `queueLimit` until the pool's FIFO order naturally
+   * reaches it, at which point the staleness guard in `holdStep` renders it inert (it's a no-op,
+   * not a leak — see the `scope === 'cluster'` branch there).
+   */
   terminate(): void {
     this.state = 'terminated'
     this.bootHandle?.cancel()
     const victims: Request[] = []
+    const toRelease: { pool: Pool; slot: number }[] = []
     for (const occ of this.occupants) {
       if (!occ) continue
       occ.handle?.cancel()
-      if (occ.cur && occ.cur.scope === 'cluster') occ.cur.pool.release(occ.cur.slot, false)
+      if (occ.cur && occ.cur.scope === 'cluster') toRelease.push({ pool: occ.cur.pool, slot: occ.cur.slot })
       victims.push(occ.req)
     }
     victims.push(...this.workerQueue)
     this.workerQueue = []
+    // Null out occupants BEFORE releasing any cluster-scoped held slots: Pool.release() can
+    // synchronously hand a freed slot to another queued waiter, and if that waiter belongs to
+    // another occupant of THIS instance, its holdStep staleness check (`occupants[slot] !== occ`)
+    // must already see the cleared occupants array, or it will proceed as if still alive and
+    // schedule a completion that nothing later cancels (double-finish / negative occupancy).
     this.occupants = new Array(this.occupants.length).fill(null)
     this.workerPool.forceReset()
     this.cpuPool.forceReset()
     for (const pool of Object.values(this.instancePools)) pool.forceReset()
+    for (const { pool, slot } of toRelease) pool.release(slot, false)
     for (const r of victims) this.finish(r, 'error')
   }
 

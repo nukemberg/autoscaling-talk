@@ -219,6 +219,71 @@ describe('Instance cluster-scoped steps', () => {
     a.terminate()
     expect(db.occupied).toBe(0) // released back for other instances sharing this pool
   })
+
+  // Regression for the terminate() ordering bug: releasing a held cluster slot
+  // can synchronously cascade a grant to ANOTHER occupant of the SAME instance
+  // (queued behind it for that same pool). If `occupants` isn't cleared first,
+  // that occupant's holdStep sees itself as still alive and schedules a
+  // completion nothing later cancels — a double-finish and negative occupancy
+  // once that completion eventually fires.
+  test('terminate while one occupant holds a shared cluster slot and another is queued for it: no double-finish, no negative occupancy, slot freed immediately', () => {
+    const sim = new Sim()
+    const db = new Pool(sim, { slots: 1, queueLimit: 5 })
+    let call = 0
+    const plans: Step[][] = [
+      [cpuStep(5), { pool: 'db', scope: 'cluster', ms: 10 }], // req 0: cpu, then db
+      [{ pool: 'db', scope: 'cluster', ms: 10 }], // req 1: db only — grabs the db slot immediately
+    ]
+    const { inst, done } = make(sim, {
+      workerPool: { slots: 2 }, cpuPool: { slots: 1 }, clusterPools: { db },
+      steps: () => plans[call++]!,
+    })
+    inst.handle(req(sim, 0))
+    inst.handle(req(sim, 1))
+    // t=5: req0 finishes its cpu step and queues behind req1 for the db slot.
+    // t=6: terminate while req1 holds db and req0 is queued for it.
+    sim.run(6)
+    inst.terminate()
+    expect(done.map((r) => [r.id, r.outcome, r.doneAt])).toEqual([[0, 'error', 6], [1, 'error', 6]])
+    expect(db.occupied).toBe(0) // freed immediately, not after the held step's full duration
+    sim.run() // nothing left to fire; if the bug were present, req0 would double-finish at t=16
+    expect(done).toHaveLength(2)
+    expect(inst.inFlight).toBe(0) // never goes negative
+  })
+
+  // Documents a real but narrow limitation: terminate() only forceResets
+  // instance-scoped pools. A waiter this instance queued in a *shared* cluster
+  // pool stays in that pool's FIFO queue — inert (the staleness guard in
+  // holdStep no-ops it once reached) but still consuming `queueLimit` room
+  // until the pool naturally reaches it.
+  test('terminate does not remove a queued waiter from a shared cluster pool: inert but still consumes queue room until reached', () => {
+    const sim = new Sim()
+    const db = new Pool(sim, { slots: 1, queueLimit: 1 })
+    const { inst: c } = make(sim, {
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 100 }],
+    })
+    const { inst: a, done: doneA } = make(sim, {
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 10 }],
+    })
+    const { inst: b, done: doneB } = make(sim, {
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 5 }],
+    })
+
+    c.handle(req(sim, 0)) // holds the only db slot until t=100
+    a.handle(req(sim, 1)) // db full → queues (queueLimit 1, fits)
+    sim.run(1)
+    a.terminate() // a's queued waiter is NOT removed from db's queue
+    expect(doneA.map((r) => [r.id, r.outcome])).toEqual([[1, 'error']])
+
+    // db is still full (c) and its queue is spuriously full with a's dead
+    // waiter, so a legitimate request from a different instance is rejected.
+    b.handle(req(sim, 2))
+    expect(doneB.map((r) => [r.id, r.outcome])).toEqual([[2, 'rejected']])
+
+    sim.run() // t=100: c releases, cascades to a's dead waiter — inert, releases straight back
+    expect(doneA).toHaveLength(1) // no second finish for a's dead waiter
+    expect(db.occupied).toBe(0)
+  })
 })
 
 describe('Instance faults', () => {

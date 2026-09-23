@@ -340,14 +340,14 @@ Live demo on the next slide: flip "unlimited workers", same input, same knobs.
 
 # Bounded Workers vs. Unlimited Workers
 
-<Sim preset="unit-model-compare" :expose="['unlimitedWorkers', 'cores', 'cpuTimeMs', 'queueSlots']" :height="130" />
+<Sim preset="unit-model-compare" :expose="['unlimitedWorkers', 'workers', 'cores', 'cpuTimeMs', 'queueSlots']" :height="130" />
 
 <!--
 Live DES from presets/unit-model-compare.json. Sine-wave load (period
 200s) so the unit sees sustained variation, not just one step. Flip
 "unlimited workers" off to on live: same input, same knobs. Off, the
-per-instance worker pool is derived from the CPU/IO ratio (10 slots
-here, plus 8 queue slots) and acts as real admission control — it
+per-instance worker pool is the explicit workers knob (10 slots here,
+plus 8 queue slots) and acts as real admission control — it
 rejects past capacity, cleanly and immediately: ~3% errors, all of
 them during the scale-out dead time, and latency stays bounded (max
 ~260ms, mean ~155ms across the run). On, workers never reject — but

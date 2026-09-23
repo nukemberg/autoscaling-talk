@@ -81,8 +81,11 @@ export const unitParams: ParamSpec[] = [
     help: 'Per-request time spent waiting on I/O (DB, network) — doesn\'t consume a core, but still occupies the worker holding the request.',
     base: { min: 0, max: 2000, step: 10, default: 90, unit: 'ms' },
   }),
+  { key: 'workers', label: 'workers', group: 'unit', kind: 'range', min: 1, max: 512, step: 1, default: 40,
+    activeWhen: { unlimitedWorkers: 'false' },
+    help: 'Worker slots per instance — requests served concurrently (threads / event-loop tasks). Independent of CPU cores: cores bound compute, workers bound how many requests can be in flight (each holding a worker across its CPU + I/O time). The classic reference shape is ceil(cores*(cpuTime+ioWait)/cpuTime) — 40 at the defaults — but real servers let you misconfigure this, which is the point.' },
   { key: 'unlimitedWorkers', label: 'unlimited workers', group: 'unit', kind: 'toggle', default: false,
-    help: 'Bypass the derived worker-pool size with an effectively-unbounded one — an explicit node.js-style "don\'t bound the worker pool" knob, on top of whatever the CPU/IO ratio already implies.' },
+    help: 'Bypass the workers knob with an effectively-unbounded pool — an explicit node.js-style "don\'t bound the worker pool" knob. The CPU pool stays bounded, so admission control moves to an unbounded wait for a core instead.' },
   { key: 'queueSlots', label: 'queue slots', group: 'unit', kind: 'range', min: 0, max: 512, step: 1, default: 32,
     help: 'Waiting room beyond the worker pool before rejecting. 0 = reject immediately when full.' },
   { key: 'poisonProb', label: 'worker poison probability', group: 'unit', kind: 'range', min: 0, max: 0.01, step: 0.0001, default: 0,
@@ -104,7 +107,7 @@ export function unitCapacity(p: Params): number {
   return num(p, 'cores') * 1000 / num(p, 'cpuTimeMs')
 }
 
-/** Requests one instance can hold "in flight" without instant rejection when `unlimitedWorkers` is set. */
+/** Worker-pool size used when `unlimitedWorkers` is set — effectively unbounded in-flight requests. */
 const UNBOUNDED_WORKERS = 5_000
 
 /**
@@ -122,7 +125,7 @@ const UNBOUNDED_WORKERS = 5_000
  *   `cpuTimeMs + ioWaitMs` *seconds* instead of milliseconds — 1000x too long, saturating the
  *   worker/cpu pools almost instantly.
  *
- * The `io` pool is sized to `workers` (derived or the unlimited sentinel), so it can never be the
+ * The `io` pool is sized to `workers`, so it can never be the
  * bottleneck: every request holding a worker can always be in its I/O step at once.
  */
 export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
@@ -130,9 +133,10 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const cores = num(p, 'cores')
   const cpuTimeMs = num(p, 'cpuTimeMs'), ioWaitMs = num(p, 'ioWaitMs')
 
-  const derived = Math.ceil(cores * (cpuTimeMs + ioWaitMs) / cpuTimeMs)
-  // "Unlimited" must never mean fewer workers than the derived size (extreme sliders can exceed the sentinel).
-  const workers = bool(p, 'unlimitedWorkers') ? Math.max(UNBOUNDED_WORKERS, derived) : derived
+  // Workers are an explicit knob, deliberately decoupled from `cores`: cores bound compute,
+  // workers bound concurrency. Fewer workers than cores is legal (starved cores); more than
+  // cores is the usual config (I/O waits on the worker, not on the core).
+  const workers = bool(p, 'unlimitedWorkers') ? UNBOUNDED_WORKERS : num(p, 'workers')
 
   return {
     bootTime: () => sampleDist(rng, p, 'bootSec'),

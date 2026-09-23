@@ -9,6 +9,7 @@
     "cores": 2,
     "cpuTimeMs": 30,
     "ioWaitMs": 120,
+    "workers": 10,
     "queueSlots": 8,
     "unlimitedWorkers": false
   },

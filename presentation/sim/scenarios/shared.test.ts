@@ -7,9 +7,18 @@ import { defaults, type Params } from './types'
 const base: Params = { ...defaults(unitParams) }
 
 describe('instanceOpts: worker pool sizing', () => {
-  test('Nworkers = cores * (cpu + io) / cpu, ceiled', () => {
+  test('worker pool is sized to the explicit workers knob (default 40)', () => {
     const o = instanceOpts({ ...base, cores: 4, cpuTimeMs: 10, ioWaitMs: 90 }, new Rng(1))
-    expect(o.workerPool.slots).toBe(Math.ceil(4 * (10 + 90) / 10)) // 40
+    expect(o.workerPool.slots).toBe(40)
+  })
+
+  test('workers is independent of cores — cores and concurrency are different knobs', () => {
+    const few = instanceOpts({ ...base, cores: 16, workers: 2 }, new Rng(1))
+    expect(few.workerPool.slots).toBe(2)
+    expect(few.cpuPool.slots).toBe(16)
+    const many = instanceOpts({ ...base, cores: 1, workers: 512 }, new Rng(1))
+    expect(many.workerPool.slots).toBe(512)
+    expect(many.cpuPool.slots).toBe(1)
   })
 
   test('unlimitedWorkers bypasses the formula with a large sentinel', () => {
@@ -38,17 +47,16 @@ describe('instanceOpts: worker pool sizing', () => {
     expect(o.workerPool.queueLimit).toBe(40)
   })
 
-  test('io pool is sized to the worker pool, so it is never the bottleneck — even past the unlimited sentinel', () => {
-    const derived = instanceOpts({ ...base, cores: 64, cpuTimeMs: 1, ioWaitMs: 2000 }, new Rng(1))
-    expect(derived.workerPool.slots).toBe(64 * 2001) // far more than the unlimited sentinel
-    expect(derived.instancePools!.io!.slots).toBe(derived.workerPool.slots)
-    const unlimited = instanceOpts({ ...base, unlimitedWorkers: true }, new Rng(1))
-    expect(unlimited.instancePools!.io!.slots).toBe(unlimited.workerPool.slots)
+  test('io pool is sized to the worker pool, so it is never the bottleneck', () => {
+    const o = instanceOpts({ ...base, workers: 37 }, new Rng(1))
+    expect(o.instancePools!.io!.slots).toBe(37)
+    expect(o.instancePools!.io!.slots).toBe(o.workerPool.slots)
   })
 
-  test('unlimitedWorkers never yields fewer workers than the derived size', () => {
-    const o = instanceOpts({ ...base, cores: 64, cpuTimeMs: 1, ioWaitMs: 2000, unlimitedWorkers: true }, new Rng(1))
-    expect(o.workerPool.slots).toBe(64 * 2001)
+  test('unlimitedWorkers ignores the workers knob and uses the sentinel', () => {
+    const o = instanceOpts({ ...base, workers: 1, unlimitedWorkers: true }, new Rng(1))
+    expect(o.workerPool.slots).toBeGreaterThan(1000)
+    expect(o.instancePools!.io!.slots).toBe(o.workerPool.slots)
   })
 
   test('poisonProb maps to workerPool.poisonProb', () => {

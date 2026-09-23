@@ -12,6 +12,18 @@ export interface LbOpts {
    */
   healthCheck?: {
     interval: number
+    /**
+     * Max time to wait for a probe response before treating that attempt as
+     * failed — like a real HTTP health check's timeout. Default 0 (instant).
+     * A ready, non-hung instance always responds instantly regardless of
+     * this value (a healthy endpoint doesn't need the full timeout to
+     * reply); a not-ready instance ("connection refused": booting or
+     * terminated) also fails instantly. Only a hung instance's probe
+     * actually waits — up to `timeout` — before the LB gives up on it,
+     * re-reading its real state at that later time rather than assuming
+     * failure, so a hang that ends before the deadline still passes.
+     */
+    timeout?: number
     /** Consecutive failed checks before leaving rotation (default 1). */
     unhealthyAfter?: number
     /** Consecutive passed checks before rejoining (default 1). */
@@ -76,16 +88,30 @@ export class LoadBalancer {
 
   private check(interval: number): void {
     const hc = this.opts.healthCheck!
+    const timeout = hc.timeout ?? 0
     const unhealthyAfter = hc.unhealthyAfter ?? 1, healthyAfter = hc.healthyAfter ?? 1
-    const inRotation = new Set(this.routable)
-    for (const i of this.pool) {
+    for (const i of this.pool) this.probe(i, timeout, unhealthyAfter, healthyAfter)
+    this.sim.schedule(interval, () => this.check(interval))
+  }
+
+  /**
+   * One probe attempt. A not-ready instance ("connection refused") or a
+   * ready, non-hung one ("responds instantly") resolve immediately. A hung
+   * one waits up to `timeout`, then re-reads actual health at that later
+   * time — a hang that ends before the deadline still passes, same as a
+   * real client whose response arrived just under its timeout.
+   */
+  private probe(i: Instance, timeout: number, unhealthyAfter: number, healthyAfter: number): void {
+    const resolve = () => {
+      if (!this.pool.includes(i)) return // removed from the LB while the probe was in flight
       const prev = this.streak.get(i) ?? 0
       const streak = i.healthy ? Math.max(1, prev + 1) : Math.min(-1, prev - 1)
       this.streak.set(i, streak)
-      if (streak <= -unhealthyAfter) inRotation.delete(i)
-      else if (streak >= healthyAfter) inRotation.add(i)
+      const inRotation = this.routable.includes(i)
+      if (streak <= -unhealthyAfter && inRotation) this.routable = this.routable.filter((x) => x !== i)
+      else if (streak >= healthyAfter && !inRotation) this.routable = [...this.routable, i]
     }
-    this.routable = this.pool.filter((i) => inRotation.has(i))
-    this.sim.schedule(interval, () => this.check(interval))
+    if (i.state !== 'ready' || !i.hung) resolve()
+    else this.sim.schedule(timeout, resolve)
   }
 }

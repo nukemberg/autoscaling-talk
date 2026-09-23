@@ -153,4 +153,50 @@ describe('LoadBalancer health checks', () => {
     sim.run(30)
     expect(lb.readyCount).toBe(1)
   })
+
+  test('default timeout is 0: a hung instance fails the very check tick that finds it hung', () => {
+    const sim = new Sim()
+    const { lb, inst } = setup(sim, { healthCheck: { interval: 10 } })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
+    sim.run(10)
+    a.hang(100)
+    sim.run(20) // one check tick after the hang starts
+    expect(lb.readyCount).toBe(0)
+  })
+
+  test('connection-refused (not ready) fails instantly, ignoring timeout', () => {
+    const sim = new Sim()
+    const { lb, inst, done } = setup(sim, { healthCheck: { interval: 10, timeout: 100 } })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
+    sim.run(10)
+    a.terminate()
+    sim.run(20) // one check tick after termination — a huge timeout must not delay this
+    expect(lb.readyCount).toBe(0)
+    lb.handle({ id: 0, arrivedAt: 20 })
+    expect(done[0].outcome).toBe('rejected')
+  })
+
+  test('hung instance: failure is registered only after the configured timeout elapses', () => {
+    const sim = new Sim()
+    const { lb, inst } = setup(sim, { healthCheck: { interval: 10, timeout: 5 } })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
+    sim.run(10)
+    a.hang(100)
+    sim.run(20) // check tick at 20 finds it hung; probe won't resolve until 25
+    expect(lb.readyCount).toBe(1) // still routable — the probe hasn't timed out yet
+    sim.run(25)
+    expect(lb.readyCount).toBe(0) // now the timeout has elapsed
+  })
+
+  test('instance that recovers before the probe times out still counts as a pass', () => {
+    const sim = new Sim()
+    const { lb, inst } = setup(sim, { healthCheck: { interval: 10, timeout: 8 } })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
+    sim.run(10)
+    a.hang(12) // hung until 22 — still hung when the check at 20 fires, recovers before the probe's timeout at 28
+    sim.run(20)
+    expect(lb.readyCount).toBe(1) // check at 20 sees it hung, probe scheduled for 28
+    sim.run(28)
+    expect(lb.readyCount).toBe(1) // by 28 it had long since recovered — the delayed re-read passes
+  })
 })

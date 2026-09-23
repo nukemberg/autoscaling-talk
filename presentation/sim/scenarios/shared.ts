@@ -92,12 +92,6 @@ export const unitParams: ParamSpec[] = [
     help: 'Delay from launch until an instance can serve. The main source of dead time.',
     base: { min: 0, max: 600, step: 5, default: 120, unit: 's' },
   }),
-  { key: 'healthCheckSec', label: 'LB health check interval', group: 'unit', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',
-    help: 'How often the load balancer probes instances. 0 = LB sees instance state instantly (unrealistic).' },
-  { key: 'unhealthyAfter', label: 'unhealthy after', group: 'unit', kind: 'range', min: 1, max: 10, step: 1, default: 3, unit: 'checks',
-    help: 'Consecutive failed probes before the LB stops routing to an instance.' },
-  { key: 'healthyAfter', label: 'healthy after', group: 'unit', kind: 'range', min: 1, max: 10, step: 1, default: 2, unit: 'checks',
-    help: 'Consecutive passed probes before a recovered instance gets traffic again.' },
   { key: 'replaceDeadSec', label: 'replace dead after', group: 'unit', kind: 'range', min: 0, max: 600, step: 10, default: 60, unit: 's',
     help: 'Like an ASG health check: a crashed instance is relaunched after this delay.' },
   { key: 'hungCpu', label: 'CPU reported while hung', group: 'unit', kind: 'select', default: 'slots', options: [
@@ -157,7 +151,12 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
 export function lbOpts(p: Params): LbOpts {
   const interval = num(p, 'healthCheckSec')
   return interval > 0
-    ? { healthCheck: { interval, unhealthyAfter: num(p, 'unhealthyAfter'), healthyAfter: num(p, 'healthyAfter') } }
+    ? {
+        healthCheck: {
+          interval, timeout: num(p, 'healthCheckTimeoutSec'),
+          unhealthyAfter: num(p, 'unhealthyAfter'), healthyAfter: num(p, 'healthyAfter'),
+        },
+      }
     : {}
 }
 
@@ -184,6 +183,16 @@ export const scalerParams: ParamSpec[] = [
     help: 'Never scale below this.' },
   { key: 'maxInstances', label: 'max', group: 'scaler', kind: 'range', min: 1, max: 1000, step: 1, default: 100,
     help: 'Never scale above this. Also your bill ceiling.' },
+
+  // --- health checks (k8s readiness probe / AWS target group health check) ---
+  { key: 'healthCheckSec', label: 'LB health check interval', group: 'scaler', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',
+    help: 'How often the load balancer probes instances. 0 = LB sees instance state instantly (unrealistic).' },
+  { key: 'healthCheckTimeoutSec', label: 'LB health check timeout', group: 'scaler', kind: 'range', min: 0, max: 60, step: 1, default: 5, unit: 's',
+    help: 'Max time the LB waits for a probe response before giving up on that attempt — like a real HTTP health check timeout. 0 = instant (unrealistic): a hung instance fails the very check tick that finds it hung, instead of only after waiting this long. A ready, responsive instance always answers instantly regardless of this value; only a hung one actually waits.' },
+  { key: 'unhealthyAfter', label: 'unhealthy after', group: 'scaler', kind: 'range', min: 1, max: 10, step: 1, default: 3, unit: 'checks',
+    help: 'Consecutive failed probes before the LB stops routing to an instance.' },
+  { key: 'healthyAfter', label: 'healthy after', group: 'scaler', kind: 'range', min: 1, max: 10, step: 1, default: 2, unit: 'checks',
+    help: 'Consecutive passed probes before a recovered instance gets traffic again.' },
 
   // --- k8s HPA ---
   { key: 'hpaTarget', label: 'target utilization', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,

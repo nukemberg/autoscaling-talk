@@ -3,7 +3,11 @@
   "params": {
     "baseRps": 100,
     "rps": 400,
-    "ramp": "step"
+    "ramp": "step",
+    "cores": 16,
+    "cpuTimeMs": 100,
+    "ioWaitMs": 0,
+    "queueSlots": 0
   },
-  "notes": "Baseline: default k8s-HPA-style controller (target tracking on busy fraction, 50% target, 16 slots/instance, 120s boot, 30s sync, 60s window) under a clean step from 100 to 400 rps. No faults, no degradation. Scales 2 -> 4 -> 6 with no overshoot and ~2.3% errors, all of it dead-time exposure during the boot window, none of it the controller's fault. This is the well-behaved reference case everything else in the deck is compared against."
+  "notes": "Baseline: default k8s-HPA controller (target 50% cpu, 15s sync, 15s metric window, 30s readiness delay, 120s boot) under a clean step from 100 to 400 rps. Unit pinned to the classic reference shape the rest of the deck quotes: 16 cores, 100 ms of CPU per request, no I/O, no queue -> 16 workers, a pure loss system (M/D/16/16, Erlang-B), 160 rps/instance, so 400 rps needs 5 at 50%. Scales 2 -> 4 -> 6 (seed 2: 2 -> 4 -> 5) with no overshoot and ~2.1% errors (seeds 1-3 alike), all of it in the boot-window dead time right after the step, none of it the controller's fault. This is the well-behaved reference case everything else in the deck is compared against."
 }

@@ -3,7 +3,7 @@
   "name": "cpu-oscillation",
   "params": {
     "baseRps": 300,
-    "rps": 1360,
+    "rps": 690,
     "algo": "aws-simple",
     "awsOutThreshold": 0.55,
     "awsInThreshold": 0.45,
@@ -17,5 +17,5 @@
     "horizonSec": 3000,
     "sampleSec": 10
   },
-  "notes": "Deliberate worst case: AWS simple scaling with every knob turned to 'responsive' — thresholds close together (0.55/0.45), 1 datapoint, 15s period, zero cooldown. There's nothing here to damp a correction once it starts. Same unit as cpu-step, same target math, just no anti-windup and no cooldown. Sustained flapping is the point: peak overshoots the needed instance count by 2-3x, then it settles for a while and flaps again later in the run because the sine-free load step alone is enough to excite it once the gains are this high. Contrast with cpu-step's k8s defaults, which have the unready-pod set-aside (anti-windup) this preset deliberately lacks."
+  "notes": "Deliberate worst case: AWS simple scaling with every knob turned to 'responsive' — thresholds close together (0.55/0.45), 1 datapoint, 15s period, zero cooldown, on the default unit (4 cores, 10 ms CPU + 90 ms I/O per request -> 400 rps/instance). Two things combine. (1) Dead time with no damping: +1 every 15s while 240s boots are in flight orders ~16 instances before the first one helps. (2) No resting point: at 690 rps, 3 instances run at ~58% (above 0.55) and 4 at ~43% (below 0.45) — the 0.45-0.55 band is narrower than one instance's worth of load, so no instance count satisfies both alarms. Result (measured, seeds 1-3 alike): needed 3.5, overshoots to 20, walks back down to 3, and repeats — a sustained ~3 <-> 20 limit cycle for the whole run, ~0% errors (it's always over-provisioned or close). Move rps so an integer count lands inside the band (e.g. 1360 rps -> 7 instances at ~49%) and it overshoots once, then settles. Contrast with cpu-step's k8s defaults, which have the unready-pod set-aside (anti-windup) and a tolerance band this preset deliberately lacks."
 }

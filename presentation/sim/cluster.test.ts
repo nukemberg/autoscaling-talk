@@ -124,7 +124,7 @@ describe('Cluster.clusterPools', () => {
     const lb = new LoadBalancer(sim)
     const opts = {
       ...flatOpts({ serviceTime: () => 0, concurrency: 1, queueLimit: 0 }),
-      steps: () => [{ pool: 'db', scope: 'cluster' as const, ms: 5 }],
+      steps: () => [{ pool: 'db', scope: 'cluster' as const, duration: 5 }],
     }
     const cluster = new Cluster(sim, lb, opts, { clusterPools: { db: { slots: 1, queueLimit: 1 } } }) // queueLimit: b must queue behind a rather than reject
     cluster.scaleTo(2)

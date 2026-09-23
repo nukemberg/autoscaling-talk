@@ -35,7 +35,7 @@ export class Cluster {
   get instances(): readonly Instance[] { return this.pool }
   get size(): number { return this.pool.length }
   /** ∫ size dt — what the bill is based on. Booting instances count. */
-  get instanceTime(): number { return this.sizeOverTime.mean * this.sim.now }
+  get instanceTime(): number { return this.sizeOverTime.integral }
 
   get ready(): number { return this.pool.filter((i) => i.state === 'ready').length }
 

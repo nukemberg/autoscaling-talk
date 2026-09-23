@@ -38,6 +38,19 @@ describe('instanceOpts: worker pool sizing', () => {
     expect(o.workerPool.queueLimit).toBe(40)
   })
 
+  test('io pool is sized to the worker pool, so it is never the bottleneck — even past the unlimited sentinel', () => {
+    const derived = instanceOpts({ ...base, cores: 64, cpuTimeMs: 1, ioWaitMs: 2000 }, new Rng(1))
+    expect(derived.workerPool.slots).toBe(64 * 2001) // far more than the unlimited sentinel
+    expect(derived.instancePools!.io!.slots).toBe(derived.workerPool.slots)
+    const unlimited = instanceOpts({ ...base, unlimitedWorkers: true }, new Rng(1))
+    expect(unlimited.instancePools!.io!.slots).toBe(unlimited.workerPool.slots)
+  })
+
+  test('unlimitedWorkers never yields fewer workers than the derived size', () => {
+    const o = instanceOpts({ ...base, cores: 64, cpuTimeMs: 1, ioWaitMs: 2000, unlimitedWorkers: true }, new Rng(1))
+    expect(o.workerPool.slots).toBe(64 * 2001)
+  })
+
   test('poisonProb maps to workerPool.poisonProb', () => {
     const o = instanceOpts({ ...base, poisonProb: 0.01 }, new Rng(1))
     expect(o.workerPool.poisonProb).toBe(0.01)
@@ -45,21 +58,19 @@ describe('instanceOpts: worker pool sizing', () => {
 })
 
 describe('instanceOpts: step plan', () => {
-  // Step.ms is a raw sim-time value and the sim's base unit is seconds (see bootSec, and the old
-  // serviceTime: () => rng.exp(1000 / latencyMs), mean = latencyMs / 1000 s) — cpuTimeMs/ioWaitMs
+  // Step.duration is a raw sim-time value and the sim's base unit is seconds (see bootSec, and the
+  // old serviceTime: () => rng.exp(1000 / latencyMs), mean = latencyMs / 1000 s) — cpuTimeMs/ioWaitMs
   // are authored in milliseconds, so the sampled draw must be divided by 1000 before going into a
-  // Step. The brief's own assertions here (ms toBe 20 / toBe 5, i.e. raw milliseconds) were traced
-  // against instance.test.ts's own Step usage (small ms values fed straight to sim.schedule with no
-  // conversion) and found unsatisfiable by real Instance/Pool semantics: undivided, a request would
-  // hold its worker/cpu slot for whole seconds instead of milliseconds, saturating the derived pool
-  // sizes almost immediately (confirmed empirically via cpu.test.ts's "stable base load" scenario
-  // going from ~0% to ~100% failure without the fix).
+  // Step. (The field used to be called `ms`, which invited exactly the undivided-milliseconds bug:
+  // a request would hold its worker/cpu slot for whole seconds instead of milliseconds, saturating
+  // the derived pool sizes almost immediately — cpu.test.ts's "stable base load" scenario went from
+  // ~0% to ~100% failure. Renamed to `duration` so the name no longer says the wrong unit.)
   test('default plan is one io step then one cpu step, sampled via the given rng', () => {
     const o = instanceOpts({ ...base, cpuTimeMs: 5, ioWaitMs: 20 }, new Rng(1))
     const plan = o.steps!()
     expect(plan.map((s) => [s.pool, s.scope])).toEqual([['io', 'instance'], ['cpu', 'instance']])
-    expect(plan[0]!.ms).toBe(20 / 1000)
-    expect(plan[1]!.ms).toBe(5 / 1000)
+    expect(plan[0]!.duration).toBe(20 / 1000)
+    expect(plan[1]!.duration).toBe(5 / 1000)
   })
 })
 

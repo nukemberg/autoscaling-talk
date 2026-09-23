@@ -66,15 +66,15 @@ what the control-theory view says, and whether we could sim it.
 
 ## Notes from our sims (so far)
 
-Setup unless noted: 16 slots/instance, 100 ms service → 160 rps/instance, target 50 %, boot 120 s, LB health check 10 s × 3 fails / 2 passes. Base 100 rps → step to 400 at t=300 s; needs 5 instances.
+Setup unless noted: 16 slots/instance, 100 ms service → 160 rps/instance, target 50 %, boot 120 s, LB health check 10 s × 3 fails / 2 passes. Base 100 rps → step to 400 at t=300 s; needs 5 instances. (In today's resource-pool unit model that's `cpu-step.json`'s pinned unit: 16 cores, 100 ms CPU, no I/O, no queue → 16 workers. Service time is now fixed rather than exponential; the table below predates that change and the switch to counter-based cpu metrics, so treat its numbers as the historical record — `cpu-step.json`'s notes have the current measurements.)
 
 | Controller | Result | Note |
 |---|---|---|
 | Generic "HPA formula" ticking every 30 s, no unready rule (our first cut) | peak 59, three decaying cycles, settles at 5 after ~10 min, 2.4 % errors | This is what people *think* HPA does. It isn't. |
 | Same, counting in-flight instances | peak 7, converges in 2 boot cycles, 2.4 % errors | Overshoot gone; errors identical — dead time is physics |
-| **k8s HPA, defaults** | 2 → 4 → 6, no overshoot, ~2.3 % errors | The unready-pod rule *is* the anti-windup. Scale-up limit max(4, 100 %) never bound here |
+| **k8s HPA, defaults** | 2 → 4 → 6, no overshoot, ~2.3 % errors (current model: 2 → 4 → 5–6, ~2.1 %) | The unready-pod rule *is* the anti-windup. Scale-up limit max(4, 100 %) never bound here |
 | **AWS target tracking, defaults + 60 s metric delay** | 4 at t≈540, 6 at t≈1000, 5.6 % errors, zero overshoot | 3 datapoints + delay + warm-up. Slow ≠ safe: ~7 min of errors |
-| AWS simple scaling ±1, thresholds 0.55/0.45, cooldown 0, 15 s period (`cpu-oscillation`) | sustained flapping | The oscillation demo. Every knob at "responsive" |
+| AWS simple scaling ±1, thresholds 0.55/0.45, cooldown 0, 15 s period (`cpu-oscillation`) | sustained flapping (current preset: 690 rps on the default 400 rps/instance unit → sustained 3 ↔ 20 limit cycle) | The oscillation demo. Every knob at "responsive". Once cpu became a counter-based time average, the old 1360 rps setup overshot once and settled at 7 — its sustained flapping had been point-sampling noise. Real flapping needs no instance count inside the 0.45–0.55 band (3 → 58 %, 4 → 43 %) |
 | HPA + `hang` 2 of 5 instances, CPU spinning | LB drops them after 30 s, scaler adds ~9 it doesn't need, drops them after recovery, 3.4 % errors | Metric lies are believed |
 | HPA + `kill` 2 of 5, replace after 60 s | 60 s of ~40 % errors, back to 5 | ASG replacement is fine; the errors are the health-check delay |
 
@@ -82,7 +82,7 @@ Things the sims taught us that we didn't expect:
 - A cluster with only booting instances reports utilization 0 → a naive scaler scales it *in*. Instances die before finishing boot. This fell out of the first test run, not from a war story.
 - Youngest-first scale-in (the AWS/k8s default) means the instances killed during the down-swing are exactly the ones still booting — so the storm costs money but never served a request.
 - Warm-up (AWS) and unready set-aside (k8s) are the same idea with opposite defaults: AWS blocks scale-in during it, k8s does not.
-- With Poisson arrivals at 50 % target, 16 slots/instance, M/M/16/16 rejects ~0.1 % of requests at steady state. "Errors % 0.0" is never quite true.
+- With Poisson arrivals, 16 slots/instance and no queue, a pure loss system rejects a small but nonzero share at steady state — Erlang-B gives ~0.45 % at exactly 50 % (8 Erlangs on 16 slots), ~0.1 % at the 6 instances the controller actually lands on. Erlang-B is insensitive to the service-time distribution, so this holds for today's fixed service time (M/D/16/16) as much as for the old exponential one (M/M/16/16). "Errors % 0.0" is never quite true.
 - The health-check interval is dead time too: instances are ready 20 s before the LB believes it (10 s × 2 passes). Our warm-up had to account for it or the "stable" period showed 7 % errors.
 - uPlot mutates the option objects you hand it. Two hours.
 

@@ -9,8 +9,8 @@ function req(sim: Sim, id = 0): Request {
   return { id, arrivedAt: sim.now }
 }
 
-function cpuStep(ms: number): Step {
-  return { pool: 'cpu', scope: 'instance', ms }
+function cpuStep(duration: number): Step {
+  return { pool: 'cpu', scope: 'instance', duration }
 }
 
 function make(sim: Sim, over: Partial<InstanceOpts> = {}) {
@@ -79,7 +79,7 @@ describe('Instance lifecycle', () => {
 })
 
 describe('Instance service', () => {
-  test('serves request: startedAt, doneAt = start + step ms, outcome ok', () => {
+  test('serves request: startedAt, doneAt = start + step duration, outcome ok', () => {
     const sim = new Sim()
     const { inst, done } = make(sim, { steps: () => [cpuStep(2)] })
     sim.run(1)
@@ -94,7 +94,7 @@ describe('Instance service', () => {
     const { inst, done } = make(sim, {
       cpuPool: { slots: 1 },
       instancePools: { io: { slots: 5 } },
-      steps: () => [{ pool: 'io', scope: 'instance', ms: 3 }, cpuStep(2)],
+      steps: () => [{ pool: 'io', scope: 'instance', duration: 3 }, cpuStep(2)],
     })
     inst.handle(req(sim))
     sim.run()
@@ -153,6 +153,11 @@ describe('Instance service', () => {
     sim.run()
     expect(done[0]).toMatchObject({ doneAt: 7, outcome: 'error' })
   })
+
+  test('an instancePools entry named "cpu" is rejected: that name is reserved for cpuPool', () => {
+    const sim = new Sim()
+    expect(() => make(sim, { instancePools: { cpu: { slots: 8 } } })).toThrow(/"cpu" is reserved/)
+  })
 })
 
 describe('Instance worker poisoning', () => {
@@ -196,10 +201,10 @@ describe('Instance cluster-scoped steps', () => {
     const sim = new Sim()
     const db = new Pool(sim, { slots: 1, queueLimit: 1 }) // queueLimit: b must queue behind a rather than reject
     const { inst: a, done: doneA } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 5 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 5 }],
     })
     const { inst: b, done: doneB } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 5 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 5 }],
     })
     a.handle(req(sim, 0))
     b.handle(req(sim, 1)) // same shared db pool, only 1 slot → b queues behind a
@@ -212,7 +217,7 @@ describe('Instance cluster-scoped steps', () => {
     const sim = new Sim()
     const db = new Pool(sim, { slots: 1 })
     const { inst: a } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 100 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 100 }],
     })
     a.handle(req(sim, 0))
     expect(db.occupied).toBe(1)
@@ -231,8 +236,8 @@ describe('Instance cluster-scoped steps', () => {
     const db = new Pool(sim, { slots: 1, queueLimit: 5 })
     let call = 0
     const plans: Step[][] = [
-      [cpuStep(5), { pool: 'db', scope: 'cluster', ms: 10 }], // req 0: cpu, then db
-      [{ pool: 'db', scope: 'cluster', ms: 10 }], // req 1: db only — grabs the db slot immediately
+      [cpuStep(5), { pool: 'db', scope: 'cluster', duration: 10 }], // req 0: cpu, then db
+      [{ pool: 'db', scope: 'cluster', duration: 10 }], // req 1: db only — grabs the db slot immediately
     ]
     const { inst, done } = make(sim, {
       workerPool: { slots: 2 }, cpuPool: { slots: 1 }, clusterPools: { db },
@@ -260,13 +265,13 @@ describe('Instance cluster-scoped steps', () => {
     const sim = new Sim()
     const db = new Pool(sim, { slots: 1, queueLimit: 1 })
     const { inst: c } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 100 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 100 }],
     })
     const { inst: a, done: doneA } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 10 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 10 }],
     })
     const { inst: b, done: doneB } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 5 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 5 }],
     })
 
     c.handle(req(sim, 0)) // holds the only db slot until t=100
@@ -297,6 +302,20 @@ describe('Instance faults', () => {
     inst.hang(10) // hung until 11
     sim.run()
     expect(done[0]).toMatchObject({ doneAt: 12, outcome: 'ok' }) // 1 unit of step left after 11
+  })
+
+  test('hang mid-way through a multi-step plan: pushes out the in-progress step only; later steps run normally after', () => {
+    const sim = new Sim()
+    const { inst, done } = make(sim, {
+      workerPool: { slots: 1 }, cpuPool: { slots: 1 }, instancePools: { io: { slots: 1 } },
+      steps: () => [{ pool: 'io', scope: 'instance', duration: 3 }, cpuStep(2)],
+    })
+    inst.handle(req(sim, 0)) // io [0,3) then cpu [3,5) if nothing happened
+    sim.run(1)
+    inst.hang(10)            // hung until 11: io has 2 left → resumes to 13, then cpu 2 → 15
+    sim.run()
+    expect(done[0]).toMatchObject({ doneAt: 15, outcome: 'ok' })
+    expect(inst.inFlight).toBe(0)
   })
 
   test('hang: new requests are accepted and finish after the hang + step', () => {
@@ -358,7 +377,51 @@ describe('Instance faults', () => {
     expect(inst.utilization).toBe(0.02) // 2 of 100 worker slots held — the honest concurrency picture
   })
 
-  test('slow: multiplies instance-scoped step ms for new steps started during the fault', () => {
+  test('cpuSeconds: cumulative ∫ cpu dt — a counter, not an instantaneous fraction', () => {
+    const sim = new Sim()
+    const { inst } = make(sim, {
+      workerPool: { slots: 4 }, cpuPool: { slots: 1, queueLimit: 4 }, steps: () => [cpuStep(2)],
+    })
+    inst.handle(req(sim, 0))
+    sim.run(1)
+    expect(inst.cpuSeconds).toBeCloseTo(1) // mid-step: includes the in-progress segment
+    sim.run(5)                             // busy [0,2), idle [2,5)
+    expect(inst.cpuSeconds).toBeCloseTo(2)
+    expect(inst.cpu).toBe(0)
+    inst.handle(req(sim, 1))
+    inst.handle(req(sim, 2))               // queues for the one core: busy [5,9)
+    sim.run(10)
+    expect(inst.cpuSeconds).toBeCloseTo(6)
+  })
+
+  test('cpuSeconds: advances at hungCpu while hung (the same lie `cpu` tells), honest again after', () => {
+    const sim = new Sim()
+    const { inst } = make(sim, {
+      workerPool: { slots: 4 }, cpuPool: { slots: 4 }, steps: () => [cpuStep(100)], hungCpu: 1,
+    })
+    inst.handle(req(sim, 0))               // honest: 0.25
+    sim.run(4)
+    inst.hang(4)                           // hung [4,8)
+    sim.run(6)
+    inst.hang(4)                           // extended: hung [4,10)
+    sim.run(10)
+    expect(inst.cpuSeconds).toBeCloseTo(4 * 0.25 + 6 * 1)
+    sim.run(14)
+    expect(inst.cpuSeconds).toBeCloseTo(4 * 0.25 + 6 * 1 + 4 * 0.25)
+  })
+
+  test('cpuSeconds: while hung without hungCpu, advances at the worker pool busy fraction', () => {
+    const sim = new Sim()
+    const { inst } = make(sim, {
+      workerPool: { slots: 2 }, cpuPool: { slots: 4 }, steps: () => [cpuStep(100)],
+    })
+    inst.handle(req(sim, 0))               // cpu 0.25, utilization 0.5
+    inst.hang(10)
+    sim.run(10)
+    expect(inst.cpuSeconds).toBeCloseTo(10 * 0.5)
+  })
+
+  test('slow: multiplies instance-scoped step duration for new steps started during the fault', () => {
     const sim = new Sim()
     const { inst, done } = make(sim, {
       workerPool: { slots: 4 }, cpuPool: { slots: 4 }, steps: () => [cpuStep(1)],
@@ -375,7 +438,7 @@ describe('Instance faults', () => {
     const sim = new Sim()
     const db = new Pool(sim, { slots: 1 })
     const { inst, done } = make(sim, {
-      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', ms: 1 }],
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 1 }],
     })
     inst.slow(3, 10)
     inst.handle(req(sim, 0))

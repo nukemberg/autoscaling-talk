@@ -122,30 +122,33 @@ const UNBOUNDED_WORKERS = 5_000
  *   able to wait for a free core rather than being rejected mid-flight just because the io/cpu steps
  *   run sequentially. Without this, any transient cpu contention would reject requests outright,
  *   defeating the point of sizing `workerPool` larger than `cores` in the first place.
- * - `steps[].ms` is a raw sim-time value (the sim's base unit is seconds — see `bootSec`,
+ * - `steps[].duration` is a raw sim-time value (the sim's base unit is seconds — see `bootSec`,
  *   `healthCheckSec`), but `cpuTimeMs`/`ioWaitMs` are authored in milliseconds, so each sampled draw
  *   must be divided by 1000. Missing this divides nothing: a request would hold its worker for
  *   `cpuTimeMs + ioWaitMs` *seconds* instead of milliseconds — 1000x too long, saturating the
  *   worker/cpu pools almost instantly.
+ *
+ * The `io` pool is sized to `workers` (derived or the unlimited sentinel), so it can never be the
+ * bottleneck: every request holding a worker can always be in its I/O step at once.
  */
 export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const hung = str(p, 'hungCpu')
   const cores = num(p, 'cores')
   const cpuTimeMs = num(p, 'cpuTimeMs'), ioWaitMs = num(p, 'ioWaitMs')
 
-  const workers = bool(p, 'unlimitedWorkers')
-    ? UNBOUNDED_WORKERS
-    : Math.ceil(cores * (cpuTimeMs + ioWaitMs) / cpuTimeMs)
+  const derived = Math.ceil(cores * (cpuTimeMs + ioWaitMs) / cpuTimeMs)
+  // "Unlimited" must never mean fewer workers than the derived size (extreme sliders can exceed the sentinel).
+  const workers = bool(p, 'unlimitedWorkers') ? Math.max(UNBOUNDED_WORKERS, derived) : derived
 
   return {
     bootTime: () => sampleDist(rng, p, 'bootSec'),
     workerPool: { slots: workers, queueLimit: num(p, 'queueSlots'), poisonProb: num(p, 'poisonProb') },
     cpuPool: { slots: cores, queueLimit: workers },
     steps: () => [
-      { pool: 'io', scope: 'instance', ms: sampleDist(rng, p, 'ioWaitMs') / 1000 },
-      { pool: 'cpu', scope: 'instance', ms: sampleDist(rng, p, 'cpuTimeMs') / 1000 },
+      { pool: 'io', scope: 'instance', duration: sampleDist(rng, p, 'ioWaitMs') / 1000 },
+      { pool: 'cpu', scope: 'instance', duration: sampleDist(rng, p, 'cpuTimeMs') / 1000 },
     ],
-    instancePools: { io: { slots: UNBOUNDED_WORKERS } }, // I/O wait doesn't contend on a bounded resource of its own; the worker envelope already bounds concurrency
+    instancePools: { io: { slots: workers } }, // I/O wait doesn't contend on a bounded resource of its own; the worker envelope already bounds concurrency
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
     rollUniform: () => rng.next(), // real roll for workerPool.poisonProb — Instance's own default (rollUniform omitted) never poisons, so this must be supplied for poisonProb to do anything
   }

@@ -53,6 +53,25 @@ describe('TimeWeighted', () => {
     const tw = new TimeWeighted(sim, 3)
     expect(tw.mean).toBe(3)
   })
+
+  test('mean is over time since construction, not since t = 0', () => {
+    const sim = new Sim()
+    sim.run(10)
+    const tw = new TimeWeighted(sim, 2)   // created at t=10
+    sim.schedule(5, () => tw.set(4))      // 2 for 5 units
+    sim.run(20)                           // 4 for 5 units
+    expect(tw.mean).toBeCloseTo(3)        // (2*5 + 4*5) / 10, not / 20
+  })
+
+  test('integral accumulates value × time, including the in-progress segment', () => {
+    const sim = new Sim()
+    const tw = new TimeWeighted(sim, 0.5)
+    sim.schedule(2, () => tw.set(1))      // 0.5 for 2 units → 1
+    sim.run(3)                            // 1 for 1 unit (not yet closed by a set) → 1
+    expect(tw.integral).toBeCloseTo(2)
+    sim.run(5)
+    expect(tw.integral).toBeCloseTo(4)    // keeps growing with no further set()
+  })
 })
 
 describe('Recorder', () => {

@@ -7,11 +7,12 @@ export type InstanceState = 'booting' | 'ready' | 'terminated'
 
 export type Work = (req: Request, finish: (outcome: Outcome) => void) => void
 
-/** One step of a request's plan: acquire the named pool, hold it `ms`, release. */
+/** One step of a request's plan: acquire the named pool, hold it for `duration`, release. */
 export interface Step {
   pool: string
   scope: 'instance' | 'cluster'
-  ms: number
+  /** How long the pool slot is held, in sim time — seconds, like every other sim duration (not ms). */
+  duration: number
 }
 
 export interface InstanceOpts {
@@ -62,6 +63,10 @@ export class Instance {
    *  back the `Request` objects `terminate()` needs for its victim list. */
   private workerQueue: Request[] = []
   private bootHandle?: EventHandle
+  /** Reported-minus-honest CPU-seconds from closed hang windows (see `cpuSeconds`). */
+  private hangCpuAdj = 0
+  /** Integrals snapshotted when the current hang window opened; undefined when not hung. */
+  private hangWindow?: { cpu0: number; lie0: number; end: EventHandle }
   private hungUntil = -Infinity
   private slowUntil = -Infinity
   private slowFactor = 1
@@ -71,7 +76,12 @@ export class Instance {
     this.workerPool = new Pool(sim, opts.workerPool)
     this.cpuPool = new Pool(sim, opts.cpuPool)
     this.instancePools = {}
-    for (const [name, poolOpts] of Object.entries(opts.instancePools ?? {})) this.instancePools[name] = new Pool(sim, poolOpts)
+    for (const [name, poolOpts] of Object.entries(opts.instancePools ?? {})) {
+      // An instance-scoped step naming 'cpu' always resolves to `cpuPool` (see runStep), so an
+      // `instancePools.cpu` entry would be silently unreachable — refuse it instead.
+      if (name === 'cpu') throw new Error('instancePools: "cpu" is reserved for the dedicated `cpuPool` option; configure the CPU pool there')
+      this.instancePools[name] = new Pool(sim, poolOpts)
+    }
     this.clusterPools = opts.clusterPools ?? {}
     this.occupants = new Array(opts.workerPool.slots).fill(null)
 
@@ -93,9 +103,42 @@ export class Instance {
     return this.cpuPool.occupied / this.cpuPool.slots
   }
 
+  /**
+   * Cumulative CPU-busy-time as the metrics agent reports it, in seconds of whole-instance busy
+   * (∫ cpu dt): a monotone counter for delta-based scraping, like cgroup `cpu.stat` usage or
+   * Node's `eventLoopUtilization()` — NOT an instantaneous fraction (that's `cpu`). A scraper
+   * takes (Δ cpuSeconds / Δ t) between two reads to get the honest time-averaged busy fraction.
+   * Includes the same lie `cpu` tells while hung: during a hang window the counter advances at
+   * `hungCpu` (or at the worker pool's busy fraction) instead of at the cpu pool's.
+   */
+  get cpuSeconds(): number {
+    let v = this.cpuPool.busy.integral + this.hangCpuAdj
+    const w = this.hangWindow
+    if (w) v += (this.lieIntegral() - w.lie0) - (this.cpuPool.busy.integral - w.cpu0)
+    return v
+  }
+
+  /** ∫ (what `cpu` reports while hung) dt — the counter a hung instance's agent advances. */
+  private lieIntegral(): number {
+    return this.opts.hungCpu !== undefined ? this.opts.hungCpu * this.sim.now : this.workerPool.busy.integral
+  }
+
   /** Stop completing anything for `duration`; in-progress steps keep their occupant but push their timer out. */
   hang(duration: number): void {
     this.hungUntil = Math.max(this.hungUntil, this.sim.now + duration)
+    // Track the hang window for `cpuSeconds`: open it (snapshot integrals) unless one is already
+    // open, and (re)schedule its close at the possibly-extended `hungUntil`.
+    const w = this.hangWindow
+    w?.end.cancel()
+    this.hangWindow = {
+      cpu0: w ? w.cpu0 : this.cpuPool.busy.integral,
+      lie0: w ? w.lie0 : this.lieIntegral(),
+      end: this.sim.scheduleAt(this.hungUntil, () => {
+        const cur = this.hangWindow!
+        this.hangCpuAdj += (this.lieIntegral() - cur.lie0) - (this.cpuPool.busy.integral - cur.cpu0)
+        this.hangWindow = undefined
+      }),
+    }
     for (let i = 0; i < this.occupants.length; i++) {
       const occ = this.occupants[i]
       if (!occ || !occ.cur || !occ.handle || occ.resumeAt === undefined) continue
@@ -105,7 +148,7 @@ export class Instance {
     }
   }
 
-  /** Instance-scoped step ms × `factor` for steps starting during `duration`. Cluster-scoped steps are unaffected — a local fault shouldn't inflate a shared upstream's time. */
+  /** Instance-scoped step duration × `factor` for steps starting during `duration`. Cluster-scoped steps are unaffected — a local fault shouldn't inflate a shared upstream's time. */
   slow(factor: number, duration: number): void {
     this.slowFactor = factor
     this.slowUntil = this.sim.now + duration
@@ -135,6 +178,7 @@ export class Instance {
   terminate(): void {
     this.state = 'terminated'
     this.bootHandle?.cancel()
+    this.hangWindow?.end.cancel()
     const victims: Request[] = []
     const toRelease: { pool: Pool; poolSlot: number }[] = []
     for (const occ of this.occupants) {
@@ -182,26 +226,26 @@ export class Instance {
     // in behavior, just noted here.
     if (occ.stepIndex >= occ.plan.length) return this.finishWorker(workerSlot, occ, 'ok')
     const step = occ.plan[occ.stepIndex]!
-    let ms = step.ms
-    if (step.scope === 'instance' && this.sim.now < this.slowUntil) ms *= this.slowFactor
+    let duration = step.duration
+    if (step.scope === 'instance' && this.sim.now < this.slowUntil) duration *= this.slowFactor
     const pool = step.scope === 'cluster'
       ? this.clusterPools[step.pool]
       : step.pool === 'cpu' ? this.cpuPool : this.instancePools[step.pool]
     if (!pool) throw new Error(`unknown ${step.scope} pool "${step.pool}"`)
     const acquired = pool.tryAcquire()
-    if (acquired !== undefined) return this.holdStep(workerSlot, occ, pool, acquired, ms, step.scope)
-    const queued = pool.enqueue((s) => this.holdStep(workerSlot, occ, pool, s, ms, step.scope))
+    if (acquired !== undefined) return this.holdStep(workerSlot, occ, pool, acquired, duration, step.scope)
+    const queued = pool.enqueue((s) => this.holdStep(workerSlot, occ, pool, s, duration, step.scope))
     if (!queued) this.finishWorker(workerSlot, occ, 'rejected')
   }
 
-  private holdStep(workerSlot: number, occ: Occupant, pool: Pool, poolSlot: number, ms: number, scope: 'instance' | 'cluster'): void {
+  private holdStep(workerSlot: number, occ: Occupant, pool: Pool, poolSlot: number, duration: number, scope: 'instance' | 'cluster'): void {
     if (this.occupants[workerSlot] !== occ) {
       // Instance terminated while this step waited in the pool's queue — don't leak a shared slot.
       if (scope === 'cluster') pool.release(poolSlot, false)
       return
     }
     occ.cur = { pool, poolSlot, scope }
-    occ.resumeAt = Math.max(this.sim.now, this.hungUntil) + ms
+    occ.resumeAt = Math.max(this.sim.now, this.hungUntil) + duration
     this.scheduleStepCompletion(workerSlot, occ)
   }
 

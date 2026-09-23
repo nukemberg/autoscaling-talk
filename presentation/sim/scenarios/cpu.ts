@@ -1,5 +1,6 @@
 import { Arrivals } from '../arrivals'
 import { Cluster } from '../cluster'
+import type { Instance } from '../instance'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
 import { Recorder } from '../metrics'
@@ -88,11 +89,27 @@ export const cpuScenario: ScenarioDef = {
 
     let lastTotals = { ...stats.totals }
     const delta = (k: keyof typeof stats.totals) => stats.totals[k] - lastTotals[k]
+    // Charted cpu is time-averaged over each sample window from the cumulative counter — the same
+    // way the controller's metrics see it — not a point sample of instantaneous core occupancy
+    // (which, with few cores, is mostly 0%/100% noise).
+    let lastCpuSeconds = new Map<Instance, number>()
+    const cpuPct = () => {
+      const next = new Map<Instance, number>()
+      let sum = 0, n = 0
+      for (const inst of cluster.instances) {
+        if (inst.state !== 'ready') continue
+        const cs = inst.cpuSeconds, prev = lastCpuSeconds.get(inst)
+        next.set(inst, cs)
+        if (prev !== undefined) { sum += (cs - prev) / sample; n++ }
+      }
+      lastCpuSeconds = next
+      return 100 * (n ? sum / n : cluster.cpu)
+    }
     const rec = new Recorder(sim, sample, {
       instances: () => cluster.size,
       ready: () => cluster.ready,
       inRotation: () => lb.readyCount,
-      cpu: () => cluster.cpu * 100,
+      cpu: cpuPct,
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,

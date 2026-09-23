@@ -21,7 +21,7 @@ function setup(sim: Sim, ready: number, over: Partial<HpaOpts> = {}, boot = 1000
   const cpu = new Map<Instance, number>()
   let all = 0
   const setAll = (v: number) => { all = v; cpu.clear() }
-  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, read: (i) => cpu.get(i) ?? all })
+  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: (i) => cpu.get(i) ?? all } })
   sim.run(60)                      // past initialReadinessDelay
   metrics.start()
   const hpa = new Hpa(sim, cluster, metrics, { target: 0.5, min: 1, max: 100, ...over })

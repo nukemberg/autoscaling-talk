@@ -45,10 +45,12 @@ export class TimeWeighted {
   private area = 0
   private since: number
   private current: number
+  private readonly createdAt: number
 
   constructor(private sim: Sim, initial: number) {
     this.current = initial
     this.since = sim.now
+    this.createdAt = sim.now
   }
 
   set(v: number): void {
@@ -59,10 +61,16 @@ export class TimeWeighted {
 
   get value(): number { return this.current }
 
+  /** ∫ value dt since construction, including the in-progress segment — a monotone counter when value ≥ 0 (e.g. busy-seconds). */
+  get integral(): number {
+    return this.area + this.current * (this.sim.now - this.since)
+  }
+
+  /** Time-weighted mean since construction (not since t = 0). */
   get mean(): number {
-    const elapsed = this.sim.now
+    const elapsed = this.sim.now - this.createdAt
     if (elapsed === 0) return this.current
-    return (this.area + this.current * (this.sim.now - this.since)) / elapsed
+    return this.integral / elapsed
   }
 }
 

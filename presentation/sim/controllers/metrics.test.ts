@@ -3,10 +3,11 @@ import { Cluster } from '../cluster'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
 import { PodMetrics } from './metrics'
+import { flatOpts } from '../test-helpers'
 
 function setup(sim: Sim, n = 2) {
   const lb = new LoadBalancer(sim)
-  const cluster = new Cluster(sim, lb, { bootTime: 0, serviceTime: () => 100, concurrency: 4, queueLimit: 0, hungCpu: 1 })
+  const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 0, serviceTime: () => 100, concurrency: 4, queueLimit: 0, hungCpu: 1 }))
   cluster.scaleTo(n)
   return { lb, cluster }
 }

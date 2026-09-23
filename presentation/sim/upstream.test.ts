@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { Sim } from './engine'
 import { Instance } from './instance'
 import { Upstream, viaUpstream, type UpstreamOpts } from './upstream'
+import { flatOpts } from './test-helpers'
 import type { Outcome } from './types'
 
 const base: UpstreamOpts = { capacity: 2, serviceTime: () => 1, queueLimit: 10 }
@@ -79,7 +80,7 @@ describe('viaUpstream', () => {
     const sim = new Sim()
     const { up } = setup(sim, { capacity: 1, serviceTime: () => 2 })
     const inst = new Instance(sim, {
-      bootTime: 0, serviceTime: () => 0, concurrency: 5, queueLimit: 0,
+      ...flatOpts({ serviceTime: () => 0, concurrency: 5, queueLimit: 0 }),
       work: viaUpstream(sim, up, () => 1),
     })
     const done: [number, Outcome][] = []

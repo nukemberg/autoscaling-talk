@@ -2,9 +2,10 @@ import { describe, expect, test } from 'vitest'
 import { Sim } from './engine'
 import { Instance, type InstanceOpts } from './instance'
 import { LoadBalancer } from './lb'
+import { flatOpts } from './test-helpers'
 import type { Request } from './types'
 
-const base: InstanceOpts = { bootTime: 0, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }
+const base: InstanceOpts = flatOpts({ bootTime: 0, serviceTime: () => 1, concurrency: 1, queueLimit: 0 })
 
 function setup(sim: Sim, lbOpts: ConstructorParameters<typeof LoadBalancer>[1] = {}) {
   const done: Request[] = []
@@ -29,7 +30,7 @@ describe('LoadBalancer', () => {
   test('round-robin spreads requests across ready instances', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim)
-    const a = inst({ concurrency: 10 }), b = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } }), b = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     for (let i = 0; i < 4; i++) lb.handle({ id: i, arrivedAt: 0 })
     expect(a.inFlight).toBe(2)
     expect(b.inFlight).toBe(2)
@@ -38,8 +39,8 @@ describe('LoadBalancer', () => {
   test('booting instances are not routed to', () => {
     const sim = new Sim()
     const { lb, inst, done } = setup(sim)
-    const ready = inst({ concurrency: 10 })
-    inst({ bootTime: 100, concurrency: 10 })
+    const ready = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
+    inst({ bootTime: 100, workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     for (let i = 0; i < 4; i++) lb.handle({ id: i, arrivedAt: 0 })
     expect(ready.inFlight).toBe(4)
     expect(done).toHaveLength(0)
@@ -48,7 +49,7 @@ describe('LoadBalancer', () => {
   test('least-conn picks the least loaded instance', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim, { policy: 'least-conn' })
-    const a = inst({ concurrency: 10 }), b = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } }), b = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     a.handle({ id: 100, arrivedAt: 0 })
     a.handle({ id: 101, arrivedAt: 0 })
     lb.handle({ id: 0, arrivedAt: 0 })
@@ -60,7 +61,7 @@ describe('LoadBalancer', () => {
   test('remove takes instance out of rotation without terminating it', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim)
-    const a = inst({ concurrency: 10 }), b = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } }), b = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     lb.remove(a)
     for (let i = 0; i < 3; i++) lb.handle({ id: i, arrivedAt: 0 })
     expect(a.inFlight).toBe(0)
@@ -81,7 +82,7 @@ describe('LoadBalancer', () => {
   test('with healthCheck interval, a booted instance joins rotation only at the next check', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim, { healthCheck: { interval: 10 } })
-    const a = inst({ bootTime: 3, concurrency: 10 })
+    const a = inst({ bootTime: 3, workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     sim.run(5)
     lb.handle({ id: 0, arrivedAt: 5 })
     expect(a.inFlight).toBe(0) // ready but not yet seen by health check
@@ -93,7 +94,7 @@ describe('LoadBalancer', () => {
   test('with healthCheck interval, a terminated instance keeps receiving (and failing) until next check', () => {
     const sim = new Sim()
     const { lb, inst, done } = setup(sim, { healthCheck: { interval: 10 } })
-    const a = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     sim.run(10)
     a.terminate()
     lb.handle({ id: 0, arrivedAt: 10 })
@@ -117,7 +118,7 @@ describe('LoadBalancer health checks', () => {
   test('hung instance leaves rotation after unhealthyAfter consecutive failed checks', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim, { healthCheck: { interval: 10, unhealthyAfter: 3 } })
-    const a = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     sim.run(10)
     expect(lb.readyCount).toBe(1)
     a.hang(100)
@@ -130,7 +131,7 @@ describe('LoadBalancer health checks', () => {
   test('recovered instance rejoins after healthyAfter consecutive passes', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim, { healthCheck: { interval: 10, unhealthyAfter: 1, healthyAfter: 2 } })
-    const a = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     sim.run(10)
     a.hang(15)                       // hung until 25
     sim.run(20)
@@ -144,7 +145,7 @@ describe('LoadBalancer health checks', () => {
   test('defaults: unhealthyAfter 1, healthyAfter 1', () => {
     const sim = new Sim()
     const { lb, inst } = setup(sim, { healthCheck: { interval: 10 } })
-    const a = inst({ concurrency: 10 })
+    const a = inst({ workerPool: { slots: 10 }, cpuPool: { slots: 10 } })
     sim.run(10)
     a.hang(15)
     sim.run(20)

@@ -188,6 +188,10 @@ export const scalerParams: ParamSpec[] = [
   { key: 'maxInstances', label: 'max', group: 'scaler', kind: 'range', min: 1, max: 1000, step: 1, default: 100,
     help: 'Never scale above this. Also your bill ceiling.' },
 
+  // --- metrics pipeline (shared by every algorithm) ---
+  { key: 'metricsResolutionSec', label: 'metrics scrape resolution', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',
+    help: 'How often the metrics pipeline itself scrapes each instance — metrics-server\'s --metric-resolution (default 15 s). Every algorithm reads from this same underlying scrape stream: HPA takes the latest computed rate (no averaging of its own), CloudWatch-style controllers average scrapes within their own datapoint period.' },
+
   // --- health checks (k8s readiness probe / AWS target group health check) ---
   { key: 'healthCheckSec', label: 'LB health check interval', group: 'scaler', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',
     help: 'How often the load balancer probes instances. 0 = LB sees instance state instantly (unrealistic).' },
@@ -205,8 +209,6 @@ export const scalerParams: ParamSpec[] = [
     help: 'No action while |avg/target − 1| ≤ tolerance. Default 0.1.', activeWhen: hpa },
   { key: 'hpaSyncSec', label: 'sync period', group: 'scaler', kind: 'range', min: 5, max: 300, step: 5, default: 15, unit: 's',
     help: '--horizontal-pod-autoscaler-sync-period. Default 15 s.', activeWhen: hpa },
-  { key: 'hpaMetricWindowSec', label: 'metric window', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',
-    help: 'metrics-server scrape interval; CPU usage is averaged over it. Default 15 s.', activeWhen: hpa },
   { key: 'hpaReadinessDelaySec', label: 'initial readiness delay', group: 'scaler', kind: 'range', min: 0, max: 300, step: 5, default: 30, unit: 's',
     help: 'Pods ready for less than this are set aside: 0% on scale-up, 100% of target on scale-down. Default 30 s.', activeWhen: hpa },
   { key: 'hpaDownStabilizationSec', label: 'scale-down stabilization', group: 'scaler', kind: 'range', min: 0, max: 900, step: 15, default: 300, unit: 's',
@@ -260,7 +262,7 @@ export const scalerParams: ParamSpec[] = [
 export interface Controller { start(): void; readonly metric: number; readonly desired: number }
 
 export function attachController(sim: Sim, cluster: Cluster, p: Params): Controller {
-  const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5 })
+  const metrics = new PodMetrics(sim, cluster, { sampleInterval: num(p, 'metricsResolutionSec') })
   metrics.start()
   const min = num(p, 'minInstances'), max = num(p, 'maxInstances')
   const cw = { period: num(p, 'awsPeriodSec'), metricDelay: num(p, 'awsMetricDelaySec'), warmup: num(p, 'awsWarmupSec') }
@@ -290,7 +292,7 @@ export function attachController(sim: Sim, cluster: Cluster, p: Params): Control
     default:
       c = new Hpa(sim, cluster, metrics, {
         min, max, target: num(p, 'hpaTarget'), tolerance: num(p, 'hpaTolerance'), syncPeriod: num(p, 'hpaSyncSec'),
-        metricWindow: num(p, 'hpaMetricWindowSec'), initialReadinessDelay: num(p, 'hpaReadinessDelaySec'),
+        initialReadinessDelay: num(p, 'hpaReadinessDelaySec'),
         downStabilization: num(p, 'hpaDownStabilizationSec'),
         scaleUpPods: num(p, 'hpaScaleUpPods'), scaleUpPercent: num(p, 'hpaScaleUpPercent'),
       })

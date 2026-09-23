@@ -355,15 +355,20 @@ the CPU pool (2 cores) still saturates for real, so requests that
 used to get a fast, honest rejection now just queue for a core
 instead: errors drop to 0%, but mean latency jumps to ~4.6s (~30x
 worse) and worst-case latency spikes to ~65 SECONDS. Instance count
-is identical either way (3 -> 12, exactly the needed 12): "cpu" is an
-honest, time-averaged busy fraction of the real CPU pool in both
-variants, it pins at 100% during the overload in both, and the
-controller reacts identically. Watch the cpu line instead: unlimited
-stays pinned at 100% noticeably longer — that's the backlog draining
-after capacity has already arrived. Instance count isn't the story
-here (unlike "the bad unit ends up bigger" — it doesn't); where the
-overload goes is. Zero errors looks like success on a dashboard that
-only tracks error rate — it isn't.
+is nearly identical either way (bounded settles at 12, exactly the
+needed 12; unlimited settles one higher, at 13): "cpu" is an honest,
+time-averaged busy fraction of the real CPU pool in both variants, and
+it pins at 100% during the overload in both. The one real wrinkle:
+HPA reads the single latest scrape, not a smoothed average — same as
+real HPA, which doesn't average history itself — so it's more exposed
+to short spikes; unlimited's longer 100%-pinned stretch (the backlog
+still draining after capacity arrives) is enough to catch one extra
+sync tick still-saturated and add one instance the bounded case never
+needed. Watch the cpu line: unlimited stays pinned at 100% noticeably
+longer — that's the backlog draining. Instance count is *almost* not
+the story here (unlike "the bad unit ends up much bigger" — it barely
+does); where the overload goes is the real story. Zero errors looks
+like success on a dashboard that only tracks error rate — it isn't.
 -->
 
 ---

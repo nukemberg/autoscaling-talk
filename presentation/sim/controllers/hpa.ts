@@ -16,8 +16,6 @@ export interface HpaOpts {
   syncPeriod?: number
   /** Ratio band around 1.0 that is ignored (default 0.1). */
   tolerance?: number
-  /** Metric average window; metrics-server scrapes every 15 s. */
-  metricWindow?: number
   /** --horizontal-pod-autoscaler-initial-readiness-delay (default 30 s): pods ready for less are set aside. */
   initialReadinessDelay?: number
   /** scaleDown.stabilizationWindowSeconds (default 300). */
@@ -47,7 +45,7 @@ export class Hpa {
   private get o() {
     const o = this.opts
     return {
-      syncPeriod: o.syncPeriod ?? 15, tolerance: o.tolerance ?? 0.1, metricWindow: o.metricWindow ?? 15,
+      syncPeriod: o.syncPeriod ?? 15, tolerance: o.tolerance ?? 0.1,
       initialReadinessDelay: o.initialReadinessDelay ?? 30, downStabilization: o.downStabilization ?? 300,
       scaleUpPods: o.scaleUpPods ?? 4, scaleUpPercent: o.scaleUpPercent ?? 100, scaleUpPeriod: o.scaleUpPeriod ?? 15,
       scaleDownPercent: o.scaleDownPercent ?? 100, scaleDownPeriod: o.scaleDownPeriod ?? 15,
@@ -71,7 +69,7 @@ export class Hpa {
     let setAside = 0
     for (const p of pods) {
       const notYetReady = p.state !== 'ready' || (p.readySince ?? now) > now - o.initialReadinessDelay
-      const v = notYetReady ? undefined : this.metrics.value(p, o.metricWindow)
+      const v = notYetReady ? undefined : this.metrics.latest(p)
       if (v === undefined) setAside++
       else withMetric.push(v)
     }

@@ -27,7 +27,7 @@ a bug in a product; it is what feedback with delay does.
 | Instance warm-up | AWS `DefaultInstanceWarmup: 300` | compounding orders (warming instances excluded from metric, counted toward desired) | scale-in blocked while anything warms; second scale-out step waits a full warm-up | AWS TT on the step: 4 at t≈540, 6 at t≈1000, ~7 min of errors, zero overshoot |
 | Alarm evaluation periods | AWS AlarmHigh 3 datapoints, AlarmLow 15 | reacting to noise; scale-in on transient dips | +3 min dead time on every scale-out; 15 min before any scale-in | — |
 | Tolerance / dead band | HPA `tolerance: 0.1`, AWS AlarmLow at 90 % of target | chatter around the setpoint | steady-state sits anywhere in the band; small clusters look "far from target" | AWS docs say this explicitly |
-| Longer metric window | HPA metric window, CloudWatch period | noise | adds window/2 to dead time | — |
+| Longer metrics resolution | CloudWatch period (genuinely averages the underlying signal); metrics-server resolution for HPA | noise, for CloudWatch — HPA doesn't average, it reads whatever metrics-server's latest single scrape is, so a coarser resolution just makes that single read staler and *more* exposed to spikes, not less | adds resolution/2 to dead time either way | — |
 | Lower target utilization | HPA target 50 % vs 80 % | dead-time exposure (headroom absorbs onset) | pay for idle capacity permanently | headroom is the only knob that helps *before* D elapses |
 | Faster boot | smaller image, warm pool, lazy init | shrinks D itself | engineering cost; warm pools are paid capacity | every failure above scales with D |
 | Max instances | HPA `maxReplicas`, ASG max | runaway cost | hard ceiling = designed outage at that load | — |

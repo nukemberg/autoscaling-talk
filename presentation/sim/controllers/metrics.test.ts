@@ -105,6 +105,56 @@ describe('PodMetrics (default: cumulative cpu counter, rate over the window)', (
   })
 })
 
+describe('PodMetrics.latest — the single freshest reading, no caller-chosen window', () => {
+  test('counter: rate between the two most recent scrapes only, not the whole history', () => {
+    const sim = new Sim()
+    const { cluster } = setup(sim, 1, { concurrency: 1, serviceTime: 2.5 })
+    const [a] = cluster.instances
+    const m = new PodMetrics(sim, cluster, { sampleInterval: 5 })
+    m.start()
+    sim.run(5)                                // idle so far: rate over [0,5] is 0
+    a.handle({ id: 0, arrivedAt: 5 })         // busy for the next 2.5 s
+    sim.run(10)                               // scrape at 10 sees the busy stretch; rate over [5,10] is 0.5
+    expect(m.latest(a)).toBeCloseTo(0.5)      // not blended with the earlier idle interval
+  })
+
+  test('counter: fewer than two samples → undefined', () => {
+    const sim = new Sim()
+    const { cluster } = setup(sim)
+    const m = new PodMetrics(sim, cluster, { sampleInterval: 5 })
+    expect(m.latest(cluster.instances[0])).toBeUndefined()
+    m.start()
+    expect(m.latest(cluster.instances[0])).toBeUndefined() // one scrape, no delta yet
+    sim.run(5)
+    expect(m.latest(cluster.instances[0])).toBe(0)
+  })
+
+  test('gauge: the single most recent sample, not averaged with older ones', () => {
+    const sim = new Sim()
+    const { cluster } = setup(sim, 1)
+    const [a] = cluster.instances
+    let level = 0.2
+    const m = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: () => level } })
+    m.start()                                 // 0.2 at t=0
+    sim.schedule(7, () => { level = 0.8 })
+    sim.run(10)                               // 0.2 at 5, 0.8 at 10
+    expect(m.latest(a)).toBe(0.8)             // value() over the same window would blend to 0.4
+  })
+
+  test('reads as of an earlier time (metric delay), same as value()', () => {
+    const sim = new Sim()
+    const { cluster } = setup(sim)
+    const [a] = cluster.instances
+    const m = new PodMetrics(sim, cluster, { sampleInterval: 5 })
+    m.start()
+    sim.run(20)
+    a.handle({ id: 0, arrivedAt: 20 })
+    sim.run(40)
+    expect(m.latest(a, 20)).toBe(0)
+    expect(m.latest(a, 40)).toBeCloseTo(0.25)
+  })
+})
+
 describe('PodMetrics with a gauge source', () => {
   test('value() is the mean of the point samples in the window', () => {
     const sim = new Sim()

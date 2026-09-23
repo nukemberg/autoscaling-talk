@@ -71,6 +71,33 @@ export class PodMetrics {
     return (last.v - base.v) / (last.t - base.t)
   }
 
+  /**
+   * The single freshest reading — what a client asking "what's the current
+   * value" gets back, with no caller-chosen averaging window. This is how
+   * real HPA reads metrics-server: it doesn't average history itself, it
+   * just takes whatever metrics-server's own latest computation is.
+   *
+   * Counter: rate between the two most recent scrapes ≤ at (metrics-server
+   * computes its own rate internally between its last two kubelet scrapes;
+   * this mirrors that, using our own scrape cadence). Needs two distinct
+   * scrapes, same as `value()`. Gauge: the single most recent sample's raw
+   * value, not blended with older ones.
+   */
+  latest(inst: Instance, at = this.sim.now): number | undefined {
+    const s = this.samples.get(inst)
+    if (!s) return undefined
+    let prev: Sample | undefined, last: Sample | undefined
+    for (const x of s) {
+      if (x.t > at) break
+      prev = last
+      last = x
+    }
+    if (!last) return undefined
+    if (this.source.kind === 'gauge') return last.v
+    if (!prev || last.t <= prev.t) return undefined
+    return (last.v - prev.v) / (last.t - prev.t)
+  }
+
   private scrape(): void {
     const now = this.sim.now
     for (const inst of this.cluster.instances) {

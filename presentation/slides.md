@@ -330,22 +330,32 @@ Live demo on the next slide: flip unit model, same input, same knobs.
 
 ---
 
-# Loss vs. Node.js, Same Load
+# Bounded Workers vs. Unlimited Workers
 
-<Sim preset="unit-model-compare" :expose="['unitModel', 'degradeGain', 'concurrency', 'queueSlots']" :height="130" />
+<Sim preset="unit-model-compare" :expose="['unlimitedWorkers', 'cores', 'cpuTimeMs', 'queueSlots']" :height="130" />
 
 <!--
 Live DES from presets/unit-model-compare.json. Sine-wave load (period
 200s) so the unit sees sustained variation, not just one step. Flip
-"load-shedding model" from loss to node.js live: same input, errors go
-from ~2% to ~30%, peak instances jumps from 6 to 9 (vs. loss's clean
-5→6), and there's a visible latency spike during the transient that
-settles back down once capacity catches up. The controller isn't
-blind — cpu/ELU does rise and it does react — but the signal saturates
-at 100% and offers no sense of magnitude, and it's already lagging by
-the time it moves. That's the point: reacting late to a saturating
-signal is a different, less dramatic failure than "never reacts," but
-it's still strictly worse than the well-behaved case.
+"unlimited workers" off to on live: same input, same knobs. Off, the
+per-instance worker pool is derived from the CPU/IO ratio (10 slots
+here, plus 8 queue slots) and acts as real admission control — it
+rejects past capacity, cleanly and immediately: errors settle at
+~1.7%, latency stays bounded (max ~260ms, mean ~155ms across the
+run). On, workers never reject — but the CPU pool (2 cores) still
+saturates for real, so requests that used to get a fast, honest
+rejection now just queue for a core instead: errors drop to 0%, but
+mean latency jumps to ~1.4s (9x worse) and worst-case latency spikes
+to ~30 SECONDS. Peak instance count is identical either way (16) —
+the controller's target-utilization math doesn't change, because
+"cpu" here is now an honest, measured busy fraction of the real CPU
+pool, not the old cpuReport approximation of event-loop utilization.
+It reacts the same way in both variants; what changes is what happens
+to a request once the metric has already said "scale out." Zero
+errors looks like success on a dashboard that only tracks error
+rate — it isn't. This is the same lesson as the old loss-vs-node.js
+demo, now backed by a real bottleneck and a real measured signal
+instead of an approximated one.
 -->
 
 ---

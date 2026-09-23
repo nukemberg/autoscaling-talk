@@ -1,6 +1,5 @@
 // presentation/sim/instance.ts
 import type { EventHandle, Sim } from './engine'
-import { TimeWeighted } from './metrics'
 import { Pool, type PoolOpts } from './pool'
 import type { Outcome, Request } from './types'
 
@@ -30,7 +29,7 @@ export interface InstanceOpts {
   steps?: () => Step[]
   /** Override how a request is served (e.g. call an upstream) — bypasses `steps` entirely. */
   work?: Work
-  /** CPU reported while hung (0 = stuck on I/O, 1 = spinning). Default: cpu pool's honest busy fraction. */
+  /** CPU reported while hung (0 = stuck on I/O, 1 = spinning). Default: worker pool's busy fraction (`utilization`). */
   hungCpu?: number
   /** Uniform [0,1) sampler used to roll poison on pool release. Default: never poisons. */
   rollUniform?: () => number
@@ -41,7 +40,7 @@ interface Occupant {
   plan: Step[]
   stepIndex: number
   /** The sub-resource currently held for the in-progress step, if any. */
-  cur?: { pool: Pool; slot: number; scope: 'instance' | 'cluster' }
+  cur?: { pool: Pool; poolSlot: number; scope: 'instance' | 'cluster' }
   handle?: EventHandle
   resumeAt?: number
 }
@@ -50,7 +49,6 @@ interface Occupant {
 export class Instance {
   state: InstanceState = 'booting'
   onDone: (req: Request) => void = () => {}
-  readonly busy: TimeWeighted
   readonly launchedAt: number
   readySince?: number
 
@@ -59,6 +57,9 @@ export class Instance {
   private readonly instancePools: Record<string, Pool>
   private readonly clusterPools: Record<string, Pool>
   private occupants: (Occupant | null)[]
+  /** Requests waiting on a worker slot. Duplicates bookkeeping `workerPool`'s own waiter queue
+   *  already provides, because `Pool`'s generic `(slot: number) => void` callback queue can't hand
+   *  back the `Request` objects `terminate()` needs for its victim list. */
   private workerQueue: Request[] = []
   private bootHandle?: EventHandle
   private hungUntil = -Infinity
@@ -66,7 +67,6 @@ export class Instance {
   private slowFactor = 1
 
   constructor(private sim: Sim, private opts: InstanceOpts) {
-    this.busy = new TimeWeighted(sim, 0)
     this.launchedAt = sim.now
     this.workerPool = new Pool(sim, opts.workerPool)
     this.cpuPool = new Pool(sim, opts.cpuPool)
@@ -113,8 +113,8 @@ export class Instance {
 
   handle(req: Request): void {
     if (this.state !== 'ready') return this.finish(req, 'rejected')
-    const slot = this.workerPool.tryAcquire()
-    if (slot !== undefined) return this.start(req, slot)
+    const workerSlot = this.workerPool.tryAcquire()
+    if (workerSlot !== undefined) return this.start(req, workerSlot)
     const queued = this.workerPool.enqueue((s) => {
       const idx = this.workerQueue.indexOf(req)
       if (idx >= 0) this.workerQueue.splice(idx, 1)
@@ -136,25 +136,25 @@ export class Instance {
     this.state = 'terminated'
     this.bootHandle?.cancel()
     const victims: Request[] = []
-    const toRelease: { pool: Pool; slot: number }[] = []
+    const toRelease: { pool: Pool; poolSlot: number }[] = []
     for (const occ of this.occupants) {
       if (!occ) continue
       occ.handle?.cancel()
-      if (occ.cur && occ.cur.scope === 'cluster') toRelease.push({ pool: occ.cur.pool, slot: occ.cur.slot })
+      if (occ.cur && occ.cur.scope === 'cluster') toRelease.push({ pool: occ.cur.pool, poolSlot: occ.cur.poolSlot })
       victims.push(occ.req)
     }
     victims.push(...this.workerQueue)
     this.workerQueue = []
     // Null out occupants BEFORE releasing any cluster-scoped held slots: Pool.release() can
     // synchronously hand a freed slot to another queued waiter, and if that waiter belongs to
-    // another occupant of THIS instance, its holdStep staleness check (`occupants[slot] !== occ`)
+    // another occupant of THIS instance, its holdStep staleness check (`occupants[workerSlot] !== occ`)
     // must already see the cleared occupants array, or it will proceed as if still alive and
     // schedule a completion that nothing later cancels (double-finish / negative occupancy).
     this.occupants = new Array(this.occupants.length).fill(null)
     this.workerPool.forceReset()
     this.cpuPool.forceReset()
     for (const pool of Object.values(this.instancePools)) pool.forceReset()
-    for (const { pool, slot } of toRelease) pool.release(slot, false)
+    for (const { pool, poolSlot } of toRelease) pool.release(poolSlot, false)
     for (const r of victims) this.finish(r, 'error')
   }
 
@@ -175,6 +175,11 @@ export class Instance {
   }
 
   private runStep(workerSlot: number, occ: Occupant): void {
+    // NOTE: an empty plan (default when `steps` is omitted) finishes synchronously here even if the
+    // instance is currently hung — `hang()`'s "stop completing anything" guarantee only applies to
+    // steps that are actually in flight. Nothing in this codebase constructs an Instance with both
+    // `work` and `steps` unset while relying on hang-blocking, so this edge case is left undocumented
+    // in behavior, just noted here.
     if (occ.stepIndex >= occ.plan.length) return this.finishWorker(workerSlot, occ, 'ok')
     const step = occ.plan[occ.stepIndex]!
     let ms = step.ms
@@ -195,13 +200,13 @@ export class Instance {
       if (scope === 'cluster') pool.release(poolSlot, false)
       return
     }
-    occ.cur = { pool, slot: poolSlot, scope }
+    occ.cur = { pool, poolSlot, scope }
     occ.resumeAt = Math.max(this.sim.now, this.hungUntil) + ms
     this.scheduleStepCompletion(workerSlot, occ)
   }
 
   private scheduleStepCompletion(workerSlot: number, occ: Occupant): void {
-    const { pool, slot: poolSlot } = occ.cur!
+    const { pool, poolSlot } = occ.cur!
     occ.handle = this.sim.scheduleAt(occ.resumeAt!, () => {
       const poisoned = pool.poisonProb > 0 && this.rollUniform() < pool.poisonProb
       pool.release(poolSlot, poisoned)

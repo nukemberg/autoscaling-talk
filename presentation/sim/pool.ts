@@ -75,7 +75,13 @@ export class Pool {
     }
   }
 
-  /** Owner (Instance) is discarding this pool — zero it out and drop any queued waiters, which must never fire. */
+  /**
+   * Owner (Instance) is discarding this pool — zero it out and drop any queued waiters, which must
+   * never fire. NOTE: this intentionally does not touch `free` — the pool is meant to be abandoned,
+   * not reused. Calling `release()` on a slot after `forceReset()` would decrement `_occupied` below
+   * 0; nothing in this codebase does that today (only instance-owned pools get force-reset, and their
+   * owning `Instance` nulls out all occupants before resetting, so no later release can reach them).
+   */
   forceReset(): void {
     this._occupied = 0
     this.waiters = []

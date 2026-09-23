@@ -113,6 +113,21 @@ export function unitCapacity(p: Params): number {
 /** Requests one instance can hold "in flight" without instant rejection when `unlimitedWorkers` is set. */
 const UNBOUNDED_WORKERS = 5_000
 
+/**
+ * Builds `InstanceOpts` from scenario params.
+ *
+ * Two easy-to-miss fixes baked in below:
+ * - `cpuPool.queueLimit` is set to `workers`, not left at its default of 0. Admission control
+ *   happens once, at `workerPool.tryAcquire()`; a request that's already "in" the envelope must be
+ *   able to wait for a free core rather than being rejected mid-flight just because the io/cpu steps
+ *   run sequentially. Without this, any transient cpu contention would reject requests outright,
+ *   defeating the point of sizing `workerPool` larger than `cores` in the first place.
+ * - `steps[].ms` is a raw sim-time value (the sim's base unit is seconds — see `bootSec`,
+ *   `healthCheckSec`), but `cpuTimeMs`/`ioWaitMs` are authored in milliseconds, so each sampled draw
+ *   must be divided by 1000. Missing this divides nothing: a request would hold its worker for
+ *   `cpuTimeMs + ioWaitMs` *seconds* instead of milliseconds — 1000x too long, saturating the
+ *   worker/cpu pools almost instantly.
+ */
 export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   const hung = str(p, 'hungCpu')
   const cores = num(p, 'cores')
@@ -125,17 +140,7 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   return {
     bootTime: () => sampleDist(rng, p, 'bootSec'),
     workerPool: { slots: workers, queueLimit: num(p, 'queueSlots'), poisonProb: num(p, 'poisonProb') },
-    // queueLimit: workers — admission control happens once, at workerPool.tryAcquire(); a request
-    // that's already "in" the envelope must be able to wait for a free core rather than being
-    // rejected mid-flight just because the io/cpu steps run sequentially. Without this, cpuPool's
-    // default queueLimit of 0 means any transient cpu contention rejects requests outright, which
-    // defeats the whole point of sizing workerPool larger than cores in the first place.
     cpuPool: { slots: cores, queueLimit: workers },
-    // Step.ms is a raw sim-time value (the sim's base unit is seconds — see bootSec, healthCheckSec,
-    // and the old serviceTime: () => rng.exp(1000 / latencyMs), mean = latencyMs / 1000 seconds), but
-    // cpuTimeMs/ioWaitMs are authored in milliseconds, so each sampled draw must be divided by 1000.
-    // Missing this divides nothing: a request would hold its worker for (cpuTimeMs + ioWaitMs) seconds
-    // instead of milliseconds — 1000x too long, which saturates the worker/cpu pools almost instantly.
     steps: () => [
       { pool: 'io', scope: 'instance', ms: sampleDist(rng, p, 'ioWaitMs') / 1000 },
       { pool: 'cpu', scope: 'instance', ms: sampleDist(rng, p, 'cpuTimeMs') / 1000 },

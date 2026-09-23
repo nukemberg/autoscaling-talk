@@ -2,7 +2,6 @@ import { describe, expect, test } from 'vitest'
 import { Sim } from './engine'
 import { Cluster } from './cluster'
 import { LoadBalancer } from './lb'
-import { Pool } from './pool'
 import { flatOpts } from './test-helpers'
 
 function setup(sim: Sim, boot = 5) {

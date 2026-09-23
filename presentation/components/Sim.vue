@@ -106,8 +106,11 @@ const summary = computed(() => {
     <details v-if="expose.length || notes" class="fold">
       <summary>{{ summary }}</summary>
       <div class="panel">
-        <p v-if="notes" class="notes">{{ notes }}</p>
         <ParamPanel v-if="expose.length" v-model="params" :specs="def.params" :only="expose" />
+        <details v-if="notes" class="notes-fold">
+          <summary>notes</summary>
+          <p class="notes">{{ notes }}</p>
+        </details>
       </div>
     </details>
     <div v-else class="summary-line">{{ summary }}</div>
@@ -134,7 +137,10 @@ const summary = computed(() => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   max-height: 70vh; overflow-y: auto; box-sizing: border-box;
 }
-.notes { margin: 0 0 0.6rem; font-size: 0.8rem; line-height: 1.4; color: var(--chart-text, #333); white-space: pre-wrap; min-width: 20rem; max-width: 28rem; }
+.notes-fold { margin-top: 0.6rem; border-top: 1px solid var(--chart-grid, #ddd); padding-top: 0.4rem; }
+.notes-fold summary { cursor: pointer; opacity: 0.7; font-size: 0.75rem; }
+.notes-fold summary:hover { opacity: 1; }
+.notes { margin: 0.4rem 0 0; font-size: 0.8rem; line-height: 1.4; color: var(--chart-text, #333); white-space: pre-wrap; min-width: 20rem; max-width: 28rem; }
 .charts-wrap { position: relative; }
 .progress {
   position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 5; overflow: hidden;

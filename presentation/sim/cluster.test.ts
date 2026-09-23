@@ -2,10 +2,12 @@ import { describe, expect, test } from 'vitest'
 import { Sim } from './engine'
 import { Cluster } from './cluster'
 import { LoadBalancer } from './lb'
+import { Pool } from './pool'
+import { flatOpts } from './test-helpers'
 
 function setup(sim: Sim, boot = 5) {
   const lb = new LoadBalancer(sim)
-  const cluster = new Cluster(sim, lb, { bootTime: boot, serviceTime: () => 1, concurrency: 1, queueLimit: 0 })
+  const cluster = new Cluster(sim, lb, flatOpts({ bootTime: boot, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }))
   return { lb, cluster }
 }
 
@@ -81,7 +83,7 @@ describe('Cluster crash + replacement', () => {
   test('with replaceDeadAfter, a replacement launches after the delay', () => {
     const sim = new Sim()
     const lb = new LoadBalancer(sim)
-    const cluster = new Cluster(sim, lb, { bootTime: 5, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }, { replaceDeadAfter: 30 })
+    const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 5, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }), { replaceDeadAfter: 30 })
     cluster.scaleTo(2)
     sim.run(5)
     cluster.crash(cluster.instances[0])
@@ -98,7 +100,7 @@ describe('Cluster crash + replacement', () => {
   test('replacement is skipped if the cluster was scaled down meanwhile', () => {
     const sim = new Sim()
     const lb = new LoadBalancer(sim)
-    const cluster = new Cluster(sim, lb, { bootTime: 0, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }, { replaceDeadAfter: 30 })
+    const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 0, serviceTime: () => 1, concurrency: 1, queueLimit: 0 }), { replaceDeadAfter: 30 })
     cluster.scaleTo(3)
     cluster.crash(cluster.instances[0])
     cluster.scaleTo(1)
@@ -109,10 +111,31 @@ describe('Cluster crash + replacement', () => {
   test('cpu = mean reported cpu over ready instances (hung ones lie)', () => {
     const sim = new Sim()
     const lb = new LoadBalancer(sim)
-    const cluster = new Cluster(sim, lb, { bootTime: 0, serviceTime: () => 10, concurrency: 2, queueLimit: 0, hungCpu: 1 })
+    const cluster = new Cluster(sim, lb, flatOpts({ bootTime: 0, serviceTime: () => 10, concurrency: 2, queueLimit: 0, hungCpu: 1 }))
     cluster.scaleTo(2)
     cluster.instances[0].hang(10)
     expect(cluster.utilization).toBe(0)
     expect(cluster.cpu).toBe(0.5)
+  })
+})
+
+describe('Cluster.clusterPools', () => {
+  test('instances launched by the same cluster share the same Pool object', () => {
+    const sim = new Sim()
+    const lb = new LoadBalancer(sim)
+    const opts = {
+      ...flatOpts({ serviceTime: () => 0, concurrency: 1, queueLimit: 0 }),
+      steps: () => [{ pool: 'db', scope: 'cluster' as const, ms: 5 }],
+    }
+    const cluster = new Cluster(sim, lb, opts, { clusterPools: { db: { slots: 1, queueLimit: 1 } } }) // queueLimit: b must queue behind a rather than reject
+    cluster.scaleTo(2)
+    const [a, b] = cluster.instances
+    a!.handle({ id: 0, arrivedAt: sim.now })
+    b!.handle({ id: 1, arrivedAt: sim.now }) // same shared db pool, 1 slot → queues behind a
+    const done: number[] = []
+    a!.onDone = (r) => done.push(r.doneAt!)
+    b!.onDone = (r) => done.push(r.doneAt!)
+    sim.run()
+    expect(done.sort((x, y) => x - y)).toEqual([5, 10])
   })
 })

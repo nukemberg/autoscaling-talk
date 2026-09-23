@@ -2,10 +2,13 @@ import type { Sim } from './engine'
 import { Instance, type InstanceOpts } from './instance'
 import type { LoadBalancer } from './lb'
 import { TimeWeighted } from './metrics'
+import { Pool, type PoolOpts } from './pool'
 
 export interface ClusterOpts {
   /** Like an ASG health check: relaunch a crashed instance after this delay. */
   replaceDeadAfter?: number
+  /** Cluster-scoped resource pools (e.g. a shared DB connection pool), built once and shared by reference into every instance this cluster launches. */
+  clusterPools?: Record<string, PoolOpts>
 }
 
 /** The set of scaling units behind one LB. Launches and terminates instances. */
@@ -15,6 +18,7 @@ export class Cluster {
   private pool: Instance[] = []
   private desired = 0
   private sizeOverTime: TimeWeighted
+  private clusterPools: Record<string, Pool> = {}
 
   constructor(
     private sim: Sim,
@@ -23,6 +27,9 @@ export class Cluster {
     private opts: ClusterOpts = {},
   ) {
     this.sizeOverTime = new TimeWeighted(sim, 0)
+    for (const [name, poolOpts] of Object.entries(opts.clusterPools ?? {})) {
+      this.clusterPools[name] = new Pool(sim, poolOpts)
+    }
   }
 
   get instances(): readonly Instance[] { return this.pool }
@@ -67,7 +74,7 @@ export class Cluster {
   }
 
   private launch(): void {
-    const inst = new Instance(this.sim, this.instanceOpts)
+    const inst = new Instance(this.sim, { ...this.instanceOpts, clusterPools: this.clusterPools })
     this.pool.push(inst)
     this.lb.add(inst)
     this.launched++

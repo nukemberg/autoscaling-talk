@@ -19,6 +19,13 @@ function mkGrid() {
   return { stroke: chartColors().grid, width: 1 }
 }
 
+// Shared across every panel's uPlot instance so hovering any one of them
+// moves the crosshair (and shows each panel's own tooltip) on all of them —
+// one key per SimCharts instance, stable across re-renders (panels is a
+// computed that re-runs on every data/theme change, but the sync group must
+// not change identity when it does).
+const cursorSyncKey = `sim-charts-${Math.random().toString(36).slice(2)}`
+
 function markerHook(labelled: boolean) {
   return (u: uPlot) => {
     const { top, height } = u.bbox
@@ -110,6 +117,7 @@ const panels = computed(() => {
       ...rightAxes,
     ],
     legend: { show: last },
+    cursor: { sync: { key: cursorSyncKey } },
     hooks: { draw: [markerHook(i === 0)] },
     // Reserve room above the plot for marker labels so they don't overlap the series.
     ...(i === 0 ? { padding: [24, 8, null, null] as unknown as [number, number, number, number] } : {}),

@@ -70,6 +70,8 @@ export class Instance {
   private hungUntil = -Infinity
   private slowUntil = -Infinity
   private slowFactor = 1
+  /** Cumulative count of requests this instance finished with outcome 'ok' — a counter, like cpuSeconds. */
+  private served = 0
 
   constructor(private sim: Sim, private opts: InstanceOpts) {
     this.launchedAt = sim.now
@@ -117,6 +119,9 @@ export class Instance {
     if (w) v += (this.lieIntegral() - w.lie0) - (this.cpuPool.busy.integral - w.cpu0)
     return v
   }
+
+  /** Cumulative served-request count, for a requests/s-per-pod metric — a monotone counter, rated the same way `cpuSeconds` is. */
+  get servedRequests(): number { return this.served }
 
   /** ∫ (what `cpu` reports while hung) dt — the counter a hung instance's agent advances. */
   private lieIntegral(): number {
@@ -274,6 +279,7 @@ export class Instance {
   private finish(req: Request, outcome: Outcome): void {
     req.doneAt = this.sim.now
     req.outcome = outcome
+    if (outcome === 'ok') this.served++
     this.onDone(req)
   }
 }

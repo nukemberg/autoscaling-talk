@@ -464,3 +464,19 @@ describe('Instance timestamps', () => {
     expect(inst.readySince).toBe(8)
   })
 })
+
+describe('Instance.servedRequests', () => {
+  test('increments only on ok completions, not rejected/error', () => {
+    const sim = new Sim()
+    const { inst } = make(sim, { workerPool: { slots: 1 }, steps: () => [cpuStep(1)] })
+    expect(inst.servedRequests).toBe(0)
+    inst.handle(req(sim, 0))
+    sim.run() // completes 'ok'
+    expect(inst.servedRequests).toBe(1)
+    inst.handle(req(sim, 1)) // fills the one worker slot
+    inst.handle(req(sim, 2)) // no queue configured (default queueLimit 0) → rejected
+    expect(inst.servedRequests).toBe(1) // the rejection didn't count
+    sim.run()
+    expect(inst.servedRequests).toBe(2) // the second request did complete 'ok'
+  })
+})

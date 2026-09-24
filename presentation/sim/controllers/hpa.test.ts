@@ -11,7 +11,11 @@ import { flatOpts } from '../test-helpers'
  * Cluster where the first `ready` launches boot instantly and later ones take
  * `boot` seconds; per-pod cpu is dictated by the test through `cpu`.
  */
-function setup(sim: Sim, ready: number, over: Partial<HpaOpts> = {}, boot = 1000) {
+function setup(
+  sim: Sim, ready: number,
+  { target = 0.5, ...over }: Partial<HpaOpts> & { target?: number } = {},
+  boot = 1000,
+) {
   const lb = new LoadBalancer(sim)
   let launches = 0
   const cluster = new Cluster(sim, lb, flatOpts({
@@ -24,7 +28,7 @@ function setup(sim: Sim, ready: number, over: Partial<HpaOpts> = {}, boot = 1000
   const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: (i) => cpu.get(i) ?? all } })
   sim.run(60)                      // past initialReadinessDelay
   metrics.start()
-  const hpa = new Hpa(sim, cluster, metrics, { target: 0.5, min: 1, max: 100, ...over })
+  const hpa = new Hpa(sim, cluster, { min: 1, max: 100, metrics: [{ metrics, target, id: 'test' }], ...over })
   return { cluster, hpa, cpu, setAll }
 }
 
@@ -128,5 +132,31 @@ describe('Hpa', () => {
     settle(sim, 15)
     expect(hpa.metric).toBeCloseTo(0.6)
     expect(hpa.desired).toBe(5)
+  })
+
+  test('multi-metric: the metric wanting more replicas wins, and .metric reports its value', () => {
+    const sim = new Sim()
+    const lb = new LoadBalancer(sim)
+    let launches = 0
+    const cluster = new Cluster(sim, lb, flatOpts({
+      bootTime: () => (launches++ < 4 ? 0 : 1000), serviceTime: () => 1, concurrency: 10, queueLimit: 0,
+    }))
+    cluster.scaleTo(4)
+    let cpuAll = 0.6 // wants ceil(4 * 0.6/0.5) = 5
+    const rpsAll = 40  // target 100, way under target -> wants LESS, shouldn't win the max
+    const cpuMetrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: () => cpuAll } })
+    const rpsMetrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: () => rpsAll } })
+    sim.run(60)
+    cpuMetrics.start()
+    rpsMetrics.start()
+    const hpa = new Hpa(sim, cluster, {
+      min: 1, max: 100,
+      metrics: [{ metrics: cpuMetrics, target: 0.5, id: 'cpu' }, { metrics: rpsMetrics, target: 100, id: 'rps' }],
+    })
+    sim.run(sim.now + 15)
+    hpa.start()
+    sim.run(sim.now + 15)
+    expect(cluster.size).toBe(5)     // cpu's recommendation won
+    expect(hpa.metric).toBeCloseTo(0.6) // .metric reflects the DRIVING metric (cpu), not rps
   })
 })

@@ -1,5 +1,6 @@
 import type { Cluster } from '../cluster'
 import type { Sim } from '../engine'
+import type { Instance } from '../instance'
 import type { PodMetrics } from './metrics'
 
 /**
@@ -7,9 +8,15 @@ import type { PodMetrics } from './metrics'
  * https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#algorithm-details
  * and the default `behavior` block.
  */
-export interface HpaOpts {
-  /** targetAverageUtilization as a fraction. */
+export interface HpaMetric {
+  metrics: PodMetrics
   target: number
+  /** For diagnostics/tests only — not used in the scaling math itself. */
+  id: string
+}
+
+export interface HpaOpts {
+  metrics: HpaMetric[]
   min: number
   max: number
   /** --horizontal-pod-autoscaler-sync-period (default 15 s). */
@@ -40,7 +47,7 @@ export class Hpa {
   private recommendations: Rec[] = []
   private changes: Rec[] = []          // (t, delta) of every scale we applied
 
-  constructor(private sim: Sim, private cluster: Cluster, private metrics: PodMetrics, private opts: HpaOpts) {}
+  constructor(private sim: Sim, private cluster: Cluster, private opts: HpaOpts) {}
 
   private get o() {
     const o = this.opts
@@ -58,45 +65,53 @@ export class Hpa {
 
   private sync(): void {
     this.sim.schedule(this.o.syncPeriod, () => this.sync())
-    const o = this.o
-    const now = this.sim.now
     const pods = this.cluster.instances.filter((i) => i.state !== 'terminated')
     const current = pods.length
     if (!current) return
 
-    // Set aside not-yet-ready pods and pods with missing metrics.
+    let best: { desired: number; metric: number } | undefined
+    for (const m of this.opts.metrics) {
+      const r = this.desiredForMetric(m, pods, current)
+      if (r && (!best || r.desired > best.desired)) best = r
+    }
+    if (!best) return // no toggled metric had data from any pod this tick
+
+    this.metric = best.metric
+    this.recommend(best.desired)
+  }
+
+  /** One metric's contribution to the multi-metric max — real HPA computes desired PER
+   *  metric (including its own set-aside/tolerance handling) and takes the largest. Returns
+   *  undefined when this metric had no data from any pod this tick (real HPA skips a metric
+   *  it can't retrieve rather than failing the whole sync). */
+  private desiredForMetric(m: HpaMetric, pods: readonly Instance[], current: number): { desired: number; metric: number } | undefined {
+    const o = this.o
+    const now = this.sim.now
     const withMetric: number[] = []
     let setAside = 0
     for (const p of pods) {
       const notYetReady = p.state !== 'ready' || (p.readySince ?? now) > now - o.initialReadinessDelay
-      const v = notYetReady ? undefined : this.metrics.latest(p)
+      const v = notYetReady ? undefined : m.metrics.latest(p)
       if (v === undefined) setAside++
       else withMetric.push(v)
     }
-    if (!withMetric.length) return
+    if (!withMetric.length) return undefined
 
     const avg = withMetric.reduce((a, b) => a + b, 0) / withMetric.length
-    this.metric = avg
-    const ratio = avg / this.opts.target
-    if (Math.abs(ratio - 1) <= o.tolerance) {
-      this.recommend(current)
-      return
-    }
+    const ratio = avg / m.target
+    if (Math.abs(ratio - 1) <= o.tolerance) return { desired: current, metric: avg }
 
     let desired: number
     if (ratio > 1) {
-      // Scale up: set-aside pods assumed at 0% usage.
-      const newRatio = (avg * withMetric.length) / (this.opts.target * current)
-      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio < 1) { this.recommend(current); return }
+      const newRatio = (avg * withMetric.length) / (m.target * current)
+      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio < 1) return { desired: current, metric: avg }
       desired = Math.ceil(current * newRatio)
     } else {
-      // Scale down: set-aside pods assumed at 100% of target.
-      const newRatio = (avg * withMetric.length + this.opts.target * setAside) / (this.opts.target * current)
-      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio > 1) { this.recommend(current); return }
+      const newRatio = (avg * withMetric.length + m.target * setAside) / (m.target * current)
+      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio > 1) return { desired: current, metric: avg }
       desired = Math.ceil(current * newRatio)
     }
-    desired = Math.min(this.opts.max, Math.max(this.opts.min, desired))
-    this.recommend(desired)
+    return { desired: Math.min(this.opts.max, Math.max(this.opts.min, desired)), metric: avg }
   }
 
   /** Record the recommendation, stabilize, rate-limit, apply. */

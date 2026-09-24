@@ -149,6 +149,21 @@ describe('attachController: multi-metric wiring', () => {
     expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
   })
 
+  test('AWS step scaling: non-utilization metric (rps) never breaches when load is well under its own target (7wg)', () => {
+    const sim = new Sim()
+    // rps target defaults to 50/pod; 2 pods at 20rps total is ~10rps/pod, well under target.
+    // Before the fix, awsOutThreshold (a raw 0-1 fraction, e.g. 0.6) was compared directly
+    // against the rps metric (tens of req/s) instead of being scaled to the metric's own
+    // target, so it always breached and the cluster scaled out regardless of real load.
+    const { p, lb, cluster, stats } = setup(sim, {
+      algo: 'aws-step', metricCpu: false, metricRps: true, maxInstances: 20, baseRps: 20, rps: 20,
+    })
+    attachController(sim, cluster, p, stats)
+    new Arrivals(sim, new Rng(2), constant(20), (r) => lb.handle(r)).start()
+    sim.run(900)
+    expect(cluster.size).toBe(2)
+  })
+
   test('AWS algo: uses whichever single metric is toggled (first one, if several)', () => {
     const sim = new Sim()
     const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: false, metricRps: true })

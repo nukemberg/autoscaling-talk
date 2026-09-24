@@ -321,27 +321,39 @@ export function attachController(sim: Sim, cluster: Cluster, p: Params, stats: S
 
   const min = num(p, 'minInstances'), max = num(p, 'maxInstances')
   const cw = { period: num(p, 'awsPeriodSec'), metricDelay: num(p, 'awsMetricDelaySec'), warmup: num(p, 'awsWarmupSec') }
+
+  // AWS's alarm-threshold sliders (awsOutThreshold/awsInThreshold, 0-1) are tuned against a
+  // utilization-shaped metric — meaningless as literal values against e.g. queue depth or ms
+  // latency. Scale them relative to the picked metric's own target, using CPU's default target
+  // (0.5) as the baseline the sliders were tuned against, so utilization metrics (cpu/worker,
+  // already 0-1) are unaffected while absolute metrics get thresholds proportional to their
+  // own target's scale.
+  const awsMetricId = ids[0]!
+  const awsTarget = num(p, METRIC_PARAM[awsMetricId].target)
+  const awsMetricKind = awsMetricId === 'latency' ? 'absolute' : metricRegistry[awsMetricId].kind
+  const awsThresholdScale = awsMetricKind === 'utilization' ? 1 : awsTarget / 0.5
+
   let c: Controller
   switch (str(p, 'algo')) {
     case 'aws-target':
-      c = new AwsTargetTracking(sim, cluster, podMetricsFor(ids[0]!), {
-        ...cw, min, max, target: num(p, 'awsTarget'),
+      c = new AwsTargetTracking(sim, cluster, podMetricsFor(awsMetricId), {
+        ...cw, min, max, target: awsTarget,
         highEvalPeriods: num(p, 'awsHighPeriods'), lowEvalPeriods: num(p, 'awsLowPeriods'), lowFactor: num(p, 'awsLowFactor'),
         disableScaleIn: bool(p, 'awsDisableScaleIn'),
       })
       break
     case 'aws-step':
-      c = new AwsStepScaling(sim, cluster, podMetricsFor(ids[0]!), {
+      c = new AwsStepScaling(sim, cluster, podMetricsFor(awsMetricId), {
         ...cw, min, max,
-        outThreshold: num(p, 'awsOutThreshold'), outSteps: str(p, 'awsOutSteps'), outEvalPeriods: num(p, 'awsOutPeriods'),
-        inThreshold: num(p, 'awsInThreshold'), inSteps: str(p, 'awsInSteps'), inEvalPeriods: num(p, 'awsInPeriods'),
+        outThreshold: num(p, 'awsOutThreshold') * awsThresholdScale, outSteps: str(p, 'awsOutSteps'), outEvalPeriods: num(p, 'awsOutPeriods'),
+        inThreshold: num(p, 'awsInThreshold') * awsThresholdScale, inSteps: str(p, 'awsInSteps'), inEvalPeriods: num(p, 'awsInPeriods'),
       })
       break
     case 'aws-simple':
-      c = new AwsSimpleScaling(sim, cluster, podMetricsFor(ids[0]!), {
+      c = new AwsSimpleScaling(sim, cluster, podMetricsFor(awsMetricId), {
         ...cw, min, max, cooldown: num(p, 'awsCooldownSec'),
-        outThreshold: num(p, 'awsOutThreshold'), outAdjust: str(p, 'awsOutAdjust'), outEvalPeriods: num(p, 'awsOutPeriods'),
-        inThreshold: num(p, 'awsInThreshold'), inAdjust: str(p, 'awsInAdjust'), inEvalPeriods: num(p, 'awsInPeriods'),
+        outThreshold: num(p, 'awsOutThreshold') * awsThresholdScale, outAdjust: str(p, 'awsOutAdjust'), outEvalPeriods: num(p, 'awsOutPeriods'),
+        inThreshold: num(p, 'awsInThreshold') * awsThresholdScale, inAdjust: str(p, 'awsInAdjust'), inEvalPeriods: num(p, 'awsInPeriods'),
       })
       break
     default:

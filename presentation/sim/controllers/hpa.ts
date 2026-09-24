@@ -100,6 +100,7 @@ export class Hpa {
       else withMetric.push(v)
     }
     if (!withMetric.length) return undefined
+    if (m.target <= 0) return undefined // degenerate target: skip rather than divide by zero
 
     const avg = withMetric.reduce((a, b) => a + b, 0) / withMetric.length
     const ratio = avg / m.target

@@ -229,7 +229,7 @@ export const scalerParams: ParamSpec[] = [
     help: 'Target utilization for the worker-pool metric.', activeWhen: { metricWorker: 'true' } },
   { key: 'metricQueue', label: 'queue depth', group: 'scaler', kind: 'toggle', default: false,
     help: 'Scale on mean requests waiting per pod.' },
-  { key: 'metricQueueTarget', label: 'queue target', group: 'scaler', kind: 'range', min: 0, max: 50, step: 1, default: 5,
+  { key: 'metricQueueTarget', label: 'queue target', group: 'scaler', kind: 'range', min: 1, max: 50, step: 1, default: 5,
     help: 'Target queue depth per pod.', activeWhen: { metricQueue: 'true' } },
   { key: 'metricRps', label: 'requests/s per pod', group: 'scaler', kind: 'toggle', default: false,
     help: 'Scale on mean served requests/s per pod — a throughput target instead of a utilization one.' },

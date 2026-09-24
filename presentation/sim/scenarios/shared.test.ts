@@ -9,7 +9,7 @@ import { Stats } from '../stats'
 import {
   attachController, clusterOpts, instanceOpts, lbOpts, scalerParams, unitCapacity, unitParams,
 } from './shared'
-import { defaults, type Params } from './types'
+import { defaults, isActive, type Params } from './types'
 
 const base: Params = { ...defaults(unitParams) }
 
@@ -175,5 +175,19 @@ describe('attachController: multi-metric wiring', () => {
     const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: false, metricRps: true })
     const c = attachController(sim, cluster, p, stats)
     expect(c.metricKind).toBe('absolute')
+  })
+})
+
+describe('metricQueue param: hidden when unlimitedWorkers makes it structurally zero (too)', () => {
+  const queueToggle = scalerParams.find((s) => s.key === 'metricQueue')!
+  const queueTarget = scalerParams.find((s) => s.key === 'metricQueueTarget')!
+
+  test('visible with bounded worker pool', () => {
+    expect(isActive(queueToggle, { ...base, unlimitedWorkers: false })).toBe(true)
+  })
+
+  test('hidden once unlimitedWorkers is on — nothing ever queues', () => {
+    expect(isActive(queueToggle, { ...base, unlimitedWorkers: true })).toBe(false)
+    expect(isActive(queueTarget, { ...base, metricQueue: true, unlimitedWorkers: true })).toBe(false)
   })
 })

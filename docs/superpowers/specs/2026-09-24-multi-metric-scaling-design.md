@@ -366,3 +366,53 @@ task, after the metric plumbing exists to build it with.
   (explicitly deferred per `dsh`).
 - General non-CPU initial-sizing math, if a future scenario specifically
   needs the "before" state sized correctly for a non-CPU-toggled run.
+
+## Addendum: a shared bottleneck for `dbs`'s runaway story (minimal slice of `autoscaling-talk-6du`)
+
+Every existing slowdown mechanism in the sim is either instance-scoped (the
+`slow` fault only affects already-launched instances at injection time) or
+capacity-shaped (CPU/worker/queue pools scale with instance count by
+design). None of them can honestly produce "scaling out adds no relief" —
+a fault that hits a fixed subset of instances gets diluted as fast new
+instances join, which shows *partial* improvement and undercuts the lesson.
+
+`Cluster` already has a `clusterPools` mechanism (`ClusterOpts.clusterPools`
+→ shared `Pool` objects passed by reference into every instance the cluster
+launches — built for `autoscaling-talk-6du`, a connection-pool-exhaustion
+scenario, but never wired into any actual scenario). A shared, fixed-size
+"db" pool is the honest way to model this: every request needs one of a
+small number of SHARED slots regardless of how many instances exist, so
+scaling out adds contention, not relief.
+
+This spec adds the smallest slice of `6du` needed for `dbs`'s demo, not
+`6du`'s full generalized vision (arbitrary named pools, configurable per
+scenario) — that stays open, narrowed accordingly (see beads).
+
+**New `unit`-group params** (`scenarios/shared.ts`):
+- `dbPoolSlots` (range, 0–50, default 0): "Shared DB connection pool across
+  the whole cluster. 0 = disabled. >0 = every request also needs one of
+  these SHARED slots — unlike cores/workers, scaling out instances does NOT
+  scale this. The classic 'autoscaled app exhausts DB connections' failure."
+- `dbQueryMs` (range, 1–500, default 20, unit 'ms'): time a request holds a
+  DB slot. No `activeWhen` (harmless/inert when `dbPoolSlots` is 0, and
+  `ParamSpec.activeWhen` only matches exact string values — not a natural
+  fit for "some other range param is nonzero").
+
+**`clusterOpts(p)`** gains `clusterPools: { db: { slots: dbPoolSlots,
+queueLimit: 1000 } }` when `dbPoolSlots > 0` (a generous queue limit —
+this should show up as latency, not as a second source of rejections,
+matching `dbs`'s "runs away while fixing nothing" framing: the failure
+mode is unbounded latency, not errors).
+
+**`instanceOpts(p, rng)`**'s `steps` closure gains a conditional third step
+— `{ pool: 'db', scope: 'cluster', duration: num(p, 'dbQueryMs') / 1000 }`
+— inserted between the existing `io` and `cpu` steps, only when
+`dbPoolSlots > 0`.
+
+### `autoscaling-talk-6du` update
+
+Narrow `6du`'s remaining scope to exclude the "one shared DB pool" case
+(now shipped here) — what's left open: a *general* mechanism for multiple,
+independently-configurable named cluster/instance pools (the "arbitrary
+named pools" framework `6du` originally described), if a future scenario
+needs more than the one fixed "db" pool this spec adds.

@@ -1,7 +1,7 @@
 // presentation/sim/scenarios/shared.test.ts
 import { describe, expect, test } from 'vitest'
 import { Rng } from '../rng'
-import { instanceOpts, unitCapacity, unitParams } from './shared'
+import { clusterOpts, instanceOpts, unitCapacity, unitParams } from './shared'
 import { defaults, type Params } from './types'
 
 const base: Params = { ...defaults(unitParams) }
@@ -85,5 +85,23 @@ describe('instanceOpts: step plan', () => {
 describe('unitCapacity', () => {
   test('cores * 1000 / cpuTimeMs — the CPU-bound ceiling', () => {
     expect(unitCapacity({ ...base, cores: 4, cpuTimeMs: 20 })).toBe(4 * 1000 / 20)
+  })
+})
+
+describe('shared DB pool (dbPoolSlots)', () => {
+  test('dbPoolSlots 0 (default): clusterOpts has no clusterPools, instanceOpts has a 2-step plan', () => {
+    const o = clusterOpts({ ...base, dbPoolSlots: 0 })
+    expect(o.clusterPools).toBeUndefined()
+    const io = instanceOpts({ ...base, dbPoolSlots: 0 }, new Rng(1))
+    expect(io.steps!().map((s) => s.pool)).toEqual(['io', 'cpu'])
+  })
+
+  test('dbPoolSlots > 0: clusterOpts defines a db pool, instanceOpts inserts a cluster-scoped db step', () => {
+    const o = clusterOpts({ ...base, dbPoolSlots: 5 })
+    expect(o.clusterPools).toEqual({ db: { slots: 5, queueLimit: 1000 } })
+    const io = instanceOpts({ ...base, dbPoolSlots: 5, dbQueryMs: 30 }, new Rng(1))
+    const steps = io.steps!()
+    expect(steps.map((s) => [s.pool, s.scope])).toEqual([['io', 'instance'], ['db', 'cluster'], ['cpu', 'instance']])
+    expect(steps[1]!.duration).toBeCloseTo(0.03) // 30ms -> seconds
   })
 })

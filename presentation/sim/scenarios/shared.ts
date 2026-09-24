@@ -5,7 +5,7 @@ import {
 import type { Sim } from '../engine'
 import type { Cluster, ClusterOpts } from '../cluster'
 import type { Fault } from '../faults'
-import type { InstanceOpts } from '../instance'
+import type { InstanceOpts, Step } from '../instance'
 import type { LbOpts } from '../lb'
 import { AwsSimpleScaling, AwsStepScaling, AwsTargetTracking } from '../controllers/aws'
 import { Hpa } from '../controllers/hpa'
@@ -90,6 +90,10 @@ export const unitParams: ParamSpec[] = [
     help: 'Waiting room beyond the worker pool before rejecting. 0 = reject immediately when full.' },
   { key: 'poisonProb', label: 'worker poison probability', group: 'unit', kind: 'range', min: 0, max: 0.01, step: 0.0001, default: 0,
     help: 'Chance a served request permanently retires the worker that served it (never returns to the pool) — models a leaked thread in a misconfigured server that never recycles workers.' },
+  { key: 'dbPoolSlots', label: 'shared DB pool slots', group: 'unit', kind: 'range', min: 0, max: 50, step: 1, default: 0,
+    help: 'Shared DB connection pool across the WHOLE cluster. 0 = disabled (no shared bottleneck). >0 = every request also needs one of these shared slots — unlike cores/workers, scaling out instances does NOT scale this. The classic "autoscaled app exhausts DB connections" failure.' },
+  { key: 'dbQueryMs', label: 'DB query time', group: 'unit', kind: 'range', min: 1, max: 500, step: 1, default: 20, unit: 'ms',
+    help: 'How long a request holds a DB connection slot. Only matters when shared DB pool slots > 0.' },
   ...distParams({
     key: 'bootSec', label: 'boot time', group: 'unit',
     help: 'Delay from launch until an instance can serve. The main source of dead time.',
@@ -142,10 +146,13 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
     bootTime: () => sampleDist(rng, p, 'bootSec'),
     workerPool: { slots: workers, queueLimit: num(p, 'queueSlots'), poisonProb: num(p, 'poisonProb') },
     cpuPool: { slots: cores, queueLimit: workers },
-    steps: () => [
-      { pool: 'io', scope: 'instance', duration: sampleDist(rng, p, 'ioWaitMs') / 1000 },
-      { pool: 'cpu', scope: 'instance', duration: sampleDist(rng, p, 'cpuTimeMs') / 1000 },
-    ],
+    steps: () => {
+      const dbSlots = num(p, 'dbPoolSlots')
+      const plan: Step[] = [{ pool: 'io', scope: 'instance', duration: sampleDist(rng, p, 'ioWaitMs') / 1000 }]
+      if (dbSlots > 0) plan.push({ pool: 'db', scope: 'cluster', duration: num(p, 'dbQueryMs') / 1000 })
+      plan.push({ pool: 'cpu', scope: 'instance', duration: sampleDist(rng, p, 'cpuTimeMs') / 1000 })
+      return plan
+    },
     instancePools: { io: { slots: workers } }, // I/O wait doesn't contend on a bounded resource of its own; the worker envelope already bounds concurrency
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
     rollUniform: () => rng.next(), // real roll for workerPool.poisonProb — Instance's own default (rollUniform omitted) never poisons, so this must be supplied for poisonProb to do anything
@@ -166,7 +173,14 @@ export function lbOpts(p: Params): LbOpts {
 
 export function clusterOpts(p: Params): ClusterOpts {
   const d = num(p, 'replaceDeadSec')
-  return d > 0 ? { replaceDeadAfter: d } : {}
+  const dbSlots = num(p, 'dbPoolSlots')
+  return {
+    ...(d > 0 ? { replaceDeadAfter: d } : {}),
+    // Generous queueLimit deliberately: this should show up as latency, not as a second
+    // source of rejections — the pedagogical point is "scaling doesn't help", not "scaling
+    // doesn't help AND also causes errors", which would muddy the demo.
+    ...(dbSlots > 0 ? { clusterPools: { db: { slots: dbSlots, queueLimit: 1000 } } } : {}),
+  }
 }
 
 // ---------------- autoscaler ----------------

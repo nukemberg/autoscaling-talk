@@ -320,7 +320,6 @@ export function attachController(sim: Sim, cluster: Cluster, p: Params, stats: S
   }
 
   const min = num(p, 'minInstances'), max = num(p, 'maxInstances')
-  const cw = { period: num(p, 'awsPeriodSec'), metricDelay: num(p, 'awsMetricDelaySec'), warmup: num(p, 'awsWarmupSec') }
 
   // AWS's alarm-threshold sliders (awsOutThreshold/awsInThreshold, 0-1) are tuned against a
   // utilization-shaped metric — meaningless as literal values against e.g. queue depth or ms
@@ -332,6 +331,10 @@ export function attachController(sim: Sim, cluster: Cluster, p: Params, stats: S
   const awsTarget = num(p, METRIC_PARAM[awsMetricId].target)
   const awsMetricKind = awsMetricId === 'latency' ? 'absolute' : metricRegistry[awsMetricId].kind
   const awsThresholdScale = awsMetricKind === 'utilization' ? 1 : awsTarget / 0.5
+  const cw = {
+    period: num(p, 'awsPeriodSec'), metricDelay: num(p, 'awsMetricDelaySec'), warmup: num(p, 'awsWarmupSec'),
+    kind: awsMetricKind,
+  }
 
   let c: Controller
   switch (str(p, 'algo')) {

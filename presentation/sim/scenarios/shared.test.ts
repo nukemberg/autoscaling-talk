@@ -169,4 +169,11 @@ describe('attachController: multi-metric wiring', () => {
     const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: false, metricRps: true })
     expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
   })
+
+  test('AWS algo: controller.metricKind reflects the attached metric, not a hardcoded utilization (ddx)', () => {
+    const sim = new Sim()
+    const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: false, metricRps: true })
+    const c = attachController(sim, cluster, p, stats)
+    expect(c.metricKind).toBe('absolute')
+  })
 })

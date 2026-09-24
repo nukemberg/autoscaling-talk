@@ -21,18 +21,22 @@ export interface CloudWatchOpts {
   metricDelay?: number
   /** Instance warm-up since InService (default 300 s, AWS default cooldown). */
   warmup?: number
+  /** Kind of the attached metric — which chart/target scaling applies (default 'utilization'). */
+  kind?: 'utilization' | 'absolute'
 }
 
 /** Shared datapoint pipeline + warm-up bookkeeping. */
 abstract class AwsPolicy {
   /** Latest visible datapoint. */
   metric = NaN
-  /** Constant, unlike HPA's — AWS target/threshold params in this sim are always utilization-shaped (0-1 fractions). */
-  metricKind: 'utilization' | 'absolute' = 'utilization'
+  /** Kind of the attached metric, set from opts — mirrors Hpa's own metricKind. */
+  metricKind: 'utilization' | 'absolute'
   desired = NaN
   protected datapoints: Datapoint[] = []
 
-  constructor(protected sim: Sim, protected cluster: Cluster, protected metrics: PodMetrics, private cw: CloudWatchOpts) {}
+  constructor(protected sim: Sim, protected cluster: Cluster, protected metrics: PodMetrics, private cw: CloudWatchOpts) {
+    this.metricKind = cw.kind ?? 'utilization'
+  }
 
   protected get period(): number { return this.cw.period ?? 60 }
   protected get warmup(): number { return this.cw.warmup ?? 300 }

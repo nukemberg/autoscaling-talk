@@ -25,6 +25,15 @@ function setup(sim: Sim, ready: number, boot = 1000) {
 const settle = (sim: Sim, s: number) => sim.run(sim.now + s)
 
 describe('AwsTargetTracking', () => {
+  test('metricKind defaults to utilization, but reflects opts.kind when the attached metric is absolute (ddx)', () => {
+    const sim = new Sim()
+    const { cluster, metrics } = setup(sim, 1)
+    const utilization = new AwsTargetTracking(sim, cluster, metrics, { target: 0.5, min: 1, max: 100 })
+    expect(utilization.metricKind).toBe('utilization')
+    const absolute = new AwsTargetTracking(sim, cluster, metrics, { target: 5, min: 1, max: 100, kind: 'absolute' })
+    expect(absolute.metricKind).toBe('absolute')
+  })
+
   test('scales out after 3 consecutive 1-minute datapoints above target', () => {
     const sim = new Sim()
     const { cluster, metrics, setAll } = setup(sim, 4)

@@ -11,7 +11,9 @@ import { AwsSimpleScaling, AwsStepScaling, AwsTargetTracking } from '../controll
 import { Hpa } from '../controllers/hpa'
 import { PodMetrics } from '../controllers/metrics'
 import type { Rng } from '../rng'
+import type { Stats } from '../stats'
 import { distParams, sampleDist } from './dist'
+import { latencyMetric, metricRegistry } from './metricRegistry'
 import { bool, num, str, type ParamSpec, type Params } from './types'
 
 // ---------------- load ----------------
@@ -216,9 +218,29 @@ export const scalerParams: ParamSpec[] = [
   { key: 'healthyAfter', label: 'healthy after', group: 'scaler', kind: 'range', min: 1, max: 10, step: 1, default: 2, unit: 'checks',
     help: 'Consecutive passed probes before a recovered instance gets traffic again.' },
 
+  // --- scaling metrics (shared by every algorithm — AWS uses the first toggled-on one; HPA uses all of them, taking the max) ---
+  { key: 'metricCpu', label: 'CPU utilization', group: 'scaler', kind: 'toggle', default: true,
+    help: 'Scale on mean CPU pool busy fraction across pods.' },
+  { key: 'metricCpuTarget', label: 'CPU target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
+    help: 'Target utilization for the CPU metric.', activeWhen: { metricCpu: 'true' } },
+  { key: 'metricWorker', label: 'worker pool utilization', group: 'scaler', kind: 'toggle', default: false,
+    help: 'Scale on mean worker-pool busy fraction — saturates much later than CPU on a pool sized above cores.' },
+  { key: 'metricWorkerTarget', label: 'worker target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.7,
+    help: 'Target utilization for the worker-pool metric.', activeWhen: { metricWorker: 'true' } },
+  { key: 'metricQueue', label: 'queue depth', group: 'scaler', kind: 'toggle', default: false,
+    help: 'Scale on mean requests waiting per pod.' },
+  { key: 'metricQueueTarget', label: 'queue target', group: 'scaler', kind: 'range', min: 0, max: 50, step: 1, default: 5,
+    help: 'Target queue depth per pod.', activeWhen: { metricQueue: 'true' } },
+  { key: 'metricRps', label: 'requests/s per pod', group: 'scaler', kind: 'toggle', default: false,
+    help: 'Scale on mean served requests/s per pod — a throughput target instead of a utilization one.' },
+  { key: 'metricRpsTarget', label: 'rps target', group: 'scaler', kind: 'range', min: 1, max: 500, step: 1, default: 50,
+    help: 'Target requests/s per pod.', activeWhen: { metricRps: 'true' } },
+  { key: 'metricLatency', label: 'latency (mean, OK)', group: 'scaler', kind: 'toggle', default: false,
+    help: 'Scale on mean end-to-end latency, cluster-wide — NOT a capacity signal; the same value is reported for every pod. See the runaway-latency demo for why this is a trap.' },
+  { key: 'metricLatencyTarget', label: 'latency target (ms)', group: 'scaler', kind: 'range', min: 10, max: 2000, step: 10, default: 200,
+    help: 'Target mean latency in ms.', activeWhen: { metricLatency: 'true' } },
+
   // --- k8s HPA ---
-  { key: 'hpaTarget', label: 'target utilization', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
-    help: 'targetAverageUtilization. desired = ceil(current × avg / target).', activeWhen: hpa },
   { key: 'hpaTolerance', label: 'tolerance', group: 'scaler', kind: 'range', min: 0, max: 0.5, step: 0.01, default: 0.1,
     help: 'No action while |avg/target − 1| ≤ tolerance. Default 0.1.', activeWhen: hpa },
   { key: 'hpaSyncSec', label: 'sync period', group: 'scaler', kind: 'range', min: 5, max: 300, step: 5, default: 15, unit: 's',
@@ -275,37 +297,58 @@ export const scalerParams: ParamSpec[] = [
 
 export interface Controller { start(): void; readonly metric: number; readonly desired: number }
 
-export function attachController(sim: Sim, cluster: Cluster, p: Params): Controller {
-  const metrics = new PodMetrics(sim, cluster, { sampleInterval: num(p, 'metricsResolutionSec') })
-  metrics.start()
+const METRIC_IDS = ['cpu', 'worker', 'queue', 'rps', 'latency'] as const
+type MetricId = typeof METRIC_IDS[number]
+const METRIC_PARAM: Record<MetricId, { toggle: string; target: string }> = {
+  cpu: { toggle: 'metricCpu', target: 'metricCpuTarget' },
+  worker: { toggle: 'metricWorker', target: 'metricWorkerTarget' },
+  queue: { toggle: 'metricQueue', target: 'metricQueueTarget' },
+  rps: { toggle: 'metricRps', target: 'metricRpsTarget' },
+  latency: { toggle: 'metricLatency', target: 'metricLatencyTarget' },
+}
+
+export function attachController(sim: Sim, cluster: Cluster, p: Params, stats: Stats): Controller {
+  const interval = num(p, 'metricsResolutionSec')
+  const active = METRIC_IDS.filter((id) => bool(p, METRIC_PARAM[id].toggle))
+  const ids: MetricId[] = active.length ? active : ['cpu']
+
+  const podMetricsFor = (id: MetricId): PodMetrics => {
+    const def = id === 'latency' ? latencyMetric(stats, interval) : metricRegistry[id]
+    const m = new PodMetrics(sim, cluster, { sampleInterval: interval, source: def.source })
+    m.start()
+    return m
+  }
+
   const min = num(p, 'minInstances'), max = num(p, 'maxInstances')
   const cw = { period: num(p, 'awsPeriodSec'), metricDelay: num(p, 'awsMetricDelaySec'), warmup: num(p, 'awsWarmupSec') }
   let c: Controller
   switch (str(p, 'algo')) {
     case 'aws-target':
-      c = new AwsTargetTracking(sim, cluster, metrics, {
+      c = new AwsTargetTracking(sim, cluster, podMetricsFor(ids[0]!), {
         ...cw, min, max, target: num(p, 'awsTarget'),
         highEvalPeriods: num(p, 'awsHighPeriods'), lowEvalPeriods: num(p, 'awsLowPeriods'), lowFactor: num(p, 'awsLowFactor'),
         disableScaleIn: bool(p, 'awsDisableScaleIn'),
       })
       break
     case 'aws-step':
-      c = new AwsStepScaling(sim, cluster, metrics, {
+      c = new AwsStepScaling(sim, cluster, podMetricsFor(ids[0]!), {
         ...cw, min, max,
         outThreshold: num(p, 'awsOutThreshold'), outSteps: str(p, 'awsOutSteps'), outEvalPeriods: num(p, 'awsOutPeriods'),
         inThreshold: num(p, 'awsInThreshold'), inSteps: str(p, 'awsInSteps'), inEvalPeriods: num(p, 'awsInPeriods'),
       })
       break
     case 'aws-simple':
-      c = new AwsSimpleScaling(sim, cluster, metrics, {
+      c = new AwsSimpleScaling(sim, cluster, podMetricsFor(ids[0]!), {
         ...cw, min, max, cooldown: num(p, 'awsCooldownSec'),
         outThreshold: num(p, 'awsOutThreshold'), outAdjust: str(p, 'awsOutAdjust'), outEvalPeriods: num(p, 'awsOutPeriods'),
         inThreshold: num(p, 'awsInThreshold'), inAdjust: str(p, 'awsInAdjust'), inEvalPeriods: num(p, 'awsInPeriods'),
       })
       break
     default:
-      c = new Hpa(sim, cluster, metrics, {
-        min, max, target: num(p, 'hpaTarget'), tolerance: num(p, 'hpaTolerance'), syncPeriod: num(p, 'hpaSyncSec'),
+      c = new Hpa(sim, cluster, {
+        min, max,
+        metrics: ids.map((id) => ({ metrics: podMetricsFor(id), target: num(p, METRIC_PARAM[id].target), id })),
+        tolerance: num(p, 'hpaTolerance'), syncPeriod: num(p, 'hpaSyncSec'),
         initialReadinessDelay: num(p, 'hpaReadinessDelaySec'),
         downStabilization: num(p, 'hpaDownStabilizationSec'),
         scaleUpPods: num(p, 'hpaScaleUpPods'), scaleUpPercent: num(p, 'hpaScaleUpPercent'),
@@ -315,12 +358,14 @@ export function attachController(sim: Sim, cluster: Cluster, p: Params): Control
   return c
 }
 
-/** Utilization the controller aims for — used to size the cluster for a given load. */
+/** Utilization the controller aims for — used to size the cluster for a given load. Always
+ *  CPU-shaped (see spec §9: general non-CPU sizing math is out of scope) — reads the CPU
+ *  metric's target when it's toggled on, else falls back to the registry's own CPU default. */
 export function targetUtilization(p: Params): number {
   switch (str(p, 'algo')) {
     case 'aws-target': return num(p, 'awsTarget')
     case 'aws-step': case 'aws-simple': return (num(p, 'awsOutThreshold') + num(p, 'awsInThreshold')) / 2
-    default: return num(p, 'hpaTarget')
+    default: return bool(p, 'metricCpu') ? num(p, 'metricCpuTarget') : metricRegistry.cpu.defaultTarget
   }
 }
 

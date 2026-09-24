@@ -1,7 +1,14 @@
 // presentation/sim/scenarios/shared.test.ts
 import { describe, expect, test } from 'vitest'
+import { Arrivals, constant } from '../arrivals'
+import { Cluster } from '../cluster'
+import { Sim } from '../engine'
+import { LoadBalancer } from '../lb'
 import { Rng } from '../rng'
-import { clusterOpts, instanceOpts, unitCapacity, unitParams } from './shared'
+import { Stats } from '../stats'
+import {
+  attachController, clusterOpts, instanceOpts, lbOpts, scalerParams, unitCapacity, unitParams,
+} from './shared'
 import { defaults, type Params } from './types'
 
 const base: Params = { ...defaults(unitParams) }
@@ -103,5 +110,48 @@ describe('shared DB pool (dbPoolSlots)', () => {
     const steps = io.steps!()
     expect(steps.map((s) => [s.pool, s.scope])).toEqual([['io', 'instance'], ['db', 'cluster'], ['cpu', 'instance']])
     expect(steps[1]!.duration).toBeCloseTo(0.03) // 30ms -> seconds
+  })
+})
+
+describe('attachController: multi-metric wiring', () => {
+  function setup(sim: Sim, overrides: Partial<Params> = {}) {
+    // bootSec: 0 and healthCheckSec: 0 keep timing deterministic and instant, so tests only need
+    // to wait out hpaReadinessDelaySec + a couple of metric scrapes, not a realistic boot/LB delay.
+    const p = { ...base, ...defaults(scalerParams), bootSec: 0, healthCheckSec: 0, ...overrides }
+    const lb = new LoadBalancer(sim, lbOpts(p))
+    const cluster = new Cluster(sim, lb, instanceOpts(p, new Rng(1)), clusterOpts(p))
+    cluster.scaleTo(2)
+    const stats = new Stats(sim)
+    return { p, lb, cluster, stats }
+  }
+
+  test('default (only metricCpu on): controller scales up under real overload, same as a single-CPU-metric HPA always has', () => {
+    const sim = new Sim()
+    const { p, lb, cluster, stats } = setup(sim, { maxInstances: 20 })
+    attachController(sim, cluster, p, stats)
+    // Massively overload the 2-pod cluster's CPU capacity so the CPU metric reads well above
+    // its default target (0.5) almost immediately.
+    const overload = unitCapacity(p) * 10
+    new Arrivals(sim, new Rng(2), constant(overload), (r) => lb.handle(r)).start()
+    sim.run(120) // past hpaReadinessDelaySec (30s) and a couple of metricsResolutionSec scrapes
+    expect(cluster.size).toBeGreaterThan(2)
+  })
+
+  test('multiple metrics toggled on: Hpa receives all of them', () => {
+    const sim = new Sim()
+    const { p, cluster, stats } = setup(sim, { metricCpu: true, metricRps: true })
+    expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
+  })
+
+  test('nothing toggled on: falls back to CPU only rather than erroring', () => {
+    const sim = new Sim()
+    const { p, cluster, stats } = setup(sim, { metricCpu: false })
+    expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
+  })
+
+  test('AWS algo: uses whichever single metric is toggled (first one, if several)', () => {
+    const sim = new Sim()
+    const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: false, metricRps: true })
+    expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
   })
 })

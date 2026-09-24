@@ -13,6 +13,7 @@ export interface HpaMetric {
   target: number
   /** For diagnostics/tests only — not used in the scaling math itself. */
   id: string
+  kind: 'utilization' | 'absolute'
 }
 
 export interface HpaOpts {
@@ -41,6 +42,8 @@ interface Rec { t: number; v: number }
 export class Hpa {
   /** Average utilization over pods that had metrics (what the HPA status reports). */
   metric = NaN
+  /** Kind of whichever metric last drove `metric` — tells a chart whether to ×100. */
+  metricKind: 'utilization' | 'absolute' = 'utilization'
   /** Last recommendation after stabilization and rate limits. */
   desired = NaN
 
@@ -69,7 +72,7 @@ export class Hpa {
     const current = pods.length
     if (!current) return
 
-    let best: { desired: number; metric: number } | undefined
+    let best: { desired: number; metric: number; kind: 'utilization' | 'absolute' } | undefined
     for (const m of this.opts.metrics) {
       const r = this.desiredForMetric(m, pods, current)
       if (r && (!best || r.desired > best.desired)) best = r
@@ -77,6 +80,7 @@ export class Hpa {
     if (!best) return // no toggled metric had data from any pod this tick
 
     this.metric = best.metric
+    this.metricKind = best.kind
     this.recommend(best.desired)
   }
 
@@ -84,7 +88,7 @@ export class Hpa {
    *  metric (including its own set-aside/tolerance handling) and takes the largest. Returns
    *  undefined when this metric had no data from any pod this tick (real HPA skips a metric
    *  it can't retrieve rather than failing the whole sync). */
-  private desiredForMetric(m: HpaMetric, pods: readonly Instance[], current: number): { desired: number; metric: number } | undefined {
+  private desiredForMetric(m: HpaMetric, pods: readonly Instance[], current: number): { desired: number; metric: number; kind: 'utilization' | 'absolute' } | undefined {
     const o = this.o
     const now = this.sim.now
     const withMetric: number[] = []
@@ -99,19 +103,19 @@ export class Hpa {
 
     const avg = withMetric.reduce((a, b) => a + b, 0) / withMetric.length
     const ratio = avg / m.target
-    if (Math.abs(ratio - 1) <= o.tolerance) return { desired: current, metric: avg }
+    if (Math.abs(ratio - 1) <= o.tolerance) return { desired: current, metric: avg, kind: m.kind }
 
     let desired: number
     if (ratio > 1) {
       const newRatio = (avg * withMetric.length) / (m.target * current)
-      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio < 1) return { desired: current, metric: avg }
+      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio < 1) return { desired: current, metric: avg, kind: m.kind }
       desired = Math.ceil(current * newRatio)
     } else {
       const newRatio = (avg * withMetric.length + m.target * setAside) / (m.target * current)
-      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio > 1) return { desired: current, metric: avg }
+      if (Math.abs(newRatio - 1) <= o.tolerance || newRatio > 1) return { desired: current, metric: avg, kind: m.kind }
       desired = Math.ceil(current * newRatio)
     }
-    return { desired: Math.min(this.opts.max, Math.max(this.opts.min, desired)), metric: avg }
+    return { desired: Math.min(this.opts.max, Math.max(this.opts.min, desired)), metric: avg, kind: m.kind }
   }
 
   /** Record the recommendation, stabilize, rate-limit, apply. */

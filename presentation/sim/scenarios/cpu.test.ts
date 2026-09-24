@@ -23,6 +23,19 @@ describe('cpu scenario', () => {
     expect(run()).toEqual(run())
   })
 
+  test('scaling metric series lands on the [0,100] pct axis for the default (cpu, utilization) case', () => {
+    // Regression for the bug where controller.metric (a 0..1 fraction for utilization metrics)
+    // was plotted unconverted onto a hardcoded [0,100] axis, so the line sat flat near 0-1.
+    const r = run({ horizonSec: 1200, sampleSec: 10 })
+    const metric = r.series.metric.slice(5) // skip the first couple samples before the controller has data
+    expect(metric.length).toBeGreaterThan(0)
+    for (const v of metric) {
+      expect(v).toBeGreaterThanOrEqual(0)
+      expect(v).toBeLessThanOrEqual(100)
+    }
+    expect(Math.max(...metric)).toBeGreaterThan(1) // would fail at ~0.5-0.9 pre-fix
+  })
+
   test('markers at load start and fault', () => {
     expect(run({ quietSec: 300 }).markers).toEqual([{ t: 300, label: 'load starts →' }])
     expect(run({ quietSec: 300, faultKind: 'kill', faultAtSec: 900 }).markers).toEqual([

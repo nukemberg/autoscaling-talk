@@ -27,6 +27,8 @@ export interface CloudWatchOpts {
 abstract class AwsPolicy {
   /** Latest visible datapoint. */
   metric = NaN
+  /** Constant, unlike HPA's — AWS target/threshold params in this sim are always utilization-shaped (0-1 fractions). */
+  metricKind: 'utilization' | 'absolute' = 'utilization'
   desired = NaN
   protected datapoints: Datapoint[] = []
 

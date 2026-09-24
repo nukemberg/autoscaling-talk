@@ -295,7 +295,7 @@ export const scalerParams: ParamSpec[] = [
     help: 'Simple scaling: no further scaling activity until the cooldown expires. Default 300 s.', activeWhen: { algo: 'aws-simple' } },
 ]
 
-export interface Controller { start(): void; readonly metric: number; readonly desired: number }
+export interface Controller { start(): void; readonly metric: number; readonly desired: number; readonly metricKind: 'utilization' | 'absolute' }
 
 const METRIC_IDS = ['cpu', 'worker', 'queue', 'rps', 'latency'] as const
 type MetricId = typeof METRIC_IDS[number]
@@ -347,7 +347,10 @@ export function attachController(sim: Sim, cluster: Cluster, p: Params, stats: S
     default:
       c = new Hpa(sim, cluster, {
         min, max,
-        metrics: ids.map((id) => ({ metrics: podMetricsFor(id), target: num(p, METRIC_PARAM[id].target), id })),
+        metrics: ids.map((id) => ({
+          metrics: podMetricsFor(id), target: num(p, METRIC_PARAM[id].target), id,
+          kind: id === 'latency' ? 'absolute' : metricRegistry[id].kind,
+        })),
         tolerance: num(p, 'hpaTolerance'), syncPeriod: num(p, 'hpaSyncSec'),
         initialReadinessDelay: num(p, 'hpaReadinessDelaySec'),
         downStabilization: num(p, 'hpaDownStabilizationSec'),

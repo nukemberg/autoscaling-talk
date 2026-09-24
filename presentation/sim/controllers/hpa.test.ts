@@ -28,7 +28,7 @@ function setup(
   const metrics = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: (i) => cpu.get(i) ?? all } })
   sim.run(60)                      // past initialReadinessDelay
   metrics.start()
-  const hpa = new Hpa(sim, cluster, { min: 1, max: 100, metrics: [{ metrics, target, id: 'test' }], ...over })
+  const hpa = new Hpa(sim, cluster, { min: 1, max: 100, metrics: [{ metrics, target, id: 'test', kind: 'utilization' }], ...over })
   return { cluster, hpa, cpu, setAll }
 }
 
@@ -151,12 +151,16 @@ describe('Hpa', () => {
     rpsMetrics.start()
     const hpa = new Hpa(sim, cluster, {
       min: 1, max: 100,
-      metrics: [{ metrics: cpuMetrics, target: 0.5, id: 'cpu' }, { metrics: rpsMetrics, target: 100, id: 'rps' }],
+      metrics: [
+        { metrics: cpuMetrics, target: 0.5, id: 'cpu', kind: 'utilization' },
+        { metrics: rpsMetrics, target: 100, id: 'rps', kind: 'absolute' },
+      ],
     })
     sim.run(sim.now + 15)
     hpa.start()
     sim.run(sim.now + 15)
     expect(cluster.size).toBe(5)     // cpu's recommendation won
     expect(hpa.metric).toBeCloseTo(0.6) // .metric reflects the DRIVING metric (cpu), not rps
+    expect(hpa.metricKind).toBe('utilization') // and .metricKind reflects cpu's kind, not rps's
   })
 })

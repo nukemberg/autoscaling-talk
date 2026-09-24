@@ -36,7 +36,7 @@ export const cpuScenario: ScenarioDef = {
         { key: 'inRotation', label: 'in LB rotation', color: 'accent', width: 1, dash: [2, 3] },
         { key: 'metric', label: 'scaling metric', color: 'cpu', width: 1.5, scale: 'pct' },
       ],
-      scales: { pct: { range: [0, 100], label: 'cpu %', color: 'cpu' } },
+      scales: { pct: { range: [0, 100], label: 'scaling metric', color: 'cpu' } },
     },
     {
       yLabel: 'req/s',
@@ -94,7 +94,7 @@ export const cpuScenario: ScenarioDef = {
       instances: () => cluster.size,
       ready: () => cluster.ready,
       inRotation: () => lb.readyCount,
-      metric: () => controller.metric,
+      metric: () => controller.metricKind === 'utilization' ? controller.metric * 100 : controller.metric,
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,

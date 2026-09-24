@@ -1,6 +1,5 @@
 import { Arrivals } from '../arrivals'
 import { Cluster } from '../cluster'
-import type { Instance } from '../instance'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
 import { Recorder } from '../metrics'
@@ -35,7 +34,7 @@ export const cpuScenario: ScenarioDef = {
         { key: 'instances', label: 'instances', color: 'inst', width: 2 },
         { key: 'ready', label: 'ready', color: 'muted', width: 1, dash: [4, 4] },
         { key: 'inRotation', label: 'in LB rotation', color: 'accent', width: 1, dash: [2, 3] },
-        { key: 'cpu', label: 'cpu %', color: 'cpu', width: 1.5, scale: 'pct' },
+        { key: 'metric', label: 'scaling metric', color: 'cpu', width: 1.5, scale: 'pct' },
       ],
       scales: { pct: { range: [0, 100], label: 'cpu %', color: 'cpu' } },
     },
@@ -83,33 +82,17 @@ export const cpuScenario: ScenarioDef = {
 
     const offered = loadProfile(p, t0 + quietSec, rng)
     new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
-    attachController(sim, cluster, p)
+    const controller = attachController(sim, cluster, p, stats)
     const faultList = faults(p, t0)
     injectFaults(sim, { cluster }, faultList)
 
     let lastTotals = { ...stats.totals }
     const delta = (k: keyof typeof stats.totals) => stats.totals[k] - lastTotals[k]
-    // Charted cpu is time-averaged over each sample window from the cumulative counter — the same
-    // way the controller's metrics see it — not a point sample of instantaneous core occupancy
-    // (which, with few cores, is mostly 0%/100% noise).
-    let lastCpuSeconds = new Map<Instance, number>()
-    const cpuPct = () => {
-      const next = new Map<Instance, number>()
-      let sum = 0, n = 0
-      for (const inst of cluster.instances) {
-        if (inst.state !== 'ready') continue
-        const cs = inst.cpuSeconds, prev = lastCpuSeconds.get(inst)
-        next.set(inst, cs)
-        if (prev !== undefined) { sum += (cs - prev) / sample; n++ }
-      }
-      lastCpuSeconds = next
-      return 100 * (n ? sum / n : cluster.cpu)
-    }
     const rec = new Recorder(sim, sample, {
       instances: () => cluster.size,
       ready: () => cluster.ready,
       inRotation: () => lb.readyCount,
-      cpu: cpuPct,
+      metric: () => controller.metric,
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,

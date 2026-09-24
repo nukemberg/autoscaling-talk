@@ -372,6 +372,40 @@ like success on a dashboard that only tracks error rate — it isn't.
 -->
 
 ---
+
+# Scaling on Latency: The Trap
+
+<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :height="130" />
+
+<!--
+Live DES from presets/latency-runaway.json. Scaling on mean latency
+alone (CPU metric off) against a shared, cluster-wide DB connection
+pool — 8 slots, 30ms/query — that does NOT grow when instances do:
+its total throughput ceiling is dbPoolSlots / dbQueryMs = 8 / 0.03s =
+266.7 rps, flat, no matter how many pods you add. The load step only
+goes to 270rps — about 1% over that ceiling — permanently
+oversubscribed. Watch two lines: mean latency and instance count.
+Before the step (100rps, under the DB ceiling): latency ~58ms, a
+healthy system. After the step to 270rps: latency jumps to ~3.3s
+within minutes and is still ~3.5s at the end of the run — climbing,
+never recovering, a ~60x jump that just sits there. Meanwhile the
+controller, seeing only that same cluster-wide latency number (it's
+identical no matter how many pods exist), keeps concluding it needs
+more capacity and scales relentlessly to the ceiling: instances hit
+maxInstances (60) and stay there, against the ~1.4 instances a
+CPU-based sizing would ever ask for at this rps — 40+ times the
+fleet, for nothing. Errors stay low (~1%) — the DB queue is
+deliberately generous, so the failure mode reads as pure latency, not
+rejections; this isn't "also causes errors", it's a clean latency
+story. Land it explicitly: autoscaling can't fix a problem that isn't
+capacity-shaped. The bottleneck here is a fixed number of shared DB
+connections — compute was never the scarce resource, so adding compute
+doesn't touch it. A bigger fleet hammering the same fixed pool isn't
+relief, it's the same queueing problem with a bigger blast radius and
+a bigger bill.
+-->
+
+---
 layout: default
 ---
 

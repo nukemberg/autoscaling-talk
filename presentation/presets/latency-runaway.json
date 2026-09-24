@@ -1,0 +1,18 @@
+{
+  "id": "cpu-step",
+  "name": "latency-runaway",
+  "params": {
+    "rps": 270,
+    "quietSec": 120,
+    "horizonSec": 1800,
+    "maxInstances": 60,
+    "ioWaitMs": 20,
+    "workers": 300,
+    "queueSlots": 600,
+    "dbPoolSlots": 8,
+    "dbQueryMs": 30,
+    "metricCpu": false,
+    "metricLatency": true
+  },
+  "notes": "Scale on mean latency alone (metricCpu off, metricLatency on, target 200ms) against a shared, cluster-wide DB pool (8 slots x 30ms/query) that does NOT grow when instances do. Ceiling on total DB-bound throughput: dbPoolSlots / dbQueryMs = 8 / 0.03s = 266.7 rps, fixed no matter how many pods exist. The step load only goes to 270rps -- ~1% over that ceiling -- permanently oversubscribed. Workers (300) and queue slots (600) per instance are deliberately generous so admission control at the instance level never becomes the story; this is a DB-pool story, not a worker-pool one.\n\nMeasured (seed 1, this exact preset): before the ramp (base load 100rps, well under the DB ceiling) mean latency is ~58ms -- almost exactly ioWaitMs(20) + dbQueryMs(30) + cpuTimeMs(10), i.e. a healthy system with no queueing. After the ramp to 270rps, mean latency jumps to ~3.3s within minutes and is still climbing at ~3.5s by the end of the run (not decaying, not stabilizing) -- an ~60x increase that never recovers. Meanwhile the controller, seeing only latency (which is the SAME cluster-wide number no matter how many pods are running), keeps concluding it needs more capacity and scales relentlessly to the configured ceiling: instances hit maxInstances (60) and stay there, vs. the ~1.4 instances a CPU-based sizing would ever have asked for at this rps -- 40+ times the fleet. Errors stay low (~1%): the DB pool's queue is generous on purpose, so the failure mode reads as pure latency, not rejections. The lesson: autoscaling on a signal that isn't a capacity signal for the actual bottleneck doesn't just fail to help -- it can't help, because the thing being added (compute) isn't the thing that's scarce (shared DB connections). A bigger fleet hammering the same fixed pool is more queueing pressure, not relief, and a bigger bill for it.\n\nPre-existing bug fixed to make this preset runnable: cpu.ts's run() always built its Stats with { track: false } (totals-only, no windowed log), but the latency metric (metricRegistry.latencyMetric) requires the windowed log to compute a trailing-window mean -- turning metricLatency on unconditionally threw 'windowed queries need { track: true }'. Fixed by tracking only when metricLatency is on, so every other preset/metric keeps the old allocation-free totals-only path."
+}

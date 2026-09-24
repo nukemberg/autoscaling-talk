@@ -10,7 +10,7 @@ import {
   attachController, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
   neededInstances, scalerParams, unitParams,
 } from './shared'
-import { num, type ParamSpec, type Params, type ScenarioDef } from './types'
+import { bool, num, type ParamSpec, type Params, type ScenarioDef } from './types'
 
 const simParams: ParamSpec[] = [
   { key: 'horizonSec', label: 'horizon', group: 'sim', kind: 'range', min: 300, max: 7200, step: 60, default: 2100, unit: 's',
@@ -64,7 +64,9 @@ export const cpuScenario: ScenarioDef = {
 
     const sim = new Sim()
     const rng = new Rng(num(p, 'seed'))
-    const stats = new Stats(sim, { track: false }) // totals only — record() must stay allocation-free
+    // The latency metric (see metricRegistry.latencyMetric) needs the windowed request log;
+    // every other metric only reads `totals`, so skip the log's allocation unless it's in use.
+    const stats = new Stats(sim, { track: bool(p, 'metricLatency') })
     let latencySum = 0, latencyCount = 0 // running sum for OK requests, reset each sample window
     const lb = new LoadBalancer(sim, lbOpts(p))
     lb.onDone = (r) => {

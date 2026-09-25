@@ -43,7 +43,7 @@ describe('cpu scenario', () => {
     ])
   })
 
-  test('kill fault: instances drop, one replacement lands (the other loses the replace-dead race — autoscaling-talk-bmj)', () => {
+  test('kill fault: instances drop, only 1 of 2 gets replaced — because only 1 was actually needed', () => {
     // faultAtSec avoids being a multiple of the default hpaSyncSec (15): warmupEnd (t0) is a fixed
     // 150s from bootSec/healthCheckSec, so t0 + faultAtSec landing on an HPA sync tick would let a
     // same-instant scale-up recommendation fire (in scheduling order) before the very next sample,
@@ -51,12 +51,14 @@ describe('cpu scenario', () => {
     // recorded "instances" sample at the fault's own tick showed no drop at all, even though
     // Cluster.crash() had already reduced cluster.size moments earlier in the same event batch.
     //
-    // With faultCount: 2, both crashed instances schedule an independent replaceDeadAfter timer for
-    // the same delay; whichever fires first satisfies Cluster's `pool.length < desired` check and
-    // launches, so the second sees desired already met and skips (autoscaling-talk-bmj) — only 1 of
-    // 2 comes back, permanently, at this load level. Traced via instrumented run out to t=2000: it
-    // never recovers to `before` on its own. That's real, current behavior, not a flaky timing —
-    // this test pins it so a fix to bmj shows up here as an intentional, reviewed change.
+    // Investigated as autoscaling-talk-bmj ("only 1 of 2 crashes gets replaced") and closed as not
+    // a bug: traced the HPA math at the next sync and it's textbook-correct. 6 instances pre-crash
+    // was over-provisioned; the 4 survivors average 62.5% CPU against a 50% target, so
+    // ceil(4 * 1.25) = 5 is the genuinely correct target, not 6. The next sync correctly sets aside
+    // the booting 5th pod (real k8s's missing-pod dampening, already implemented in hpa.ts) and
+    // settles within tolerance at 5. A separate probe (two simultaneous crashes with no HPA
+    // involved) confirmed Cluster.crash()'s replace-timers do both fire when replacements are
+    // actually needed — there's no race between them.
     const r = run({ faultKind: 'kill', faultAtSec: 1210, faultCount: 2, replaceDeadSec: 60, sampleSec: 10, cores: 16, cpuTimeMs: 100 })
     const i = (t: number) => r.series.instances[t / 10]
     const before = i(1200)

@@ -238,7 +238,7 @@ export const scalerParams: ParamSpec[] = [
   { key: 'metricRpsTarget', label: 'rps target', group: 'scaler', kind: 'range', min: 1, max: 500, step: 1, default: 50,
     help: 'Target requests/s per pod.', activeWhen: { metricRps: 'true' } },
   { key: 'metricLatency', label: 'latency (mean, OK)', group: 'scaler', kind: 'toggle', default: false,
-    help: 'Scale on mean end-to-end latency, cluster-wide — NOT a capacity signal; the same value is reported for every pod. See the runaway-latency demo for why this is a trap.' },
+    help: 'Scale on mean end-to-end latency, cluster-wide — NOT a capacity signal; the same value is reported for every pod. See the latency-runaway preset for why this is a trap.' },
   { key: 'metricLatencyTarget', label: 'latency target (ms)', group: 'scaler', kind: 'range', min: 10, max: 2000, step: 10, default: 200,
     help: 'Target mean latency in ms.', activeWhen: { metricLatency: 'true' } },
 

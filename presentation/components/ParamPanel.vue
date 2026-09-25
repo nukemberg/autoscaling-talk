@@ -29,8 +29,7 @@ const grouped = computed(() => {
 
 function set(key: string, value: number | string | boolean) {
   const spec = props.specs.find((s) => s.key === key)
-  const raw = spec?.kind === 'select' ? spec.presets?.[value as string] : undefined
-  const preset = typeof raw === 'function' ? raw(props.modelValue) : raw
+  const preset = spec?.kind === 'select' ? spec.presets?.[value as string] : undefined
   emit('update:modelValue', { ...props.modelValue, [key]: value, ...preset })
 }
 

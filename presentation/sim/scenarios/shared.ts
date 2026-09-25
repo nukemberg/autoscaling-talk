@@ -76,12 +76,12 @@ export const serverParams: ParamSpec[] = [
     { value: 'threaded', label: 'threaded, with backpressure (e.g. Jetty)' },
     { value: 'event-loop', label: 'event loop (e.g. node.js)' },
   ], presets: {
-    // Properly-tuned default: workers = cores * (1 + ioWait/cpuTime), the classic
+    // workers precomputed at the defaults' own cores(4)/cpuTimeMs(10)/ioWaitMs(90): the classic
     // ceil(cores*(cpuTime+ioWait)/cpuTime) sizing — enough threads that I/O wait never idles a core.
-    threaded: (p) => ({ unlimitedWorkers: false, workers: Math.max(1, Math.ceil(num(p, 'cores') * (1 + num(p, 'ioWaitMs') / num(p, 'cpuTimeMs')))) }),
+    threaded: { unlimitedWorkers: false, workers: 40 },
     'event-loop': { unlimitedWorkers: true, cores: 1, queueSlots: 0 },
   }, help: 'Quick-set the knobs below to a real-world server shape. "Threaded" is a bounded thread pool '
-    + 'with a backpressure queue (workers/queue/cores all tunable — workers default to the classic '
+    + 'with a backpressure queue (workers/queue/cores all tunable — workers defaults to the classic '
     + 'ceil(cores*(cpuTime+ioWait)/cpuTime) sizing). "Event loop" has no backpressure '
     + '(unbounded concurrency) and is locked to 1 CPU core, like a single node.js process. Pick "custom" to set every knob yourself.' },
   { key: 'cores', label: 'CPU cores', group: 'server', kind: 'range', min: 1, max: 64, step: 1, default: 4,

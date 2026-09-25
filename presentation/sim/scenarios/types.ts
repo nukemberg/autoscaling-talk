@@ -16,10 +16,8 @@ export type ParamSpec =
   | (Common & { kind: 'range'; min: number; max: number; step: number; default: number; unit?: string })
   | (Common & { kind: 'select'; options: { value: string; label: string }[]; default: string
       /** When this select changes to a given value, merge these overrides into params — e.g. a
-       *  server-profile preset forcing `cores`/`unlimitedWorkers` together with one selection.
-       *  A function form can derive its overrides from the params in effect at switch time
-       *  (e.g. sizing `workers` off the current `cores`/`cpuTimeMs`/`ioWaitMs`). */
-      presets?: Record<string, Partial<Params> | ((params: Params) => Partial<Params>)> })
+       *  server-profile preset forcing `cores`/`unlimitedWorkers` together with one selection. */
+      presets?: Record<string, Partial<Params>> })
   | (Common & { kind: 'toggle'; default: boolean })
   | (Common & { kind: 'text'; default: string; placeholder?: string })
 

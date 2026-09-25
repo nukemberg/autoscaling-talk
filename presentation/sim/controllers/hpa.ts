@@ -9,14 +9,18 @@ import type { PodMetrics } from './metrics'
  * and the default `behavior` block.
  */
 export interface HpaMetric {
+  /** Per-pod scrape history this metric reads. */
   metrics: PodMetrics
+  /** Target value in this metric's own units — a 0-1 fraction for 'utilization', native units (ms, req/s, …) for 'absolute'. */
   target: number
   /** For diagnostics/tests only — not used in the scaling math itself. */
   id: string
+  /** 'utilization': ratio math (desired = ceil(current * metric / target)). 'absolute': same math, but the chart won't ×100 it. */
   kind: 'utilization' | 'absolute'
 }
 
 export interface HpaOpts {
+  /** Every metric toggled on; desired replicas is computed per metric and the largest wins (real HPA's multi-metric behavior). */
   metrics: HpaMetric[]
   min: number
   max: number

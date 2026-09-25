@@ -2,8 +2,11 @@ import type { MetricSource } from '../controllers/metrics'
 import type { Stats } from '../stats'
 
 export interface MetricDef {
+  /** Matches the corresponding METRIC_IDS entry in shared.ts. */
   id: string
+  /** Human-readable name, used in param help text and chart legends. */
   label: string
+  /** Display unit for charts/help text (e.g. '%', 'ms', 'req/s'). */
   unit: string
   /** 'utilization': chart gets a fixed [0,100]% scale; the CPU entry also drives the pre-run
    *  warmup sizing math (see unitCapacity/neededInstances in shared.ts). 'absolute': chart
@@ -15,6 +18,8 @@ export interface MetricDef {
   defaultTarget: number
 }
 
+/** One entry per per-pod scaling metric a scenario can toggle on (cpu/worker/queue/rps). Latency
+ *  is cluster-wide, not per-pod, so it's built separately by latencyMetric() below. */
 export const metricRegistry = {
   cpu: {
     id: 'cpu', label: 'CPU utilization', unit: '%', kind: 'utilization', defaultTarget: 0.5,

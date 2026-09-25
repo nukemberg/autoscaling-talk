@@ -110,6 +110,7 @@ export const cpuScenario: ScenarioDef = {
     return {
       t: rec.t.map((t) => t - t0),
       series,
+      metricKind: controller.metricKind,
       markers: [
         { t: quietSec, label: 'load starts →' },
         ...faultList.map((f) => ({ t: f.at - t0, label: `${f.kind} →` })),

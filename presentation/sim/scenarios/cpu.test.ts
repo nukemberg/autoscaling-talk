@@ -36,6 +36,15 @@ describe('cpu scenario', () => {
     expect(Math.max(...metric)).toBeGreaterThan(1) // would fail at ~0.5-0.9 pre-fix
   })
 
+  test('result.metricKind reflects the attached metric, so the chart knows not to fix its axis to [0,100]', () => {
+    // Regression for the bug where a non-utilization scaling metric (e.g. latency) was still
+    // plotted on a chart-level, scenario-definition-time [0,100] axis and got silently clipped.
+    // The chart needs this per-run signal since which metric is driving the controller only
+    // settles inside run().
+    expect(run().metricKind).toBe('utilization')
+    expect(run({ metricCpu: false, metricLatency: true }).metricKind).toBe('absolute')
+  })
+
   test('markers at load start and fault', () => {
     expect(run({ quietSec: 300 }).markers).toEqual([{ t: 300, label: 'load starts →' }])
     expect(run({ quietSec: 300, faultKind: 'kill', faultAtSec: 900 }).markers).toEqual([

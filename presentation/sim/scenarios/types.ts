@@ -32,6 +32,10 @@ export interface ScenarioResult {
   series: Record<string, number[]>
   markers: Marker[]
   summary: Record<string, string | number>
+  /** Kind of whichever scaling metric drove the controller this run — lets the chart know
+   *  whether the 'pct' scale's fixed [0,100] range is meaningful ('utilization') or would clip
+   *  an absolute metric like ms/req/s ('absolute'), since that only settles at run() time. */
+  metricKind?: 'utilization' | 'absolute'
 }
 
 export interface SeriesSpec {

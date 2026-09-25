@@ -70,6 +70,15 @@ function yRange(_u: uPlot, dataMin: number, dataMax: number): [number, number] {
   return [lo, hi + (hi - lo) * 0.1]
 }
 
+// The 'pct' scale's static [0,100] range (declared on ChartSpec, fixed at scenario-definition
+// time) only makes sense while the scaling metric is a utilization fraction. Which metric is
+// actually driving the controller only settles at run() time — an absolute metric (ms, req/s)
+// toggled on for this run would get silently clipped to a 0-100 window otherwise. Auto-range
+// it the same way the primary axis does whenever the result says it isn't a utilization.
+function pctRange(u: uPlot, dataMin: number, dataMax: number): [number, number] {
+  return yRange(u, dataMin, dataMax)
+}
+
 const panelsTrigger = ref(0)
 // Chart palette is read inside via chartColors(); bumping the trigger on theme
 // flip re-evaluates it so every uPlot instance gets rebuilt with new colors.
@@ -78,7 +87,14 @@ const panels = computed(() => {
   const C = chartColors()
   return props.charts.map((c, i) => {
   const last = i === props.charts.length - 1
-  const data: AlignedData = [props.result.t, ...c.series.map((s) => props.result.series[s.key])]
+  // NaN (e.g. a controller's metric before its first sync) has to become uPlot's `null` gap
+  // sentinel: uPlot's own auto-ranging scans raw values and a literal NaN poisons the whole
+  // scale's min/max to NaN (unlike null, which it correctly skips), breaking any auto-ranged
+  // scale — including a static-range one if it's later switched to auto-ranging (see 'pct' below).
+  const data: AlignedData = [
+    props.result.t,
+    ...c.series.map((s) => props.result.series[s.key]?.map((v) => Number.isNaN(v) ? null : v)),
+  ]
   // No axis `label` here (a rotated title reserves extra width beyond `size`,
   // and only a non-empty one does — that extra was the actual misalignment
   // between panels with a real secondary axis and placeholder ones below).
@@ -109,7 +125,13 @@ const panels = computed(() => {
     scales: {
       x: { time: false },
       y: { range: yRange },
-      ...Object.fromEntries(Object.entries(c.scales ?? {}).map(([k, v]) => [k, { range: v.range }])),
+      ...Object.fromEntries(Object.entries(c.scales ?? {}).map(([k, v]) => {
+        const dynamic = k === 'pct' && props.result.metricKind === 'absolute'
+        // uPlot only scans series data for a scale's min/max when `auto` is true — a static
+        // [min,max] range array implies auto:false (no scan needed), so switching to a range
+        // *function* here also needs an explicit auto:true or it gets called with NaN,NaN.
+        return [k, dynamic ? { auto: true, range: pctRange } : { range: v.range }]
+      })),
     },
     axes: [
       last ? { stroke: C.text, grid: mkGrid(), label: 'seconds' } : { show: false },

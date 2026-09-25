@@ -76,13 +76,16 @@ export const serverParams: ParamSpec[] = [
     { value: 'threaded', label: 'threaded, with backpressure (e.g. Jetty)' },
     { value: 'event-loop', label: 'event loop (e.g. node.js)' },
   ], presets: {
-    // workers precomputed at the defaults' own cores(4)/cpuTimeMs(10)/ioWaitMs(90): the classic
-    // ceil(cores*(cpuTime+ioWait)/cpuTime) sizing — enough threads that I/O wait never idles a core.
-    threaded: { unlimitedWorkers: false, workers: 40 },
-    'event-loop': { unlimitedWorkers: true, cores: 1, queueSlots: 0 },
+    // workers precomputed at the defaults' own cores(4)/cpuTimeMs(10)/ioWaitMs(90)/dbPoolSlots(0):
+    // the classic ceil(cores*(cpuTime+ioWait+dbWait)/cpuTime) sizing (dbWait only counts while the
+    // shared DB pool is enabled) — enough threads that I/O wait never idles a core. dbPoolSlots
+    // reset to 0 so the profile starts from a clean no-shared-bottleneck baseline; turning it back
+    // on doesn't retune workers automatically.
+    threaded: { unlimitedWorkers: false, workers: 40, dbPoolSlots: 0 },
+    'event-loop': { unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 },
   }, help: 'Quick-set the knobs below to a real-world server shape. "Threaded" is a bounded thread pool '
     + 'with a backpressure queue (workers/queue/cores all tunable — workers defaults to the classic '
-    + 'ceil(cores*(cpuTime+ioWait)/cpuTime) sizing). "Event loop" has no backpressure '
+    + 'ceil(cores*(cpuTime+ioWait+dbWait)/cpuTime) sizing). "Event loop" has no backpressure '
     + '(unbounded concurrency) and is locked to 1 CPU core, like a single node.js process. Pick "custom" to set every knob yourself.' },
   { key: 'cores', label: 'CPU cores', group: 'server', kind: 'range', min: 1, max: 64, step: 1, default: 4,
     activeWhen: { serverProfile: ['custom', 'threaded'] },
@@ -99,7 +102,7 @@ export const serverParams: ParamSpec[] = [
   }),
   { key: 'workers', label: 'workers', group: 'server', kind: 'range', min: 1, max: 512, step: 1, default: 40,
     activeWhen: { unlimitedWorkers: 'false', serverProfile: ['custom', 'threaded'] },
-    help: 'Worker slots per instance — requests served concurrently (threads / event-loop tasks). Independent of CPU cores: cores bound compute, workers bound how many requests can be in flight (each holding a worker across its CPU + I/O time). The classic reference shape is ceil(cores*(cpuTime+ioWait)/cpuTime) — 40 at the defaults — but real servers let you misconfigure this, which is the point.' },
+    help: 'Worker slots per instance — requests served concurrently (threads / event-loop tasks). Independent of CPU cores: cores bound compute, workers bound how many requests can be in flight (each holding a worker across its CPU + I/O + DB-wait time). The classic reference shape is ceil(cores*(cpuTime+ioWait+dbWait)/cpuTime) — 40 at the defaults (dbWait is 0 unless the shared DB pool is enabled) — but real servers let you misconfigure this, which is the point.' },
   { key: 'unlimitedWorkers', label: 'unlimited workers', group: 'server', kind: 'toggle', default: false,
     activeWhen: { serverProfile: 'custom' },
     help: 'Bypass the workers knob with an effectively-unbounded pool — an explicit node.js-style "don\'t bound the worker pool" knob. The CPU pool stays bounded, so admission control moves to an unbounded wait for a core instead.' },

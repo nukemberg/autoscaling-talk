@@ -1,6 +1,6 @@
 /** Declarative description of a scenario: params, how to run, how to chart. */
 
-export type ParamGroup = 'load' | 'unit' | 'scaler' | 'upstream' | 'fault' | 'sim'
+export type ParamGroup = 'load' | 'server' | 'scaler' | 'upstream' | 'fault' | 'sim'
 
 interface Common {
   key: string
@@ -14,7 +14,10 @@ interface Common {
 
 export type ParamSpec =
   | (Common & { kind: 'range'; min: number; max: number; step: number; default: number; unit?: string })
-  | (Common & { kind: 'select'; options: { value: string; label: string }[]; default: string })
+  | (Common & { kind: 'select'; options: { value: string; label: string }[]; default: string
+      /** When this select changes to a given value, merge these overrides into params — e.g. a
+       *  server-profile preset forcing `cores`/`unlimitedWorkers` together with one selection. */
+      presets?: Record<string, Partial<Params>> })
   | (Common & { kind: 'toggle'; default: boolean })
   | (Common & { kind: 'text'; default: string; placeholder?: string })
 

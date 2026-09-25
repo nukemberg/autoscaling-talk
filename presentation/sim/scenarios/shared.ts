@@ -68,48 +68,61 @@ export function loadProfile(p: Params, t0: number, rng: Rng): Rate {
   return bool(p, 'noisyLoad') ? noisy(withT0, rng, num(p, 'noiseAmpPct') / 100) : withT0
 }
 
-// ---------------- scaling unit ----------------
+// ---------------- server ----------------
 
-export const unitParams: ParamSpec[] = [
-  { key: 'cores', label: 'CPU cores', group: 'unit', kind: 'range', min: 1, max: 64, step: 1, default: 4,
+export const serverParams: ParamSpec[] = [
+  { key: 'serverProfile', label: 'server profile', group: 'server', kind: 'select', default: 'custom', options: [
+    { value: 'custom', label: 'custom' },
+    { value: 'threaded', label: 'threaded, with backpressure (e.g. Jetty)' },
+    { value: 'event-loop', label: 'event loop (e.g. node.js)' },
+  ], presets: {
+    threaded: { unlimitedWorkers: false },
+    'event-loop': { unlimitedWorkers: true, cores: 1, queueSlots: 0 },
+  }, help: 'Quick-set the knobs below to a real-world server shape. "Threaded" is a bounded thread pool '
+    + 'with a backpressure queue (workers/queue/cores all tunable). "Event loop" has no backpressure '
+    + '(unbounded concurrency) and is locked to 1 CPU core, like a single node.js process. Pick "custom" to set every knob yourself.' },
+  { key: 'cores', label: 'CPU cores', group: 'server', kind: 'range', min: 1, max: 64, step: 1, default: 4,
+    activeWhen: { serverProfile: ['custom', 'threaded'] },
     help: 'Physical cores per instance — the real bottleneck. Sizes the CPU pool. With cores: 1, cpu is literally Node\'s eventLoopUtilization.' },
   ...distParams({
-    key: 'cpuTimeMs', label: 'CPU time', group: 'unit',
+    key: 'cpuTimeMs', label: 'CPU time', group: 'server',
     help: 'Per-request CPU demand: time actually spent executing on a core.',
     base: { min: 1, max: 500, step: 1, default: 10, unit: 'ms' },
   }),
   ...distParams({
-    key: 'ioWaitMs', label: 'I/O wait', group: 'unit',
+    key: 'ioWaitMs', label: 'I/O wait', group: 'server',
     help: 'Per-request time spent waiting on I/O (DB, network) — doesn\'t consume a core, but still occupies the worker holding the request.',
     base: { min: 0, max: 2000, step: 10, default: 90, unit: 'ms' },
   }),
-  { key: 'workers', label: 'workers', group: 'unit', kind: 'range', min: 1, max: 512, step: 1, default: 40,
-    activeWhen: { unlimitedWorkers: 'false' },
+  { key: 'workers', label: 'workers', group: 'server', kind: 'range', min: 1, max: 512, step: 1, default: 40,
+    activeWhen: { unlimitedWorkers: 'false', serverProfile: ['custom', 'threaded'] },
     help: 'Worker slots per instance — requests served concurrently (threads / event-loop tasks). Independent of CPU cores: cores bound compute, workers bound how many requests can be in flight (each holding a worker across its CPU + I/O time). The classic reference shape is ceil(cores*(cpuTime+ioWait)/cpuTime) — 40 at the defaults — but real servers let you misconfigure this, which is the point.' },
-  { key: 'unlimitedWorkers', label: 'unlimited workers', group: 'unit', kind: 'toggle', default: false,
+  { key: 'unlimitedWorkers', label: 'unlimited workers', group: 'server', kind: 'toggle', default: false,
+    activeWhen: { serverProfile: 'custom' },
     help: 'Bypass the workers knob with an effectively-unbounded pool — an explicit node.js-style "don\'t bound the worker pool" knob. The CPU pool stays bounded, so admission control moves to an unbounded wait for a core instead.' },
-  { key: 'queueSlots', label: 'queue slots', group: 'unit', kind: 'range', min: 0, max: 512, step: 1, default: 32,
+  { key: 'queueSlots', label: 'queue slots', group: 'server', kind: 'range', min: 0, max: 512, step: 1, default: 32,
+    activeWhen: { serverProfile: ['custom', 'threaded'] },
     help: 'Waiting room beyond the worker pool before rejecting. 0 = reject immediately when full.' },
-  { key: 'poisonProb', label: 'worker poison probability', group: 'unit', kind: 'range', min: 0, max: 0.01, step: 0.0001, default: 0,
+  { key: 'poisonProb', label: 'worker poison probability', group: 'server', kind: 'range', min: 0, max: 0.01, step: 0.0001, default: 0,
     help: 'Chance a served request permanently retires the worker that served it (never returns to the pool) — models a leaked thread in a misconfigured server that never recycles workers.' },
-  { key: 'dbPoolSlots', label: 'shared DB pool slots', group: 'unit', kind: 'range', min: 0, max: 50, step: 1, default: 0,
+  { key: 'dbPoolSlots', label: 'shared DB pool slots', group: 'server', kind: 'range', min: 0, max: 50, step: 1, default: 0,
     help: 'Shared DB connection pool across the WHOLE cluster. 0 = disabled (no shared bottleneck). >0 = every request also needs one of these shared slots — unlike cores/workers, scaling out instances does NOT scale this. The classic "autoscaled app exhausts DB connections" failure.' },
-  { key: 'dbQueryMs', label: 'DB query time', group: 'unit', kind: 'range', min: 1, max: 500, step: 1, default: 20, unit: 'ms',
+  { key: 'dbQueryMs', label: 'DB query time', group: 'server', kind: 'range', min: 1, max: 500, step: 1, default: 20, unit: 'ms',
     help: 'How long a request holds a DB connection slot. Only matters when shared DB pool slots > 0.' },
   ...distParams({
-    key: 'bootSec', label: 'boot time', group: 'unit',
+    key: 'bootSec', label: 'boot time', group: 'server',
     help: 'Delay from launch until an instance can serve. The main source of dead time.',
     base: { min: 0, max: 600, step: 5, default: 120, unit: 's' },
   }),
-  { key: 'replaceDeadSec', label: 'replace dead after', group: 'unit', kind: 'range', min: 0, max: 600, step: 10, default: 60, unit: 's',
+  { key: 'replaceDeadSec', label: 'replace dead after', group: 'server', kind: 'range', min: 0, max: 600, step: 10, default: 60, unit: 's',
     help: 'Like an ASG health check: a crashed instance is relaunched after this delay.' },
-  { key: 'hungCpu', label: 'CPU reported while hung', group: 'unit', kind: 'select', default: 'slots', options: [
+  { key: 'hungCpu', label: 'CPU reported while hung', group: 'server', kind: 'select', default: 'slots', options: [
     { value: 'slots', label: 'slots busy (honest)' }, { value: 'idle', label: '0% — stuck on I/O' }, { value: 'spinning', label: '100% — GC / spin' },
   ], help: 'What the metrics agent reports for a hung instance. The autoscaler believes it.' },
 ]
 
 /** Requests per second one instance can serve at 100% CPU — the CPU-bound ceiling. I/O overlaps for free given enough workers. */
-export function unitCapacity(p: Params): number {
+export function serverCapacity(p: Params): number {
   return num(p, 'cores') * 1000 / num(p, 'cpuTimeMs')
 }
 
@@ -391,7 +404,7 @@ export function targetUtilization(p: Params): number {
 
 /** Instances needed for `rps` at the controller's target utilization. */
 export function neededInstances(p: Params, rps: number): number {
-  return rps / unitCapacity(p) / targetUtilization(p)
+  return rps / serverCapacity(p) / targetUtilization(p)
 }
 
 // ---------------- faults ----------------

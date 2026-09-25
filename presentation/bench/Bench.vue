@@ -6,7 +6,7 @@ import { defaults, type ParamGroup, type Params } from '../sim/scenarios/types'
 import RunWorker from './runWorker?worker'
 import type { RunRequest, RunResponse } from './runWorker'
 
-const GROUPS: ParamGroup[] = ['load', 'unit', 'scaler', 'upstream', 'fault', 'sim']
+const GROUPS: ParamGroup[] = ['load', 'server', 'scaler', 'upstream', 'fault', 'sim']
 const STORAGE_KEY = 'bench.presets'
 
 const scenarioId = ref(scenarios[0].id)

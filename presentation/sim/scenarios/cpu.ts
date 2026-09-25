@@ -8,7 +8,7 @@ import { injectFaults } from '../faults'
 import { Stats } from '../stats'
 import {
   attachController, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
-  neededInstances, scalerParams, unitParams,
+  neededInstances, scalerParams, serverParams,
 } from './shared'
 import { bool, num, type ParamSpec, type Params, type ScenarioDef } from './types'
 
@@ -26,7 +26,7 @@ export const cpuScenario: ScenarioDef = {
   id: 'cpu-step',
   title: 'CPU autoscaling under a load step',
   description: 'Stable base load, then a ramp. Autoscaler acts on mean busy fraction across ready instances.',
-  params: [...loadParams, ...unitParams, ...scalerParams, ...faultParams, ...simParams],
+  params: [...loadParams, ...serverParams, ...scalerParams, ...faultParams, ...simParams],
   charts: [
     {
       yLabel: 'instances',

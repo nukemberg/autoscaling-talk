@@ -4,7 +4,7 @@ import { distParams, sampleDist } from './dist'
 import { defaults } from './types'
 
 const specs = distParams({
-  key: 'x', label: 'x', group: 'unit', help: 'help',
+  key: 'x', label: 'x', group: 'server', help: 'help',
   base: { min: 0, max: 100, step: 1, default: 10 },
 })
 

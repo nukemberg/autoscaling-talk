@@ -13,7 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [Params] }>()
 
 const GROUP_LABEL: Record<ParamGroup, string> = {
-  load: 'load', unit: 'scaling unit', scaler: 'autoscaler', upstream: 'upstream', fault: 'fault', sim: 'simulation',
+  load: 'load', server: 'server', scaler: 'autoscaler', upstream: 'upstream', fault: 'fault', sim: 'simulation',
 }
 
 const visible = computed(() => props.specs.filter((s) =>
@@ -28,7 +28,9 @@ const grouped = computed(() => {
 })
 
 function set(key: string, value: number | string | boolean) {
-  emit('update:modelValue', { ...props.modelValue, [key]: value })
+  const spec = props.specs.find((s) => s.key === key)
+  const preset = spec?.kind === 'select' ? spec.presets?.[value as string] : undefined
+  emit('update:modelValue', { ...props.modelValue, [key]: value, ...preset })
 }
 
 </script>

@@ -17,7 +17,7 @@ Arrivals ──▶ LoadBalancer ──▶ Instance ──▶ (Upstream)
 | `metrics.ts` | `Tally` (percentiles), `TimeWeighted`, `Recorder` (uPlot-shaped series) |
 | `arrivals.ts` | non-homogeneous Poisson via thinning; `constant/step/ramp/spike/sum` |
 | `pool.ts` | `Pool`: generic slot resource — acquire / FIFO queue up to `queueLimit` / reject, optional poisoning (leaked slots), time-weighted `busy` |
-| `instance.ts` | scaling unit: boot delay; a request holds a worker-pool slot (envelope) while walking a per-request `Step` plan, each step holding a named pool (`cpuPool`, other `instancePools`, or shared `clusterPools`) for its duration; `cpu` (instantaneous) and `cpuSeconds` (cumulative, for scraping); hang / slow faults; custom `work` |
+| `instance.ts` | server: boot delay; a request holds a worker-pool slot (envelope) while walking a per-request `Step` plan, each step holding a named pool (`cpuPool`, other `instancePools`, or shared `clusterPools`) for its duration; `cpu` (instantaneous) and `cpuSeconds` (cumulative, for scraping); hang / slow faults; custom `work` |
 | `lb.ts` | round-robin / least-conn; optional health-check interval (registration lag) |
 | `upstream.ts` | shared dependency: capacity, queue, slowdown, timeout (query keeps running), collapse + recovery |
 | `cluster.ts` | launches/terminates instances (youngest first), `instanceTime` for billing; builds `clusterPools` once and shares them into every instance |
@@ -30,7 +30,7 @@ Arrivals ──▶ LoadBalancer ──▶ Instance ──▶ (Upstream)
 | `cost.ts` | bill = instance-time × price + integrated extra rate |
 
 | `scenarios/types.ts` | `ScenarioDef`: declarative params (`ParamSpec`), `run()`, `charts` |
-| `scenarios/shared.ts` | reusable param groups (load / unit / scaler) and their wiring; `attachController` wires every toggled metric into Hpa (max across all) or the single first-toggled one into AWS |
+| `scenarios/shared.ts` | reusable param groups (load / server / scaler) and their wiring; `attachController` wires every toggled metric into Hpa (max across all) or the single first-toggled one into AWS |
 | `scenarios/metricRegistry.ts` | per-pod scaling metrics a scenario can toggle on (cpu/worker/queue/rps) as `MetricSource`s; `latencyMetric()` builds the cluster-wide (not per-pod) latency metric from `Stats` |
 | `scenarios/cpu.ts` | first scenario: CPU target tracking under a load step |
 | `scenarios/preset.ts` | `{id, params}` JSON the workbench exports and slides load |

@@ -9,7 +9,7 @@ export interface MetricDef {
   /** Display unit for charts/help text (e.g. '%', 'ms', 'req/s'). */
   unit: string
   /** 'utilization': chart gets a fixed [0,100]% scale; the CPU entry also drives the pre-run
-   *  warmup sizing math (see unitCapacity/neededInstances in shared.ts). 'absolute': chart
+   *  warmup sizing math (see serverCapacity/neededInstances in shared.ts). 'absolute': chart
    *  auto-ranges; warmup sizing always falls back to the CPU entry regardless (see spec §9). */
   kind: 'utilization' | 'absolute'
   source: MetricSource

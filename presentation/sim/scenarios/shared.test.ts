@@ -7,11 +7,11 @@ import { LoadBalancer } from '../lb'
 import { Rng } from '../rng'
 import { Stats } from '../stats'
 import {
-  attachController, clusterOpts, instanceOpts, lbOpts, scalerParams, unitCapacity, unitParams,
+  attachController, clusterOpts, instanceOpts, lbOpts, scalerParams, serverCapacity, serverParams,
 } from './shared'
 import { defaults, isActive, type Params } from './types'
 
-const base: Params = { ...defaults(unitParams) }
+const base: Params = { ...defaults(serverParams) }
 
 describe('instanceOpts: worker pool sizing', () => {
   test('worker pool is sized to the explicit workers knob (default 40)', () => {
@@ -89,9 +89,9 @@ describe('instanceOpts: step plan', () => {
   })
 })
 
-describe('unitCapacity', () => {
+describe('serverCapacity', () => {
   test('cores * 1000 / cpuTimeMs — the CPU-bound ceiling', () => {
-    expect(unitCapacity({ ...base, cores: 4, cpuTimeMs: 20 })).toBe(4 * 1000 / 20)
+    expect(serverCapacity({ ...base, cores: 4, cpuTimeMs: 20 })).toBe(4 * 1000 / 20)
   })
 })
 
@@ -131,7 +131,7 @@ describe('attachController: multi-metric wiring', () => {
     attachController(sim, cluster, p, stats)
     // Massively overload the 2-pod cluster's CPU capacity so the CPU metric reads well above
     // its default target (0.5) almost immediately.
-    const overload = unitCapacity(p) * 10
+    const overload = serverCapacity(p) * 10
     new Arrivals(sim, new Rng(2), constant(overload), (r) => lb.handle(r)).start()
     sim.run(120) // past hpaReadinessDelaySec (30s) and a couple of metricsResolutionSec scrapes
     expect(cluster.size).toBeGreaterThan(2)
@@ -154,7 +154,7 @@ describe('attachController: multi-metric wiring', () => {
     const sim = new Sim()
     const { p, lb, cluster, stats } = setup(sim, { metricCpu: false, maxInstances: 20 })
     attachController(sim, cluster, p, stats)
-    const overload = unitCapacity(p) * 10
+    const overload = serverCapacity(p) * 10
     new Arrivals(sim, new Rng(2), constant(overload), (r) => lb.handle(r)).start()
     sim.run(120)
     expect(cluster.size).toBeGreaterThan(2)

@@ -75,6 +75,26 @@ describe('cpu scenario', () => {
     expect(Math.min(...r.series.inRotation.slice(124, 150))).toBe(before - 2)
   })
 
+  test('metricLatency:true end-to-end: controller scales up on rising latency, chart shows raw ms not ×100 (2ae)', () => {
+    // Regression for Task 7's bug: cpu.ts hardcoded Stats({track: false}), so latencyMetric's
+    // windowed query silently always read 0 for every preset. Exercises the real scenario wiring
+    // (not a hand-built Stats like metricRegistry.test.ts) so a future regression in that wiring
+    // shows up here. A shared, fixed-size DB pool (not per-instance queueing) is the bottleneck —
+    // same mechanism as the shipped latency-runaway preset — so latency genuinely runs away
+    // instead of plateauing at whatever a per-instance queue can absorb.
+    const r = run({
+      metricCpu: false, metricLatency: true, maxInstances: 20,
+      baseRps: 50, rps: 100, quietSec: 60, rampSec: 10, horizonSec: 300, sampleSec: 10,
+      workers: 200, queueSlots: 400, dbPoolSlots: 2, dbQueryMs: 30,
+    })
+    expect(r.series.instances[r.series.instances.length - 1]).toBeGreaterThan(r.series.instances[0])
+    const latterHalf = r.series.metric.slice(Math.floor(r.series.metric.length / 2))
+    // latency is an 'absolute' metric — the chart plots raw ms, not the ×100 utilization scaling.
+    // Under this runaway, ms values run into the thousands, far past a 0-100 axis — if the
+    // wiring silently dropped back to a 0-ish value, this is what would catch it.
+    expect(Math.min(...latterHalf)).toBeGreaterThan(1000)
+  })
+
   test('stable base load: cluster pre-sized, ~no errors before the ramp', () => {
     // capacity = cores * 1000 / cpuTimeMs = 16 * 1000 / 100 = 160 rps/instance; 400 rps at 50% → 5
     const r = run({ rps: 800, baseRps: 400, quietSec: 300, horizonSec: 300, sampleSec: 10, cores: 16, cpuTimeMs: 100 })

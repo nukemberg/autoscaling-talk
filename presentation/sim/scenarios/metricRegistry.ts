@@ -43,6 +43,11 @@ export const metricRegistry = {
 export function latencyMetric(stats: Stats, windowSec: number): MetricDef {
   return {
     id: 'latency', label: 'mean latency (OK requests)', unit: 'ms', kind: 'absolute', defaultTarget: 200,
-    source: { kind: 'gauge', read: () => (stats.latency(windowSec).mean || 0) * 1000 },
+    // No OK completions in the window (e.g. a total outage) means the metric is unavailable, not
+    // a healthy 0ms — reporting 0 would look great and could push a scale-down mid-outage.
+    source: { kind: 'gauge', read: () => {
+      const t = stats.latency(windowSec)
+      return t.count ? t.mean * 1000 : undefined
+    } },
   }
 }

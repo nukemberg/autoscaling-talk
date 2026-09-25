@@ -14,7 +14,7 @@ import type { Instance } from '../instance'
  */
 export type MetricSource =
   | { kind: 'counter'; read: (inst: Instance) => number }
-  | { kind: 'gauge'; read: (inst: Instance) => number }
+  | { kind: 'gauge'; read: (inst: Instance) => number | undefined }
 
 export interface PodMetricsOpts {
   /** How often each instance is scraped. */
@@ -102,9 +102,11 @@ export class PodMetrics {
     const now = this.sim.now
     for (const inst of this.cluster.instances) {
       if (inst.state !== 'ready') continue
+      const v = this.source.read(inst)
+      if (v === undefined) continue // no data this scrape, e.g. a cluster-wide gauge with nothing to report
       let s = this.samples.get(inst)
       if (!s) this.samples.set(inst, (s = []))
-      s.push({ t: now, v: this.source.read(inst) })
+      s.push({ t: now, v })
       while (s.length && s[0].t < now - this.keep) s.shift()
     }
     for (const inst of this.samples.keys()) if (inst.state === 'terminated') this.samples.delete(inst)

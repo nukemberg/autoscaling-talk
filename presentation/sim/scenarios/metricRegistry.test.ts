@@ -66,10 +66,19 @@ describe('latencyMetric', () => {
     expect(va).toBeCloseTo(250, 0)
   })
 
-  test('reports 0 when there is no recent data, not NaN', () => {
+  test('reports undefined when there is no recent OK completion (d8q) — not 0, which would look healthy', () => {
     const sim = new Sim()
     const stats = new Stats(sim)
     const inst = setup(sim)
-    expect(latencyMetric(stats, 60).source.read(inst)).toBe(0)
+    expect(latencyMetric(stats, 60).source.read(inst)).toBeUndefined()
+  })
+
+  test('reports undefined once the window ages out the last OK completion, e.g. mid-outage', () => {
+    const sim = new Sim()
+    const stats = new Stats(sim)
+    stats.record({ id: 0, arrivedAt: 0, doneAt: 0.25, outcome: 'ok' })
+    const inst = setup(sim)
+    sim.run(61) // past the 60s window
+    expect(latencyMetric(stats, 60).source.read(inst)).toBeUndefined()
   })
 })

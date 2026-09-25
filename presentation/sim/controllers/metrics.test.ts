@@ -168,4 +168,17 @@ describe('PodMetrics with a gauge source', () => {
     expect(m.value(a, 15)).toBeCloseTo(0.4)
     expect(m.value(a, 3)).toBeCloseTo(0.8)    // one sample is enough for a gauge
   })
+
+  test('a scrape where read() returns undefined records no sample (d8q)', () => {
+    const sim = new Sim()
+    const { cluster } = setup(sim, 1)
+    const [a] = cluster.instances
+    let level: number | undefined = 0.5
+    const m = new PodMetrics(sim, cluster, { sampleInterval: 5, source: { kind: 'gauge', read: () => level } })
+    m.start()                                 // 0.5 at t=0
+    sim.schedule(5, () => { level = undefined })
+    sim.run(10)                               // no sample recorded at t=5 or t=10
+    expect(m.latest(a)).toBe(0.5)             // still the last real sample, not undefined-as-0
+    expect(m.value(a, 3)).toBeUndefined()     // nothing in the last 3s
+  })
 })

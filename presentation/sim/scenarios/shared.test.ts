@@ -137,16 +137,27 @@ describe('attachController: multi-metric wiring', () => {
     expect(cluster.size).toBeGreaterThan(2)
   })
 
-  test('multiple metrics toggled on: Hpa receives all of them', () => {
+  test('multiple metrics toggled on: Hpa receives all of them and scales on whichever needs it most (4zw)', () => {
     const sim = new Sim()
-    const { p, cluster, stats } = setup(sim, { metricCpu: true, metricRps: true })
-    expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
+    const { p, lb, cluster, stats } = setup(sim, { metricCpu: true, metricRps: true, maxInstances: 20 })
+    attachController(sim, cluster, p, stats)
+    // 2 pods at ~75rps each: well above the rps target (50/pod, ratio 1.5) but only ~19% CPU
+    // (75 * cpuTimeMs(10ms) / 4 cores ≈ 0.19), nowhere near the cpu target (0.5). If Hpa only
+    // received the cpu metric (the multi-metric wiring silently dropped rps), this would never
+    // scale; taking the max across both metrics means the rps metric alone must drive it.
+    new Arrivals(sim, new Rng(2), constant(150), (r) => lb.handle(r)).start()
+    sim.run(120)
+    expect(cluster.size).toBeGreaterThan(2)
   })
 
-  test('nothing toggled on: falls back to CPU only rather than erroring', () => {
+  test('nothing toggled on: falls back to CPU only, and still scales under CPU overload', () => {
     const sim = new Sim()
-    const { p, cluster, stats } = setup(sim, { metricCpu: false })
-    expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
+    const { p, lb, cluster, stats } = setup(sim, { metricCpu: false, maxInstances: 20 })
+    attachController(sim, cluster, p, stats)
+    const overload = unitCapacity(p) * 10
+    new Arrivals(sim, new Rng(2), constant(overload), (r) => lb.handle(r)).start()
+    sim.run(120)
+    expect(cluster.size).toBeGreaterThan(2)
   })
 
   test('AWS step scaling: non-utilization metric (rps) never breaches when load is well under its own target (7wg)', () => {
@@ -164,10 +175,13 @@ describe('attachController: multi-metric wiring', () => {
     expect(cluster.size).toBe(2)
   })
 
-  test('AWS algo: uses whichever single metric is toggled (first one, if several)', () => {
+  test('AWS algo: with several metrics toggled, picks the first in METRIC_IDS order — cpu over rps (4zw)', () => {
     const sim = new Sim()
-    const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: false, metricRps: true })
-    expect(() => attachController(sim, cluster, p, stats)).not.toThrow()
+    // Both cpu (default on) and rps toggled: cpu comes first in METRIC_IDS, so AWS should attach
+    // to it and ignore rps entirely, regardless of toggle order in the overrides object.
+    const { p, cluster, stats } = setup(sim, { algo: 'aws-target', metricCpu: true, metricRps: true })
+    const c = attachController(sim, cluster, p, stats)
+    expect(c.metricKind).toBe('utilization') // cpu's kind, not rps's ('absolute')
   })
 
   test('AWS algo: controller.metricKind reflects the attached metric, not a hardcoded utilization (ddx)', () => {

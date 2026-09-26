@@ -13,7 +13,7 @@ const props = defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [Params] }>()
 
 const GROUP_LABEL: Record<ParamGroup, string> = {
-  load: 'load', server: 'server', scaler: 'autoscaler', upstream: 'upstream', fault: 'fault', sim: 'simulation',
+  load: 'load', server: 'server', scaler: 'autoscaler', lb: 'load balancer', upstream: 'upstream', fault: 'fault', sim: 'simulation',
 }
 
 const visible = computed(() => props.specs.filter((s) =>

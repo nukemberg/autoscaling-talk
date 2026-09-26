@@ -234,24 +234,6 @@ export const scalerParams: ParamSpec[] = [
   { key: 'metricsResolutionSec', label: 'metrics scrape resolution', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',
     help: 'How often the metrics pipeline itself scrapes each instance — metrics-server\'s --metric-resolution (default 15 s). Every algorithm reads from this same underlying scrape stream: HPA takes the latest computed rate (no averaging of its own), CloudWatch-style controllers average scrapes within their own datapoint period.' },
 
-  // --- load balancer ---
-  { key: 'lbPolicy', label: 'LB policy', group: 'scaler', kind: 'select', default: 'round-robin', options: [
-    { value: 'round-robin', label: 'round robin' },
-    { value: 'least-conn', label: 'least connections' },
-  ], help: 'How the LB picks among ready instances. Round robin: fixed 1/N share regardless of '
-    + 'current load. Least connections: send to whichever ready instance has the fewest requests '
-    + 'in flight right now — adapts to a slow/backed-up instance instead of feeding it its fair share anyway.' },
-
-  // --- health checks (k8s readiness probe / AWS target group health check) ---
-  { key: 'healthCheckSec', label: 'LB health check interval', group: 'scaler', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',
-    help: 'How often the load balancer probes instances. 0 = LB sees instance state instantly (unrealistic).' },
-  { key: 'healthCheckTimeoutSec', label: 'LB health check timeout', group: 'scaler', kind: 'range', min: 0, max: 60, step: 1, default: 5, unit: 's',
-    help: 'Max time the LB waits for a probe response before giving up on that attempt — like a real HTTP health check timeout. 0 = instant (unrealistic): a hung instance fails the very check tick that finds it hung, instead of only after waiting this long. A ready, responsive instance always answers instantly regardless of this value; only a hung one actually waits.' },
-  { key: 'unhealthyAfter', label: 'unhealthy after', group: 'scaler', kind: 'range', min: 1, max: 10, step: 1, default: 3, unit: 'checks',
-    help: 'Consecutive failed probes before the LB stops routing to an instance.' },
-  { key: 'healthyAfter', label: 'healthy after', group: 'scaler', kind: 'range', min: 1, max: 10, step: 1, default: 2, unit: 'checks',
-    help: 'Consecutive passed probes before a recovered instance gets traffic again.' },
-
   // --- scaling metrics (shared by every algorithm — AWS uses the first toggled-on one; HPA uses all of them, taking the max) ---
   { key: 'metricCpu', label: 'CPU utilization', group: 'scaler', kind: 'toggle', default: true,
     help: 'Scale on mean CPU pool busy fraction across pods.' },
@@ -275,6 +257,22 @@ export const scalerParams: ParamSpec[] = [
     help: 'Scale on mean end-to-end latency, cluster-wide — NOT a capacity signal; the same value is reported for every pod. See the latency-runaway preset for why this is a trap.' },
   { key: 'metricLatencyTarget', label: 'latency target (ms)', group: 'scaler', kind: 'range', min: 10, max: 2000, step: 10, default: 200,
     help: 'Target mean latency in ms.', activeWhen: { metricLatency: 'true' } },
+
+  // --- load balancer (own group: routing policy + health checks, not a scaling decision) ---
+  { key: 'lbPolicy', label: 'LB policy', group: 'lb', kind: 'select', default: 'round-robin', options: [
+    { value: 'round-robin', label: 'round robin' },
+    { value: 'least-conn', label: 'least connections' },
+  ], help: 'How the LB picks among ready instances. Round robin: fixed 1/N share regardless of '
+    + 'current load. Least connections: send to whichever ready instance has the fewest requests '
+    + 'in flight right now — adapts to a slow/backed-up instance instead of feeding it its fair share anyway.' },
+  { key: 'healthCheckSec', label: 'LB health check interval', group: 'lb', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',
+    help: 'How often the load balancer probes instances. 0 = LB sees instance state instantly (unrealistic).' },
+  { key: 'healthCheckTimeoutSec', label: 'LB health check timeout', group: 'lb', kind: 'range', min: 0, max: 60, step: 1, default: 5, unit: 's',
+    help: 'Max time the LB waits for a probe response before giving up on that attempt — like a real HTTP health check timeout. 0 = instant (unrealistic): a hung instance fails the very check tick that finds it hung, instead of only after waiting this long. A ready, responsive instance always answers instantly regardless of this value; only a hung one actually waits.' },
+  { key: 'unhealthyAfter', label: 'unhealthy after', group: 'lb', kind: 'range', min: 1, max: 10, step: 1, default: 3, unit: 'checks',
+    help: 'Consecutive failed probes before the LB stops routing to an instance.' },
+  { key: 'healthyAfter', label: 'healthy after', group: 'lb', kind: 'range', min: 1, max: 10, step: 1, default: 2, unit: 'checks',
+    help: 'Consecutive passed probes before a recovered instance gets traffic again.' },
 
   // --- k8s HPA ---
   { key: 'hpaTolerance', label: 'tolerance', group: 'scaler', kind: 'range', min: 0, max: 0.5, step: 0.01, default: 0.1,

@@ -373,6 +373,43 @@ like success on a dashboard that only tracks error rate — it isn't.
 
 ---
 
+# The Debt Doesn't Clear
+
+<Sim preset="no-backpressure" :expose="['baseRps', 'rps', 'holdSec', 'workers', 'queueSlots']" :height="130" />
+
+<!--
+Live DES from presets/no-backpressure.json. Same "unlimited worker
+pool never rejects" unit as the previous slide, but the point here
+isn't the overload itself — it's what's left over once it's gone.
+Workers and queue slots are both set absurdly high (5000) so nothing
+is ever admission-controlled: every request gets in, and just waits
+its turn for the single CPU core. Base load is 6rps against an
+8rps, 8-instance ceiling — already 75% utilized before anything
+happens, almost no headroom. A 60-second burst to 80rps (10x) floods
+the queue with thousands of waiting requests. The autoscaler isn't
+the villain: HPA reacts correctly and hits maxInstances within about
+a minute — but 8 instances at 1rps each is still only 8rps, and the
+queue is already thousands deep.
+Watch what happens when the load line drops back to 6rps at ~100s:
+nothing else does. Latency keeps CLIMBING for another 30 seconds
+after demand is back to normal, peaks past 500 seconds, and is still
+above 4 minutes almost 25 minutes later. Instance count never comes
+down from the max — there's no scale-in stabilization window long
+enough, because the fleet is still maxed-out busy the whole time.
+'ok' throughput is flatlined at exactly 8rps — the ceiling — for the
+entire back half of the run, never dropping toward the 6rps actually
+being asked for, because it's still working off burst debt. Errors:
+0%, the whole time. This is the shape of "no backpressure": recovery
+time is backlog ÷ spare capacity, and here spare capacity is whatever
+was left after already running near the ceiling — which is why load
+"going back to normal" doesn't help. The fix isn't a smarter
+autoscaler, it's not letting the debt happen: reject early, keep
+headroom, bound the queue — the Responsible Autoscaling callback
+later.
+-->
+
+---
+
 # Scaling on Latency: The Trap
 
 <Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :height="130" />

@@ -1,0 +1,20 @@
+{
+  "id": "cpu-step",
+  "name": "no-backpressure",
+  "params": {
+    "cores": 1,
+    "cpuTimeMs": 1000,
+    "workers": 5000,
+    "queueSlots": 5000,
+    "baseRps": 6,
+    "rps": 80,
+    "ramp": "trapezoid",
+    "rampSec": 20,
+    "holdSec": 40,
+    "quietSec": 60,
+    "horizonSec": 1500,
+    "sampleSec": 5,
+    "maxInstances": 8
+  },
+  "notes": "No admission control: workers (5000) and queue slots (5000) are both set far above anything the run ever needs, so nothing is ever rejected -- every offered request is accepted and simply waits its turn for the single CPU core (cpuTimeMs 1000ms/core -> 1rps/instance, x8 max instances = 8rps cluster ceiling). A 60s trapezoid burst to 80rps (10x the 6rps steady base, itself already 75% of the 8rps ceiling -- the fleet has almost no headroom even before the burst) floods every instance's queue in seconds. The autoscaler (HPA on CPU) correctly reacts and hits maxInstances (8) within about a minute -- scaling isn't the failure here.\n\nMeasured (seed 1, this exact preset): pre-burst mean latency ~1s (basically just the 1s CPU service time, no queueing). During the 40s hold at 80rps the queue grows by roughly (80-8)*40 ~= 2,880 requests; by the time load is BACK DOWN to the 6rps base, mean latency has climbed past 500s and is STILL CLIMBING for another ~30s after the burst ends, because the cluster is pinned at its 8-instance/8rps ceiling and base demand (6rps) leaves only ~2rps of spare capacity to drain a queue that's thousands of requests deep. At the end of the 25-minute run -- 23+ minutes after load returned to normal -- mean latency is still ~270s, nowhere near the ~1s it was before the burst, and 'ok' throughput is flatlined at exactly 8rps (the ceiling) the entire time, never dropping back toward the 6rps actually being asked for: the cluster is still working off burst debt, at max size, with the autoscaler having nothing left to add. Errors stay at 0% -- this fails as pure unbounded latency, not rejections, which is the point: an unbounded queue never says no, it just makes everyone wait, and once demand plus in-flight backlog exceeds the fleet's ceiling even briefly, there is no 'a bit is still processing, we'll be caught up in a minute' -- recovery time is backlog / spare-capacity, and spare capacity here is razor thin. Contrast with foh.7 (headroom + load shedding + bounded queues): reject the excess up front, keep latency bounded, and there is no debt to work off once the spike passes."
+}

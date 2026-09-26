@@ -197,11 +197,15 @@ describe('metricQueue param: hidden when unlimitedWorkers makes it structurally 
   const queueTarget = scalerParams.find((s) => s.key === 'metricQueueTarget')!
 
   test('visible with bounded worker pool', () => {
-    expect(isActive(queueToggle, { ...base, unlimitedWorkers: false })).toBe(true)
+    expect(isActive(queueToggle, { ...base, algo: 'hpa', unlimitedWorkers: false })).toBe(true)
   })
 
   test('hidden once unlimitedWorkers is on — nothing ever queues', () => {
-    expect(isActive(queueToggle, { ...base, unlimitedWorkers: true })).toBe(false)
+    expect(isActive(queueToggle, { ...base, algo: 'hpa', unlimitedWorkers: true })).toBe(false)
     expect(isActive(queueTarget, { ...base, metricQueue: true, unlimitedWorkers: true })).toBe(false)
+  })
+
+  test('hidden for non-HPA algorithms too — AWS tracks one metric via the awsMetric select, not this checkbox', () => {
+    expect(isActive(queueToggle, { ...base, algo: 'aws-target', unlimitedWorkers: false })).toBe(false)
   })
 })

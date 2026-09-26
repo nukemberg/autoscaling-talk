@@ -234,29 +234,52 @@ export const scalerParams: ParamSpec[] = [
   { key: 'metricsResolutionSec', label: 'metrics scrape resolution', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',
     help: 'How often the metrics pipeline itself scrapes each instance — metrics-server\'s --metric-resolution (default 15 s). Every algorithm reads from this same underlying scrape stream: HPA takes the latest computed rate (no averaging of its own), CloudWatch-style controllers average scrapes within their own datapoint period.' },
 
-  // --- scaling metrics (shared by every algorithm — AWS uses the first toggled-on one; HPA uses all of them, taking the max) ---
+  // --- scaling metrics ---
+  // HPA reads every toggled-on metric and scales for the max (real HPA behavior with multiple
+  // metrics). AWS controllers track exactly one metric per alarm, so when algo isn't HPA these
+  // checkboxes are replaced by the single-select 'awsMetric' below — its `presets` set exactly
+  // one of the five booleans, so attachController's existing "first active metric" pick for AWS
+  // (shared.ts's `ids[0]`) lands on whichever one the select shows, with no separate wiring needed.
   { key: 'metricCpu', label: 'CPU utilization', group: 'scaler', kind: 'toggle', default: true,
-    help: 'Scale on mean CPU pool busy fraction across pods.' },
+    help: 'Scale on mean CPU pool busy fraction across pods.', activeWhen: hpa },
   { key: 'metricCpuTarget', label: 'CPU target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
     percentDisplay: true, help: 'Target utilization for the CPU metric.', activeWhen: { metricCpu: 'true' } },
   { key: 'metricWorker', label: 'worker pool utilization', group: 'scaler', kind: 'toggle', default: false,
-    help: 'Scale on mean worker-pool busy fraction — saturates much later than CPU on a pool sized above cores.' },
+    help: 'Scale on mean worker-pool busy fraction — saturates much later than CPU on a pool sized above cores. '
+      + 'Unlike CPU, real HPA has no native metric for this: it would need a custom-metrics adapter exposing it.',
+    activeWhen: hpa },
   { key: 'metricWorkerTarget', label: 'worker target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.7,
     percentDisplay: true, help: 'Target utilization for the worker-pool metric.', activeWhen: { metricWorker: 'true' } },
   { key: 'metricQueue', label: 'queue depth', group: 'scaler', kind: 'toggle', default: false,
     help: 'Scale on mean requests waiting per pod. Reads structurally zero — never scales up — with '
       + 'queue slots: 0 (immediate reject, no queue to measure) or unlimited workers (nothing ever waits). '
-      + 'Needs a positive, bounded queue slots to mean anything.', activeWhen: { unlimitedWorkers: 'false' } },
+      + 'Needs a positive, bounded queue slots to mean anything.', activeWhen: { ...hpa, unlimitedWorkers: 'false' } },
   { key: 'metricQueueTarget', label: 'queue target', group: 'scaler', kind: 'range', min: 1, max: 50, step: 1, default: 5,
     help: 'Target queue depth per pod.', activeWhen: { metricQueue: 'true', unlimitedWorkers: 'false' } },
   { key: 'metricRps', label: 'requests/s per pod', group: 'scaler', kind: 'toggle', default: false,
-    help: 'Scale on mean served requests/s per pod — a throughput target instead of a utilization one.' },
+    help: 'Scale on mean served requests/s per pod — a throughput target instead of a utilization one.', activeWhen: hpa },
   { key: 'metricRpsTarget', label: 'rps target', group: 'scaler', kind: 'range', min: 1, max: 500, step: 1, default: 50,
     help: 'Target requests/s per pod.', activeWhen: { metricRps: 'true' } },
   { key: 'metricLatency', label: 'latency (mean, OK)', group: 'scaler', kind: 'toggle', default: false,
-    help: 'Scale on mean end-to-end latency, cluster-wide — NOT a capacity signal; the same value is reported for every pod. See the latency-runaway preset for why this is a trap.' },
+    help: 'Scale on mean end-to-end latency, cluster-wide — NOT a capacity signal; the same value is reported for every pod. See the latency-runaway preset for why this is a trap.', activeWhen: hpa },
   { key: 'metricLatencyTarget', label: 'latency target (ms)', group: 'scaler', kind: 'range', min: 10, max: 2000, step: 10, default: 200,
     help: 'Target mean latency in ms.', activeWhen: { metricLatency: 'true' } },
+  { key: 'awsMetric', label: 'AWS metric', group: 'scaler', kind: 'select', default: 'cpu', options: [
+    { value: 'cpu', label: 'CPU utilization' },
+    { value: 'worker', label: 'worker pool utilization' },
+    { value: 'queue', label: 'queue depth' },
+    { value: 'rps', label: 'requests/s per pod' },
+    { value: 'latency', label: 'latency (mean, OK)' },
+  ], presets: {
+    cpu: { metricCpu: true, metricWorker: false, metricQueue: false, metricRps: false, metricLatency: false },
+    worker: { metricCpu: false, metricWorker: true, metricQueue: false, metricRps: false, metricLatency: false },
+    queue: { metricCpu: false, metricWorker: false, metricQueue: true, metricRps: false, metricLatency: false },
+    rps: { metricCpu: false, metricWorker: false, metricQueue: false, metricRps: true, metricLatency: false },
+    latency: { metricCpu: false, metricWorker: false, metricQueue: false, metricRps: false, metricLatency: true },
+  }, help: 'Which metric this alarm tracks — AWS target/step/simple scaling each track exactly one '
+    + 'metric, unlike HPA which can combine several. Picks the same underlying signal as HPA\'s '
+    + 'checkboxes (only one at a time here) and its target slider still appears below.',
+    activeWhen: aws },
 
   // --- load balancer (own group: routing policy + health checks, not a scaling decision) ---
   { key: 'lbPolicy', label: 'LB policy', group: 'lb', kind: 'select', default: 'round-robin', options: [

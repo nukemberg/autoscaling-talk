@@ -241,11 +241,11 @@ export const scalerParams: ParamSpec[] = [
   { key: 'metricCpu', label: 'CPU utilization', group: 'scaler', kind: 'toggle', default: true,
     help: 'Scale on mean CPU pool busy fraction across pods.' },
   { key: 'metricCpuTarget', label: 'CPU target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
-    help: 'Target utilization for the CPU metric.', activeWhen: { metricCpu: 'true' } },
+    percentDisplay: true, help: 'Target utilization for the CPU metric.', activeWhen: { metricCpu: 'true' } },
   { key: 'metricWorker', label: 'worker pool utilization', group: 'scaler', kind: 'toggle', default: false,
     help: 'Scale on mean worker-pool busy fraction — saturates much later than CPU on a pool sized above cores.' },
   { key: 'metricWorkerTarget', label: 'worker target', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.7,
-    help: 'Target utilization for the worker-pool metric.', activeWhen: { metricWorker: 'true' } },
+    percentDisplay: true, help: 'Target utilization for the worker-pool metric.', activeWhen: { metricWorker: 'true' } },
   { key: 'metricQueue', label: 'queue depth', group: 'scaler', kind: 'toggle', default: false,
     help: 'Scale on mean requests waiting per pod. Reads structurally zero — never scales up — with '
       + 'queue slots: 0 (immediate reject, no queue to measure) or unlimited workers (nothing ever waits). '
@@ -263,7 +263,7 @@ export const scalerParams: ParamSpec[] = [
 
   // --- k8s HPA ---
   { key: 'hpaTolerance', label: 'tolerance', group: 'scaler', kind: 'range', min: 0, max: 0.5, step: 0.01, default: 0.1,
-    help: 'No action while |avg/target − 1| ≤ tolerance. Default 0.1.', activeWhen: hpa },
+    percentDisplay: true, help: 'No action while |avg/target − 1| ≤ tolerance. Default 0.1.', activeWhen: hpa },
   { key: 'hpaSyncSec', label: 'sync period', group: 'scaler', kind: 'range', min: 5, max: 300, step: 5, default: 15, unit: 's',
     help: '--horizontal-pod-autoscaler-sync-period. Default 15 s.', activeWhen: hpa },
   { key: 'hpaReadinessDelaySec', label: 'initial readiness delay', group: 'scaler', kind: 'range', min: 0, max: 300, step: 5, default: 30, unit: 's',
@@ -285,23 +285,23 @@ export const scalerParams: ParamSpec[] = [
 
   // --- AWS target tracking ---
   { key: 'awsTarget', label: 'target value', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.5,
-    help: 'Target utilization. Scale-out adds ceil(current × metric / target) − current.', activeWhen: { algo: 'aws-target' } },
+    percentDisplay: true, help: 'Target utilization. Scale-out adds ceil(current × metric / target) − current.', activeWhen: { algo: 'aws-target' } },
   { key: 'awsHighPeriods', label: 'AlarmHigh datapoints', group: 'scaler', kind: 'range', min: 1, max: 15, step: 1, default: 3,
     help: 'Consecutive datapoints above target before scaling out. Docs do not state it; observed alarms use 3.', activeWhen: { algo: 'aws-target' } },
   { key: 'awsLowPeriods', label: 'AlarmLow datapoints', group: 'scaler', kind: 'range', min: 1, max: 30, step: 1, default: 15,
     help: 'Consecutive datapoints below the low threshold before scaling in. Observed alarms use 15.', activeWhen: { algo: 'aws-target' } },
   { key: 'awsLowFactor', label: 'AlarmLow threshold', group: 'scaler', kind: 'range', min: 0.5, max: 1, step: 0.05, default: 0.9,
-    help: 'Scale-in alarm threshold as a fraction of target (observed: 90%). The gap is the anti-flapping buffer.', activeWhen: { algo: 'aws-target' } },
+    percentDisplay: true, help: 'Scale-in alarm threshold as a fraction of target (observed: 90%). The gap is the anti-flapping buffer.', activeWhen: { algo: 'aws-target' } },
   { key: 'awsDisableScaleIn', label: 'disable scale-in', group: 'scaler', kind: 'toggle', default: false,
     help: 'Target tracking option: only ever scale out.', activeWhen: { algo: 'aws-target' } },
 
   // --- AWS step / simple alarms ---
   { key: 'awsOutThreshold', label: 'scale-out alarm above', group: 'scaler', kind: 'range', min: 0.1, max: 1, step: 0.05, default: 0.6,
-    help: 'Scale-out alarm breaches when the metric is above this.', activeWhen: awsAlarm },
+    percentDisplay: true, help: 'Scale-out alarm breaches when the metric is above this.', activeWhen: awsAlarm },
   { key: 'awsOutPeriods', label: 'scale-out datapoints', group: 'scaler', kind: 'range', min: 1, max: 15, step: 1, default: 3,
     help: 'Consecutive datapoints in breach before the scale-out alarm fires.', activeWhen: awsAlarm },
   { key: 'awsInThreshold', label: 'scale-in alarm below', group: 'scaler', kind: 'range', min: 0, max: 0.9, step: 0.05, default: 0.3,
-    help: 'Scale-in alarm breaches when the metric is below this.', activeWhen: awsAlarm },
+    percentDisplay: true, help: 'Scale-in alarm breaches when the metric is below this.', activeWhen: awsAlarm },
   { key: 'awsInPeriods', label: 'scale-in datapoints', group: 'scaler', kind: 'range', min: 1, max: 30, step: 1, default: 15,
     help: 'Consecutive datapoints in breach before the scale-in alarm fires.', activeWhen: awsAlarm },
   { key: 'awsOutSteps', label: 'scale-out steps', group: 'scaler', kind: 'text', default: '0-0.1:+10%, 0.1-0.2:+20%, 0.2-:+30%',

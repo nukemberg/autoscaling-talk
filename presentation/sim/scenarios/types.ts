@@ -13,7 +13,13 @@ interface Common {
 }
 
 export type ParamSpec =
-  | (Common & { kind: 'range'; min: number; max: number; step: number; default: number; unit?: string })
+  | (Common & {
+      kind: 'range'; min: number; max: number; step: number; default: number; unit?: string
+      /** Value is a raw 0-1 fraction (used as-is everywhere in the sim), but the UI shows/edits
+       *  it ×100 with a '%' suffix — e.g. metricCpuTarget: 0.3 stored, "30%" shown. Display-only:
+       *  never changes what's stored or read by `num()`. */
+      percentDisplay?: boolean
+    })
   | (Common & { kind: 'select'; options: { value: string; label: string }[]; default: string
       /** When this select changes to a given value, merge these overrides into params — e.g. a
        *  server-profile preset forcing `cores`/`unlimitedWorkers` together with one selection. */

@@ -33,6 +33,15 @@ function set(key: string, value: number | string | boolean) {
   emit('update:modelValue', { ...props.modelValue, [key]: value, ...preset })
 }
 
+/** Range specs are stored (and read by `num()`) as a raw 0-1 fraction; `percentDisplay` specs
+ *  show/edit that ×100 with a '%' suffix instead — display-only, never touches what's stored. */
+function displayValue(s: ParamSpec, v: number | string | boolean): number {
+  return s.kind === 'range' && s.percentDisplay ? Math.round((v as number) * 100) : (v as number)
+}
+function setRange(s: ParamSpec, displayed: number) {
+  set(s.key, s.kind === 'range' && s.percentDisplay ? displayed / 100 : displayed)
+}
+
 </script>
 
 <template>
@@ -42,12 +51,16 @@ function set(key: string, value: number | string | boolean) {
       <label v-for="s in specs" :key="s.key" :title="s.help">
         <span class="name">
           {{ s.label }}<span class="info" :title="s.help">ⓘ</span>
-          <b v-if="s.kind === 'range'">{{ modelValue[s.key] }}</b>
-          <span v-if="s.kind === 'range' && s.unit" class="unit">{{ s.unit }}</span>
+          <b v-if="s.kind === 'range'">{{ displayValue(s, modelValue[s.key]) }}</b>
+          <span v-if="s.kind === 'range' && s.percentDisplay" class="unit">%</span>
+          <span v-else-if="s.kind === 'range' && s.unit" class="unit">{{ s.unit }}</span>
         </span>
         <input
-          v-if="s.kind === 'range'" type="range" :min="s.min" :max="s.max" :step="s.step"
-          :value="modelValue[s.key]" @input="set(s.key, Number(($event.target as HTMLInputElement).value))"
+          v-if="s.kind === 'range'" type="range"
+          :min="s.percentDisplay ? Math.round(s.min * 100) : s.min"
+          :max="s.percentDisplay ? Math.round(s.max * 100) : s.max"
+          :step="s.percentDisplay ? Math.round(s.step * 100) : s.step"
+          :value="displayValue(s, modelValue[s.key])" @input="setRange(s, Number(($event.target as HTMLInputElement).value))"
         >
         <select v-else-if="s.kind === 'select'" :value="modelValue[s.key]" @change="set(s.key, ($event.target as HTMLSelectElement).value)">
           <option v-for="o in s.options" :key="o.value" :value="o.value">{{ o.label }}</option>

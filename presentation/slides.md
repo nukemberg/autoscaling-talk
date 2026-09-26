@@ -373,39 +373,46 @@ like success on a dashboard that only tracks error rate — it isn't.
 
 ---
 
-# The Debt Doesn't Clear
+# Same Pulse, Same Target — Different Fate
 
-<Sim preset="no-backpressure" :expose="['baseRps', 'rps', 'holdSec', 'workers', 'queueSlots']" :height="130" />
+<Sim preset="pulse-compare" :expose="['serverProfile', 'metricCpuTarget', 'baseRps', 'rps', 'holdSec']" :height="130" />
 
 <!--
-Live DES from presets/no-backpressure.json. Same "unlimited worker
-pool never rejects" unit as the previous slide, but the point here
-isn't the overload itself — it's what's left over once it's gone.
-Workers and queue slots are both set absurdly high (5000) so nothing
-is ever admission-controlled: every request gets in, and just waits
-its turn for the single CPU core. Base load is 6rps against an
-8rps, 8-instance ceiling — already 75% utilized before anything
-happens, almost no headroom. A 60-second burst to 80rps (10x) floods
-the queue with thousands of waiting requests. The autoscaler isn't
-the villain: HPA reacts correctly and hits maxInstances within about
-a minute — but 8 instances at 1rps each is still only 8rps, and the
-queue is already thousands deep.
-Watch what happens when the load line drops back to 6rps at ~100s:
-nothing else does. Latency keeps CLIMBING for another 30 seconds
-after demand is back to normal, peaks past 500 seconds, and is still
-above 4 minutes almost 25 minutes later. Instance count never comes
-down from the max — there's no scale-in stabilization window long
-enough, because the fleet is still maxed-out busy the whole time.
-'ok' throughput is flatlined at exactly 8rps — the ceiling — for the
-entire back half of the run, never dropping toward the 6rps actually
-being asked for, because it's still working off burst debt. Errors:
-0%, the whole time. This is the shape of "no backpressure": recovery
-time is backlog ÷ spare capacity, and here spare capacity is whatever
-was left after already running near the ceiling — which is why load
-"going back to normal" doesn't help. The fix isn't a smarter
-autoscaler, it's not letting the debt happen: reject early, keep
-headroom, bound the queue — the Responsible Autoscaling callback
-later.
+Live DES from presets/pulse-compare.json. Flip "server profile" live:
+threaded (bounded workers, real admission control) vs event-loop
+(unlimited workers, node.js-style) against the IDENTICAL 25x pulse
+(8rps -> 200rps over 5s, held 15s, back down over 5s — shorter than
+the 30s boot time, so no new capacity can arrive before it's over)
+and, deliberately, the same low CPU target (0.3) for both. Ops
+running node.js commonly pick a low CPU target exactly because the
+unit can't shed load — headroom standing in for backpressure. Point
+of this slide: it doesn't, not against a real pulse.
+Threaded scales 1 → 4 instances, rejects the overflow it can't seat
+(~23% errors, all in the one burst window) and otherwise holds
+latency flat at ~100ms straight through the pulse — admitted
+requests never queue behind rejected ones. Back to steady state in
+about 40 seconds.
+Event-loop scales further (1 → 12 — 3x threaded's peak, chasing a
+queue more instances can't drain fast enough) and shows 0% errors —
+nothing is ever rejected — but latency explodes: ~12.6s right at the
+pulse's peak, climbing to ~89s about 90 seconds AFTER the pulse
+already ended, not recovering to baseline until 150-180s in — 4-5x
+longer than threaded. The oversized fleet then sits over-provisioned
+for several more minutes waiting out HPA's scale-down stabilization,
+after latency itself has already recovered — a second, quieter cost
+stacked on the first.
+The controller is not the villain and isn't the difference: HPA
+reads the same honest, 100%-pinned-during-overload CPU metric in
+both variants and reacts sensibly in both. The difference is what
+happens to the requests it can't yet serve. Bounded workers turn "too
+much load" into a fast, visible, bounded-blast-radius rejection.
+Unlimited workers turn the exact same overload into an invisible (0%
+errors on the dashboard!) unbounded wait that keeps compounding after
+the traffic that caused it is long gone — and a lower CPU target
+doesn't fix that, it just raises the bar for how big a pulse it takes
+to trigger it. The fix isn't a smarter autoscaler, it's not letting
+the debt happen: reject early, bound the queue — the Responsible
+Autoscaling callback later.
 -->
 
 ---

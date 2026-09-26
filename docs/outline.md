@@ -21,7 +21,7 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 9. **Unstable Scaling Units** — 3m — done — `kur.6`
    Well-behaved vs bad unit; "your controller doesn't know the server load if it hides it"; live sim: loss vs node.js unit model, same load, 2% → 54% errors
 10. **Loss vs. Node.js, Same Load** — (in #9) — done — live sim companion to #9
-10.5. **The Debt Doesn't Clear** — done — live sim (`no-backpressure` preset): unbounded worker/queue pool, brief burst, load returns to normal but latency keeps climbing and the fleet stays maxed for the rest of the run — recovery time is backlog ÷ spare capacity, not "load's gone"
+10.5. **Same Pulse, Same Target — Different Fate** — done — live sim (`pulse-compare` preset): threaded (bounded workers) vs event-loop (unlimited workers), identical 25x pulse, identical low CPU target (0.3) — threaded sheds ~23% and recovers in ~40s, event-loop shows 0% errors but ~89s latency spike and ~3min to recover, plus an over-scaled fleet that lingers past HPA's stabilization window. Debunks "just set a low CPU target" as a substitute for backpressure.
 11. **The Cost Problem** — 3m — done — `kur.7`
     External actors, runaway upstream costs, no max; Agent-HPA "License to Spend" meme
 12. **Comfortable Patch** — 1m — done

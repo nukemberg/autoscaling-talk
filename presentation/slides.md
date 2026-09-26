@@ -261,6 +261,43 @@ deployed SimCluster workbench so people can try it themselves.
 -->
 
 ---
+
+# The Metric Pipeline Is Dead Time Too
+
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :height="130" />
+
+<!--
+Live DES from presets/metric-delay-compare.json. Flip "datapoint
+period" and "metric delay" live: AWS's own realistic defaults (60s
+period, 60s delay — CloudWatch's documented EC2 detailed-monitoring
+resolution, typically 1-2 min before a datapoint reaches an alarm)
+vs. the fastest this workbench allows (10s period, 0s delay). Same
+9x step (250rps -> 2200rps), same AWS target tracking algorithm and
+50% target, same AlarmHigh rule (3 consecutive breaching datapoints —
+the observed AWS default). The only variable is how long it takes a
+real change in load to become a datapoint the alarm can see.
+Total dead time before AlarmHigh can even fire is period × 3 + delay:
+240s realistic, 30s fast — 8x different, before any information
+about the deficit reaches the controller. Watch what that buys:
+first scale-out at t=480s with realistic settings vs t=325s fast —
+scaling starts 155s sooner. Full recovery (errors back to 0%) lands
+at t=1000s realistic vs t=805s fast — over 3 minutes sooner. Overall
+error rate for the identical run: 25.1% realistic vs 18.8% fast.
+The controller's math never changes — desired = ceil(current ×
+metric / target), same formula, same target, same alarm rule in both
+runs. The only thing that changed is how fast the world outside the
+controller becomes visible to it: not a bug, not a wrong gain, just
+dead time in its purest form — the length of the pipe between "load
+changed" and "controller can act on it." For AWS specifically, that
+pipe is two knobs (datapoint period, metric delay) almost nobody
+touches away from the CloudWatch default. One more thing worth
+showing live: drag the period faster than metricsResolutionSec (5s
+here) and the alarm doesn't get faster, it goes SILENT — datapoints
+come back empty because there's no scrape data inside a window
+shorter than the scrape itself. Sampling can't outrun what it samples.
+-->
+
+---
 layout: default
 ---
 

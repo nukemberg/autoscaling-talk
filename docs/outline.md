@@ -16,6 +16,7 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 6. **Control Theory Crash Course** — 6m — done — `kur.3`
    4 insights: characteristic/dead time, gain, discrete sampling, stateful vs stateless controllers. No controller is perfect, always a tradeoff
 7. **Oscillation, by Default** — (in #6) — done — live sim: AWS simple scaling, cooldown 0 → sustained flapping
+7.5. **The Metric Pipeline Is Dead Time Too** — done — live sim (`metric-delay-compare` preset): AWS target tracking, same 9x step, same target/alarm rule, only datapoint period + metric delay vary (60s/60s realistic vs 10s/0s fast) — 8x dead-time difference (240s vs 30s) before AlarmHigh can fire; first scale-out 155s sooner, full recovery 195s sooner, overall errors 25.1% vs 18.8%. Also shows period faster than scrape resolution going silent, not faster.
 8. **Coupling and Blast Radius** — 4m — done — `kur.5`
    N instances = N× connection pools; LB registration + health checks = dead time on the add side; recovery is a herd; fast-onset load beats any scaler with dead time > onset time
 8.5. **Round Robin vs. Least Connections** — done — live sim (`lb-policy-compare` preset): fixed 3-instance pool, flat load, heavy-tailed per-request CPU time (lognormal sigma 1.5) — round robin's fixed 1/3 share vs least-conn routing around whichever instance is currently backed up. ~30% lower mean/p95 latency and fewer rejections for least-conn, seed-robust (5 seeds). Gap closes if service-time variance is turned down to 0.

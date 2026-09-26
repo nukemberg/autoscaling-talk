@@ -1,0 +1,19 @@
+{
+  "model": "cpu-step",
+  "params": {
+    "baseRps": 250,
+    "rps": 2200,
+    "quietSec": 60,
+    "bootSec": 90,
+    "algo": "aws-target",
+    "maxInstances": 20,
+    "initialInstances": 2,
+    "metricsResolutionSec": 5,
+    "healthCheckSec": 0,
+    "horizonSec": 1800,
+    "awsPeriodSec": 60,
+    "awsMetricDelaySec": 60
+  },
+  "name": "metric-delay-compare",
+  "notes": "Flip 'datapoint period' and 'metric delay' live between AWS's own realistic defaults (period 60s, delay 60s -- CloudWatch's own docs: EC2 detailed monitoring is 60s datapoints, typically 1-2 min before a datapoint is visible to alarms) and a faster setting (period 10s -- the fastest this workbench allows, matching CloudWatch's fastest supported resolution -- delay 0s). Same 9x step (250rps -> 2200rps), same AWS target tracking algorithm and target (50%), same AlarmHigh rule (3 consecutive breaching datapoints, the observed AWS default) -- the only variable is how long it takes a real change in load to become a datapoint the alarm can see. metricsResolutionSec is set to 5s in both so the datapoint period itself is never the bottleneck (the underlying metrics-scrape resolution has to be at least as fast as the period you're evaluating, or datapoints come back empty and nothing fires at all -- try period faster than resolution live to see the alarm go silent instead of fast).\n\nMeasured (deterministic, no distribution variance in this preset): total dead time before AlarmHigh can even fire is period x 3 + delay -- 240s realistic, 30s fast, an 8x difference before any information about the real deficit reaches the controller. That shows up directly: first scale-out at t=480s (420s after the step) with realistic settings vs t=325s (265s after the step) fast -- scaling starts 155s sooner. Full recovery (errors back to 0%) lands at t=1000s realistic vs t=805s fast -- 195s (over 3 minutes) sooner. Overall error rate for the whole run: 25.1% realistic vs 18.8% fast, for otherwise identical load, target, and algorithm.\n\nThe controller's math is identical in both cases -- desired = ceil(current x metric / target) is the same formula, same target, same alarm rule. The only thing that changed is how fast the world outside the controller becomes visible to it. This is dead time in its purest form: not a bug, not a wrong gain, just the length of the pipe between 'load changed' and 'controller can act on it' -- and for AWS specifically, that pipe is two knobs (datapoint period, metric delay) most people never touch away from the CloudWatch default."
+}

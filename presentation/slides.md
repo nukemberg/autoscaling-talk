@@ -408,44 +408,44 @@ like success on a dashboard that only tracks error rate — it isn't.
 
 ---
 
-# Same Pulse, Same Target — Different Fate
+# Tuned Threads vs. Node.js, Same Pulse
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'metricCpuTarget', 'baseRps', 'rps', 'holdSec']" :height="130" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'workers', 'baseRps', 'rps', 'holdSec']" :height="130" />
 
 <!--
-Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip "server profile" live:
-threaded (bounded workers, real admission control) vs event-loop
-(unlimited workers, node.js-style) against the IDENTICAL 25x pulse
-(8rps -> 200rps over 5s, held 15s, back down over 5s — shorter than
-the 30s boot time, so no new capacity can arrive before it's over)
-and, deliberately, the same low CPU target (0.3) for both. Ops
-running node.js commonly pick a low CPU target exactly because the
-unit can't shed load — headroom standing in for backpressure. Point
-of this slide: it doesn't, not against a real pulse.
-Threaded scales 1 → 4 instances, rejects the overflow it can't seat
-(~23% errors, all in the one burst window) and otherwise holds
-latency flat at ~100ms straight through the pulse — admitted
-requests never queue behind rejected ones. Back to steady state in
-about 40 seconds.
-Event-loop scales further (1 → 12 — 3x threaded's peak, chasing a
-queue more instances can't drain fast enough) and shows 0% errors —
-nothing is ever rejected — but latency explodes: ~12.6s right at the
-pulse's peak, climbing to ~89s about 90 seconds AFTER the pulse
-already ended, not recovering to baseline until 150-180s in — 4-5x
-longer than threaded. The oversized fleet then sits over-provisioned
-for several more minutes waiting out HPA's scale-down stabilization,
-after latency itself has already recovered — a second, quieter cost
-stacked on the first.
-The controller is not the villain and isn't the difference: HPA
-reads the same honest, 100%-pinned-during-overload CPU metric in
-both variants and reacts sensibly in both. The difference is what
-happens to the requests it can't yet serve. Bounded workers turn "too
-much load" into a fast, visible, bounded-blast-radius rejection.
-Unlimited workers turn the exact same overload into an invisible (0%
-errors on the dashboard!) unbounded wait that keeps compounding after
-the traffic that caused it is long gone — and a lower CPU target
-doesn't fix that, it just raises the bar for how big a pulse it takes
-to trigger it. The fix isn't a smarter autoscaler, it's not letting
+Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip
+"server profile" live: threaded (bounded workers, real admission
+control) vs event-loop (unlimited workers, node.js-style) against the
+same 5x pulse (210rps -> 1050rps over 5s, held 15s, back down over
+5s — shorter than the 30s boot time, so no capacity added mid-pulse
+can help). Per-request CPU time and I/O wait are now exponentially
+distributed (mean ~16ms / ~51ms), not fixed — real variance, the kind
+a real fleet gets from cache misses and GC pauses. Both variants
+start at the same 4 instances (`initialInstances`), sized for the
+210rps base load.
+Threaded's worker count is tuned to 15 (queueSlots: 0 — reject
+immediately once busy, no extra waiting room) for a specific reason:
+with real variance, MORE workers doesn't mean LESS latency on 4
+fixed cores — the CPU-pool queue is sized to the worker count, so a
+bigger pool just lets more admitted requests pile up waiting for the
+same cores (measured: workers=30 → p95 ~211ms; workers=300 → p95
+~870-1000ms, WORSE). Shrinking the pool sheds the overflow at the
+door instead — what gets in never queues behind what doesn't.
+Watch what this buys: threaded holds p95 latency at ~185-200ms
+through baseline, ramp, hold, AND recovery — indistinguishable — for
+~1.7-1.8% rejected, entirely inside the pulse window (seed-robust,
+5 seeds).
+Event-loop — same pulse, same 210rps base, same instance count at
+pulse start, only workers unbounded — shows 0% errors, nothing is
+ever rejected, but mean latency spikes to ~10-11.5s and p95 to
+~13-14.4s, peaking just after the pulse ends, before the (up to
+20-instance) scale-out and its boot delay can catch up.
+Same load, same variance, same starting fleet — the only variable is
+whether the unit can say no. Threaded's tuned pool turns "too much
+load" into a small, fast, visible rejection rate. Unlimited workers
+turn it into an invisible, order-of-magnitude latency event. Zero
+errors looks like success on a dashboard that only tracks error
+rate — it isn't. The fix isn't a smarter autoscaler, it's not letting
 the debt happen: reject early, bound the queue — the Responsible
 Autoscaling callback later.
 -->

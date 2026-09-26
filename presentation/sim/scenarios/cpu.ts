@@ -10,7 +10,7 @@ import {
   attachController, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
   neededInstances, scalerParams, serverParams,
 } from './shared'
-import { bool, num, type ParamSpec, type Params, type ScenarioDef } from './types'
+import { bool, num, type ParamSpec, type Params, type SimModel } from './types'
 
 const simParams: ParamSpec[] = [
   { key: 'horizonSec', label: 'horizon', group: 'sim', kind: 'range', min: 300, max: 7200, step: 60, default: 2100, unit: 's',
@@ -22,7 +22,7 @@ const simParams: ParamSpec[] = [
 ]
 
 /** One cluster, stateless instances, autoscaled on busy fraction ("CPU"). */
-export const cpuScenario: ScenarioDef = {
+export const cpuModel: SimModel = {
   id: 'cpu-step',
   title: 'CPU autoscaling under a load step',
   description: 'Stable base load, then a ramp. Autoscaler acts on mean busy fraction across ready instances.',

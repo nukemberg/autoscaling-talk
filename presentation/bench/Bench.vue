@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { resolvePreset, toPreset, type Preset } from '../sim/scenarios/preset'
-import { scenarios } from '../sim/scenarios/registry'
+import { models } from '../sim/scenarios/models'
 import { defaults, type ParamGroup, type Params } from '../sim/scenarios/types'
 import RunWorker from './runWorker?worker'
 import type { RunRequest, RunResponse } from './runWorker'
@@ -9,15 +9,15 @@ import type { RunRequest, RunResponse } from './runWorker'
 const GROUPS: ParamGroup[] = ['load', 'server', 'scaler', 'upstream', 'fault', 'sim']
 const STORAGE_KEY = 'bench.presets'
 
-const scenarioId = ref(scenarios[0].id)
-const def = computed(() => scenarios.find((s) => s.id === scenarioId.value)!)
+const modelId = ref(models[0].id)
+const def = computed(() => models.find((m) => m.id === modelId.value)!)
 const params = ref<Params>(defaults(def.value.params))
 const name = ref('untitled')
 const notes = ref('')
 
 // Runs happen in a worker so heavy sims never block the UI; the main thread
 // only updates params (and the JSON/URL) instantly. The debounce delay adapts
-// to the last run's duration — fast scenarios stay near-instant while dragging,
+// to the last run's duration — fast models stay near-instant while dragging,
 // slow ones wait longer so runs don't stack up in the worker's queue.
 const MIN_RUN_DELAY_MS = 50
 const MAX_RUN_DELAY_MS = 500
@@ -50,7 +50,7 @@ worker.onmessage = (e: MessageEvent<RunResponse>) => {
 function runNow(p: Params) {
   const id = ++reqId
   // structuredClone can't handle Vue's reactive proxies — send a plain copy
-  const msg: RunRequest = { id, scenarioId: def.value.id, params: JSON.parse(JSON.stringify(p)) }
+  const msg: RunRequest = { id, modelId: def.value.id, params: JSON.parse(JSON.stringify(p)) }
   worker.postMessage(msg)
 }
 
@@ -91,7 +91,7 @@ function flash(msg: string) {
 
 function applyPreset(p: Preset) {
   const r = resolvePreset(p)
-  scenarioId.value = r.def.id
+  modelId.value = r.def.id
   params.value = r.params
   name.value = p.name ?? 'untitled'
   notes.value = p.notes ?? ''

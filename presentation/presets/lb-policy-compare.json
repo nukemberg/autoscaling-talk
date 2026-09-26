@@ -1,5 +1,5 @@
 {
-  "id": "cpu-step",
+  "model": "cpu-step",
   "name": "lb-policy-compare",
   "params": {
     "rps": 100,

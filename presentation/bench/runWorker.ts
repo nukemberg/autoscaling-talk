@@ -1,17 +1,17 @@
-/** Sim-run worker: executes scenario runs off the main thread, streaming progress. */
+/** Sim-run worker: executes model runs off the main thread, streaming progress. */
 
-import { scenario } from '../sim/scenarios/registry'
-import type { Params, ScenarioResult } from '../sim/scenarios/types'
+import { model } from '../sim/scenarios/models'
+import type { Params, RunResult } from '../sim/scenarios/types'
 
 export interface RunRequest {
   id: number
-  scenarioId: string
+  modelId: string
   params: Params
 }
 
 export type RunResponse =
   | { type: 'progress'; id: number; fraction: number }
-  | { type: 'done'; id: number; result: ScenarioResult; runMs: number }
+  | { type: 'done'; id: number; result: RunResult; runMs: number }
   | { type: 'error'; id: number; message: string }
 
 // SAFETY: inside a dedicated module worker `self` is a DedicatedWorkerGlobalScope,
@@ -22,9 +22,9 @@ const ctx = self as unknown as { postMessage(msg: RunResponse): void }
 
 function handleMessage(e: MessageEvent<RunRequest>) {
   if (!e.data || typeof e.data !== 'object') return
-  const { id, scenarioId, params } = e.data
+  const { id, modelId, params } = e.data
   try {
-    const def = scenario(scenarioId)
+    const def = model(modelId)
     const progress = (fraction: number) =>
       ctx.postMessage({ type: 'progress', id, fraction } satisfies RunResponse)
     const t0 = performance.now()

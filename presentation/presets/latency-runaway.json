@@ -1,5 +1,5 @@
 {
-  "id": "cpu-step",
+  "model": "cpu-step",
   "name": "latency-runaway",
   "params": {
     "rps": 270,

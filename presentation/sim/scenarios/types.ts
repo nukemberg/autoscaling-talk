@@ -1,4 +1,4 @@
-/** Declarative description of a scenario: params, how to run, how to chart. */
+/** Declarative description of a sim model: params, how to run, how to chart. */
 
 export type ParamGroup = 'load' | 'server' | 'scaler' | 'upstream' | 'fault' | 'sim'
 
@@ -36,7 +36,7 @@ export type Params = Record<string, number | string | boolean>
 
 export interface Marker { t: number; label: string }
 
-export interface ScenarioResult {
+export interface RunResult {
   t: number[]
   series: Record<string, number[]>
   markers: Marker[]
@@ -69,17 +69,17 @@ export interface ChartSpec {
   height?: number
 }
 
-export interface ScenarioDef {
+export interface SimModel {
   id: string
   title: string
   description: string
   params: ParamSpec[]
   charts: ChartSpec[]
   /**
-   * Run the scenario. The optional progress callback receives a 0..1 fraction
+   * Run the model. The optional progress callback receives a 0..1 fraction
    * of the run; it fires coarsely (engine-throttled) so callers can show a bar.
    */
-  run(params: Params, progress?: (fraction: number) => void): ScenarioResult
+  run(params: Params, progress?: (fraction: number) => void): RunResult
 }
 
 export function defaults(specs: ParamSpec[]): Params {

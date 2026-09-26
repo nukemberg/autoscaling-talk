@@ -1,5 +1,5 @@
 {
-  "id": "cpu-step",
+  "model": "cpu-step",
   "name": "cpu-oscillation",
   "params": {
     "baseRps": 300,

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { resolvePreset, type Preset } from '../sim/scenarios/preset'
-import type { Params, ScenarioResult } from '../sim/scenarios/types'
+import type { Params, RunResult } from '../sim/scenarios/types'
 import RunWorker from '../bench/runWorker?worker'
 import type { RunRequest, RunResponse } from '../bench/runWorker'
 
 /**
- * Slide widget: runs a scenario from a preset (presets/<name>.json) with
+ * Slide widget: runs a model from a preset (presets/<name>.json) with
  * optional overrides, shows charts, and folds the `expose`d knobs.
  *
  * Runs happen in a worker (same one the bench uses) so slides never block:
@@ -42,7 +42,7 @@ const MAX_RUN_DELAY_MS = 500
 const runMs = ref(0)
 const progress = ref(0)
 const pending = ref(false)
-const result = ref<ScenarioResult | null>(null)
+const result = ref<RunResult | null>(null)
 const error = ref('')
 
 const runDelayMs = computed(() =>
@@ -77,7 +77,7 @@ function runNow(p: Params): void {
   pending.value = true
   progress.value = 0
   // structuredClone can't handle Vue's reactive proxies — send a plain copy
-  const msg: RunRequest = { id, scenarioId: def.value.id, params: JSON.parse(JSON.stringify(p)) }
+  const msg: RunRequest = { id, modelId: def.value.id, params: JSON.parse(JSON.stringify(p)) }
   ensureWorker().postMessage(msg)
 }
 

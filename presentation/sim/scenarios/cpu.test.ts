@@ -1,22 +1,22 @@
 import { describe, expect, test } from 'vitest'
 import cpuOscillation from '../../presets/cpu-oscillation.json'
 import cpuStep from '../../presets/cpu-step.json'
-import { cpuScenario } from './cpu'
+import { cpuModel } from './cpu'
 import { resolvePreset, type Preset } from './preset'
 import { defaults, type Params } from './types'
 
-const base = defaults(cpuScenario.params)
-const run = (over: Params = {}) => cpuScenario.run({ ...base, ...over })
+const base = defaults(cpuModel.params)
+const run = (over: Params = {}) => cpuModel.run({ ...base, ...over })
 /** Runs the preset JSON the slides actually load, so these tests track what's on stage. */
 const presets: Record<string, Preset> = { 'cpu-oscillation': cpuOscillation, 'cpu-step': cpuStep }
-const runPreset = (name: string) => cpuScenario.run(resolvePreset(presets[name]).params)
+const runPreset = (name: string) => cpuModel.run(resolvePreset(presets[name]).params)
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
-describe('cpu scenario', () => {
+describe('cpu model', () => {
   test('returns aligned series for every charted key', () => {
     const r = run({ horizonSec: 600, sampleSec: 10 })
     expect(r.t.length).toBe(61)
-    for (const c of cpuScenario.charts) for (const s of c.series) expect(r.series[s.key]?.length).toBe(61)
+    for (const c of cpuModel.charts) for (const s of c.series) expect(r.series[s.key]?.length).toBe(61)
   })
 
   test('is deterministic', () => {

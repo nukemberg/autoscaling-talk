@@ -2,12 +2,12 @@
 import type uPlot from 'uplot'
 import type { AlignedData, Options } from 'uplot'
 import { computed, ref } from 'vue'
-import type { ChartSpec, ScenarioResult } from '../sim/scenarios/types'
+import type { ChartSpec, RunResult } from '../sim/scenarios/types'
 import { chartColors, resolveColor, watchChartTheme } from './theme'
 
 const props = withDefaults(defineProps<{
   charts: ChartSpec[]
-  result: ScenarioResult
+  result: RunResult
   height?: number
 }>(), { height: 180 })
 

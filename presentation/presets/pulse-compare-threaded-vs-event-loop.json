@@ -1,5 +1,5 @@
 {
-  "id": "cpu-step",
+  "model": "cpu-step",
   "params": {
     "baseRps": 700,
     "rps": 3500,

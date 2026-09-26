@@ -225,6 +225,10 @@ export const scalerParams: ParamSpec[] = [
     help: 'Never scale below this.' },
   { key: 'maxInstances', label: 'max', group: 'scaler', kind: 'range', min: 1, max: 1000, step: 1, default: 100,
     help: 'Never scale above this. Also your bill ceiling.' },
+  { key: 'initialInstances', label: 'initial', group: 'scaler', kind: 'range', min: 0, max: 1000, step: 1, default: 0,
+    help: 'Starting instance count, clamped to [min, max]. 0 = auto: size for base load at the '
+      + 'controller\'s own target utilization, same as a real fleet warm from a previous scaling '
+      + 'decision. Set explicitly to start somewhere else on purpose (e.g. pin a demo\'s pool size).' },
 
   // --- metrics pipeline (shared by every algorithm) ---
   { key: 'metricsResolutionSec', label: 'metrics scrape resolution', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',

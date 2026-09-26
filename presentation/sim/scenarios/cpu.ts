@@ -78,7 +78,9 @@ export const cpuScenario: ScenarioDef = {
     if (progress) sim.onProgress = (now) => progress(Math.min(1, now / end))
 
     // Start already sized for the base load, warm — the steady state before anything happens.
-    const needed = Math.ceil(neededInstances(p, num(p, 'baseRps')))
+    // (0 = auto: size for base load; explicit `initialInstances` overrides that, still clamped to [min, max].)
+    const initial = num(p, 'initialInstances')
+    const needed = initial > 0 ? initial : Math.ceil(neededInstances(p, num(p, 'baseRps')))
     cluster.scaleTo(Math.min(num(p, 'maxInstances'), Math.max(num(p, 'minInstances'), needed)))
     sim.run(warmupEnd)
     const t0 = sim.now

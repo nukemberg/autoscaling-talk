@@ -113,13 +113,14 @@ describe('cpu model', () => {
   })
 
   test('step ramp: offered goes base → rps at quietSec', () => {
-    const r = run({ rps: 100, baseRps: 20, ramp: 'step', quietSec: 300, horizonSec: 400, sampleSec: 10 })
+    // noisyLoad:false — this asserts the deterministic ramp shape, not the jittered default.
+    const r = run({ rps: 100, baseRps: 20, ramp: 'step', quietSec: 300, horizonSec: 400, sampleSec: 10, noisyLoad: false })
     expect(r.series.offeredRps[29]).toBe(20)
     expect(r.series.offeredRps[30]).toBe(100)
   })
 
   test('linear ramp interpolates from base', () => {
-    const r = run({ rps: 100, baseRps: 50, ramp: 'linear', rampSec: 200, quietSec: 0, horizonSec: 400, sampleSec: 10 })
+    const r = run({ rps: 100, baseRps: 50, ramp: 'linear', rampSec: 200, quietSec: 0, horizonSec: 400, sampleSec: 10, noisyLoad: false })
     expect(r.series.offeredRps[0]).toBe(50)
     expect(r.series.offeredRps[10]).toBeCloseTo(75)
     expect(r.series.offeredRps[20]).toBeCloseTo(100)

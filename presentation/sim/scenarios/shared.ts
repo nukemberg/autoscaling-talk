@@ -40,7 +40,7 @@ export const loadParams: ParamSpec[] = [
     activeWhen: { ramp: ['trapezoid', 'square'] } },
   { key: 'quietSec', label: 'stable period before ramp', group: 'load', kind: 'range', min: 0, max: 900, step: 30, default: 300, unit: 's',
     help: 'Time at base load before the ramp starts, so the "before" state is visible.' },
-  { key: 'noisyLoad', label: 'noisy base', group: 'load', kind: 'toggle', default: false,
+  { key: 'noisyLoad', label: 'noisy base', group: 'load', kind: 'toggle', default: true,
     help: 'Adds bounded random jitter on top of whichever shape is chosen, so "steady" load is never perfectly flat.' },
   { key: 'noiseAmpPct', label: 'noise amplitude', group: 'load', kind: 'range', min: 1, max: 50, step: 1, default: 10, unit: '%',
     help: 'Jitter as a fraction of the instantaneous rate.', activeWhen: { noisyLoad: 'true' } },

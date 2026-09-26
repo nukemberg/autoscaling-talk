@@ -26,6 +26,26 @@ function mkGrid() {
 // not change identity when it does).
 const cursorSyncKey = `sim-charts-${Math.random().toString(36).slice(2)}`
 
+// Zero-footprint legend: uPlot appends the legend table BELOW the canvas in
+// normal flow, so an in-flow legend makes every stacked panel taller — enough
+// to push the bottom panel's legend past a slide's clip edge. Instead, mount
+// the table into u.over (the plot-area overlay the cursor tooltip already
+// uses) and pin it to the plot's bottom-right corner, then pull it (via CSS,
+// see .sim-legend below) down into the gap before the next stacked panel:
+// no layout impact, and clear of the data instead of just clear of a corner.
+// live:false keeps it a static marker+label row (uPlot also skips the x-axis
+// row and hides value cells when not live).
+function legendMount(last: boolean) {
+  return (u: uPlot, legendEl: HTMLElement): void => {
+    legendEl.classList.add('sim-legend')
+    // The last panel also carries the x-axis tick row directly below its
+    // plot square — the same negative offset that drops neatly into the
+    // gap between stacked panels lands on top of those ticks here instead.
+    if (last) legendEl.classList.add('sim-legend--last')
+    u.over.appendChild(legendEl)
+  }
+}
+
 function markerHook(labelled: boolean) {
   return (u: uPlot) => {
     const { top, height } = u.bbox
@@ -138,7 +158,9 @@ const panels = computed(() => {
       { stroke: C.text, grid: mkGrid(), label: c.yLabel, size: LEFT_AXIS_SIZE },
       ...rightAxes,
     ],
-    legend: { show: last },
+    // Minimal static legend per panel (see legendMount); only when there's
+    // more than one series — a single-series panel is self-explanatory.
+    legend: { show: c.series.length > 1, live: false, mount: legendMount(last) },
     cursor: { sync: { key: cursorSyncKey } },
     hooks: { draw: [markerHook(i === 0)] },
     // Reserve room above the plot for marker labels so they don't overlap the series.
@@ -167,5 +189,36 @@ watchChartTheme(() => { panelsTrigger.value++ })
 
 <style scoped>
 .sim-charts { display: flex; flex-direction: column; }
-.sim-charts :deep(.u-legend) { font-size: 0.7rem; }
+/* Minimalist legend, overlaid at the plot's bottom-right (see legendMount):
+   small, one inline row, non-interactive (uPlot's click-to-toggle/isolate on
+   legend labels is off so a stray click during a talk can't hide a series).
+   Bottom, not top: every series here ramps up and plateaus near the top of
+   its axis after load starts, so a top-corner legend sits right on top of
+   the data for most of the run (worst on the latency panel, covering the
+   p95 recovery dips).
+   A negative bottom pulls it entirely below u.over's own box, into the
+   thin gap before the next stacked panel — clear of the plot square
+   altogether instead of just clear of where the data happens to be.
+   The last panel has no such gap below it (the x-axis tick row sits there
+   instead), so it gets a smaller offset that clears the plot without
+   landing on the ticks.
+   The translucent panel-bg chip keeps labels readable over data lines. */
+.sim-charts :deep(.sim-legend) {
+  position: absolute;
+  bottom: -20px;
+  right: 4px;
+  /* uPlot's legend <table> defaults to width:100% (of u.over) — without this,
+     the background chip below stretches across the whole panel and grays out
+     every series line passing under it, not just the text. */
+  width: fit-content;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  pointer-events: none;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--chart-panel-bg, #fff) 78%, transparent);
+}
+.sim-charts :deep(.sim-legend--last) { bottom: -6px; }
+.sim-charts :deep(.sim-legend .u-series > *) { padding: 1px 4px; }
+.sim-charts :deep(.u-marker) { height: 2px; }
 </style>

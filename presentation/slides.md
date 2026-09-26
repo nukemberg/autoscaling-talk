@@ -262,6 +262,67 @@ deployed SimCluster workbench so people can try it themselves.
 
 ---
 
+# Steering With Dead Time
+
+<div class="cards">
+  <div class="card">
+    <div class="card-label">Highway</div>
+    <div class="card-title">Gentle curves, 2s delay</div>
+    <p class="card-body">The road barely changes direction in 2 seconds. By the time your correction lands, it's still basically the right correction.</p>
+    <p class="card-note">delay ≪ how fast the road curves</p>
+  </div>
+
+  <div class="card card-symptom">
+    <div class="card-label">Mountain switchbacks</div>
+    <div class="card-title">Same 2s delay</div>
+    <p class="card-body">The road has already turned twice more by the time your 2-second-old correction arrives. You're correcting for a curve that no longer exists.</p>
+    <p class="card-note">delay ≈ how fast the road curves</p>
+  </div>
+</div>
+
+<div class="takeaway">
+  <div>The delay didn't change. What you're steering did.</div>
+  <div class="punchline">Reaction time has to be <strong class="accent-takeaway">≫</strong> dead time — not just faster than it.</div>
+</div>
+
+<!--
+[2 min]
+Bridge slide before the AWS sim: same "dead time" insight from Control
+Theory Crash Course (#1), landed with one concrete, physical image
+before we watch it play out in a metrics pipeline.
+
+Every control loop — thermostat, cruise control, steering wheel,
+autoscaler — works the same way: observe, decide, act, observe again.
+Any gap between "the world changed" and "you observe it" means you're
+acting on stale information. Whether that's a problem depends entirely
+on how fast the world moves relative to that gap — the same delay can
+be irrelevant or fatal.
+
+Steering wheel with a 2-second lag (a real thing: heavy trucks,
+teleoperated rovers over a satellite link, texting while driving) is
+harmless on a highway — dead time ≪ characteristic time of the curve,
+so your stale correction is still approximately right when it lands.
+Same 2-second lag on a switchback road is a cliff: dead time ≈
+characteristic time, so every correction targets a curve that's
+already gone, and worse — if you then overcorrect for the fact that
+nothing seems to be working (the classic reflex when a system doesn't
+respond), you overshoot, and now you're oscillating: swerving lock to
+lock, same shape as an autoscaler flapping between 3 and 20 instances.
+NASA's lunar rovers had ~2.5s round-trip light-speed delay and solved
+it by NOT driving continuously — "creep and stop": move a little,
+wait for the picture to catch up, look, move again. Slow and boring,
+on purpose, because dead time is physics — you can't out-drive it,
+only build in enough margin (go slower, or look further ahead) that
+your reaction time comfortably beats it.
+
+This is the same knob as the datapoint period and metric delay on the
+next slide's AWS example: same "gap between event and controller
+attention" math on a completely different metaphor. Watch it show up
+as a number next.
+-->
+
+---
+
 # The Metric Pipeline Is Dead Time Too
 
 <Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :height="130" />

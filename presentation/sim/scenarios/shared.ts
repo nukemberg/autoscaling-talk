@@ -182,14 +182,17 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
 
 export function lbOpts(p: Params): LbOpts {
   const interval = num(p, 'healthCheckSec')
-  return interval > 0
-    ? {
-        healthCheck: {
-          interval, timeout: num(p, 'healthCheckTimeoutSec'),
-          unhealthyAfter: num(p, 'unhealthyAfter'), healthyAfter: num(p, 'healthyAfter'),
-        },
-      }
-    : {}
+  return {
+    policy: str(p, 'lbPolicy') as LbOpts['policy'],
+    ...(interval > 0
+      ? {
+          healthCheck: {
+            interval, timeout: num(p, 'healthCheckTimeoutSec'),
+            unhealthyAfter: num(p, 'unhealthyAfter'), healthyAfter: num(p, 'healthyAfter'),
+          },
+        }
+      : {}),
+  }
 }
 
 export function clusterOpts(p: Params): ClusterOpts {
@@ -226,6 +229,14 @@ export const scalerParams: ParamSpec[] = [
   // --- metrics pipeline (shared by every algorithm) ---
   { key: 'metricsResolutionSec', label: 'metrics scrape resolution', group: 'scaler', kind: 'range', min: 5, max: 120, step: 5, default: 15, unit: 's',
     help: 'How often the metrics pipeline itself scrapes each instance — metrics-server\'s --metric-resolution (default 15 s). Every algorithm reads from this same underlying scrape stream: HPA takes the latest computed rate (no averaging of its own), CloudWatch-style controllers average scrapes within their own datapoint period.' },
+
+  // --- load balancer ---
+  { key: 'lbPolicy', label: 'LB policy', group: 'scaler', kind: 'select', default: 'round-robin', options: [
+    { value: 'round-robin', label: 'round robin' },
+    { value: 'least-conn', label: 'least connections' },
+  ], help: 'How the LB picks among ready instances. Round robin: fixed 1/N share regardless of '
+    + 'current load. Least connections: send to whichever ready instance has the fewest requests '
+    + 'in flight right now — adapts to a slow/backed-up instance instead of feeding it its fair share anyway.' },
 
   // --- health checks (k8s readiness probe / AWS target group health check) ---
   { key: 'healthCheckSec', label: 'LB health check interval', group: 'scaler', kind: 'range', min: 0, max: 120, step: 5, default: 10, unit: 's',

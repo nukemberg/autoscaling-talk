@@ -1,0 +1,21 @@
+{
+  "id": "cpu-step",
+  "name": "lb-policy-compare",
+  "params": {
+    "rps": 100,
+    "quietSec": 0,
+    "cores": 2,
+    "cpuTimeMs": 20,
+    "cpuTimeMsDist": "lognormal",
+    "cpuTimeMsSigma": 1.5,
+    "ioWaitMs": 0,
+    "workers": 15,
+    "queueSlots": 15,
+    "bootSec": 0,
+    "minInstances": 3,
+    "maxInstances": 3,
+    "healthCheckSec": 0,
+    "horizonSec": 900
+  },
+  "notes": "Flip 'LB policy' live: round robin vs least connections. Fixed 3-instance pool the whole run (min = max = 3, no ramp, no autoscaler decisions to muddy the comparison) -- this is purely about routing, not scaling. The load itself is flat (100rps), but per-request CPU time is drawn from a heavy-tailed lognormal (median 20ms, sigma 1.5), so any given request can cost 10x or 50x the median -- the same kind of variance a real fleet sees from cache misses, GC pauses, or a slow downstream call on some fraction of requests. Workers/queue are deliberately tight (15/15) so a slow request actually backs up its instance instead of just quietly finishing late.\n\nMeasured (seeds 1-5, same preset, only 'lbPolicy' flipped): round robin sends a fixed 1/3 share to every instance regardless of what it's currently doing, so it routinely hands a fresh request to an instance still working through one of the lognormal's slow draws -- that request now queues behind it too. Mean latency ~485-500ms, p95 ~1.3-1.35s, ~8-9% rejected (queue full). Least connections reads `inFlight` per instance and routes around whichever one is currently backed up: mean latency ~330-365ms (~30% lower), p95 ~890-980ms (~30% lower), and ~5-6.5% rejected -- fewer rejections too, because spreading the backlog more evenly means the bounded queue fills up less often. Same offered load, same total CPU work, same instance count, same autoscaler (none, here) -- the only variable is which of the 3 ready instances gets picked, and that alone is worth ~30% of tail latency once service time has real variance. Round robin's blind spot: it's fair by request count, not by cost -- and cost is exactly what varies.\n\nThe gap depends on variance existing at all: turn cpuTimeMsSigma down toward 0 (fixed service time) and the two policies converge -- there's nothing to route around when every request costs the same."
+}

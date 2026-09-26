@@ -18,6 +18,7 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 7. **Oscillation, by Default** — (in #6) — done — live sim: AWS simple scaling, cooldown 0 → sustained flapping
 8. **Coupling and Blast Radius** — 4m — done — `kur.5`
    N instances = N× connection pools; LB registration + health checks = dead time on the add side; recovery is a herd; fast-onset load beats any scaler with dead time > onset time
+8.5. **Round Robin vs. Least Connections** — done — live sim (`lb-policy-compare` preset): fixed 3-instance pool, flat load, heavy-tailed per-request CPU time (lognormal sigma 1.5) — round robin's fixed 1/3 share vs least-conn routing around whichever instance is currently backed up. ~30% lower mean/p95 latency and fewer rejections for least-conn, seed-robust (5 seeds). Gap closes if service-time variance is turned down to 0.
 9. **Unstable Scaling Units** — 3m — done — `kur.6`
    Well-behaved vs bad unit; "your controller doesn't know the server load if it hides it"; live sim: loss vs node.js unit model, same load, 2% → 54% errors
 10. **Loss vs. Node.js, Same Load** — (in #9) — done — live sim companion to #9

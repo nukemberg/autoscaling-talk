@@ -295,6 +295,41 @@ loop is — headroom, not a smarter controller, is what survives it.
 -->
 
 ---
+
+# Round Robin vs. Least Connections
+
+<Sim preset="lb-policy-compare" :expose="['lbPolicy', 'rps', 'cpuTimeMsSigma', 'workers', 'queueSlots']" :height="130" />
+
+<!--
+Live DES from presets/lb-policy-compare.json. Flip "LB policy" live:
+round robin vs least connections. Fixed 3-instance pool for the whole
+run (min = max = 3, flat 100rps load, no autoscaler decisions) — this
+isn't about scaling at all, it's purely about which of the 3 ready
+instances gets picked. Per-request CPU time is drawn from a
+heavy-tailed lognormal (median 20ms, sigma 1.5) — the same shape of
+variance a real fleet gets from cache misses, GC pauses, or a slow
+downstream call on some fraction of requests. Workers/queue are
+deliberately tight (15/15) so a slow request actually backs up its
+instance instead of quietly finishing late.
+Round robin sends a fixed 1/3 share to every instance no matter what
+it's doing right now, so it routinely hands a fresh request to one
+still working through a slow draw — that request queues behind it
+too. Least connections reads inFlight per instance and routes around
+whichever one is currently backed up. Measured (seeds 1-5, only
+lbPolicy flipped): round robin — mean latency ~485-500ms, p95
+~1.3-1.35s, ~8-9% rejected. Least connections — mean ~330-365ms (~30%
+lower), p95 ~890-980ms (~30% lower), ~5-6.5% rejected (fewer, too:
+spreading the backlog more evenly means the bounded queue fills up
+less often). Same load, same total CPU work, same instance count,
+same (absent) autoscaler — the only variable is which instance gets
+picked, worth ~30% of tail latency once service time has real
+variance. Round robin is fair by request COUNT, not by cost — and
+cost is exactly what varies. Turn cpuTimeMsSigma toward 0 live to
+show the gap close: no variance, nothing to route around, the two
+policies converge.
+-->
+
+---
 layout: default
 ---
 

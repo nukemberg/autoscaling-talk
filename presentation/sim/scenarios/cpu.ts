@@ -2,7 +2,7 @@ import { Arrivals } from '../arrivals'
 import { Cluster } from '../cluster'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
-import { Recorder } from '../metrics'
+import { Recorder, Tally } from '../metrics'
 import { Rng } from '../rng'
 import { injectFaults } from '../faults'
 import { Stats } from '../stats'
@@ -50,6 +50,7 @@ export const cpuScenario: ScenarioDef = {
       yLabel: 'ms',
       series: [
         { key: 'latencyMs', label: 'latency (mean, OK requests)', color: 'latency', width: 2 },
+        { key: 'p95Ms', label: 'latency (p95, OK requests)', color: 'cpu', width: 1.5, dash: [4, 4] },
       ],
     },
   ],
@@ -67,11 +68,11 @@ export const cpuScenario: ScenarioDef = {
     // The latency metric (see metricRegistry.latencyMetric) needs the windowed request log;
     // every other metric only reads `totals`, so skip the log's allocation unless it's in use.
     const stats = new Stats(sim, { track: bool(p, 'metricLatency') })
-    let latencySum = 0, latencyCount = 0 // running sum for OK requests, reset each sample window
+    const latencyTally = new Tally() // OK-request latencies for the current sample window, reset each tick
     const lb = new LoadBalancer(sim, lbOpts(p))
     lb.onDone = (r) => {
       stats.record(r)
-      if (r.outcome === 'ok') { latencySum += ((r.doneAt ?? sim.now) - r.arrivedAt) * 1000; latencyCount++ }
+      if (r.outcome === 'ok') latencyTally.add(((r.doneAt ?? sim.now) - r.arrivedAt) * 1000)
     }
     const cluster = new Cluster(sim, lb, instanceOpts(p, rng), clusterOpts(p))
     if (progress) sim.onProgress = (now) => progress(Math.min(1, now / end))
@@ -98,9 +99,10 @@ export const cpuScenario: ScenarioDef = {
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,
-      latencyMs: () => latencyCount ? latencySum / latencyCount : 0,
+      latencyMs: () => latencyTally.count ? latencyTally.mean : 0,
+      p95Ms: () => latencyTally.count ? latencyTally.percentile(0.95) : 0,
       // Probes run in order; this last one resets the per-window baselines.
-      _tick: () => { lastTotals = { ...stats.totals }; latencySum = 0; latencyCount = 0; return 0 },
+      _tick: () => { lastTotals = { ...stats.totals }; latencyTally.reset(); return 0 },
     })
     rec.start()
     sim.run(t0 + horizon)

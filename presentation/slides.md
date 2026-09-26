@@ -264,19 +264,19 @@ deployed SimCluster workbench so people can try it themselves.
 
 # Hot, Cold, Hot, Cold...
 
-You turn the shower on, but it takes a while for hot water to arrive.
-
 <div class="cards">
   <div class="card">
     <div class="card-label">Patient</div>
-    <div class="card-title">Nudge. Wait. Nudge again.</div>
-    <p class="card-note">adjustment interval ≫ pipe delay</p>
+    <div class="card-title">Nudge, then wait</div>
+    <p class="card-body">Turn the hot tap a little. Wait for the pipe's dead time to actually pass before touching it again — the water already on its way has to arrive first. One or two nudges, dialed in.</p>
+    <p class="card-note">time between adjustments ≫ pipe delay</p>
   </div>
 
   <div class="card card-symptom">
     <div class="card-label">Impatient</div>
-    <div class="card-title">Still cold → crank hotter → scalds → crank cold → repeat</div>
-    <p class="card-note">adjustment interval ≈ pipe delay</p>
+    <div class="card-title">Turn, still cold, turn more</div>
+    <p class="card-body">Crank it hotter — still feels cold, that water hasn't arrived yet. Crank hotter again. Then it all arrives at once, scalding, so you crank cold. Repeat forever.</p>
+    <p class="card-note">time between adjustments ≈ pipe delay (or less)</p>
   </div>
 </div>
 

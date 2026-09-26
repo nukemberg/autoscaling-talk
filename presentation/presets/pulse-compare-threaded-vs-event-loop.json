@@ -1,8 +1,8 @@
 {
   "id": "cpu-step",
   "params": {
-    "baseRps": 210,
-    "rps": 1050,
+    "baseRps": 700,
+    "rps": 3500,
     "ramp": "trapezoid",
     "rampSec": 5,
     "holdSec": 15,
@@ -14,15 +14,15 @@
     "ioWaitMs": 1,
     "ioWaitMsDist": "shifted-exp",
     "ioWaitMsTail": 50,
-    "workers": 15,
+    "workers": 25,
     "queueSlots": 0,
     "bootSec": 30,
     "maxInstances": 20,
     "initialInstances": 4,
     "healthCheckSec": 0,
-    "metricCpuTarget": 0.2,
+    "metricCpuTarget": 0.7,
     "horizonSec": 1200
   },
   "name": "pulse-compare-threaded-vs-event-loop",
-  "notes": "Flip 'server profile' live: threaded (bounded workers, real admission control) vs event-loop (unlimited workers, node.js-style) against the same 5x pulse (210rps -> 1050rps over 5s, held 15s, back down over 5s -- shorter than the 30s boot time, so no capacity added mid-pulse can help). Per-request CPU time and I/O wait are now exponential (shifted-exp, near-zero floor + an exponential tail: cpuTimeMs mean ~16ms, ioWaitMs mean ~51ms) instead of fixed, so service time has real variance -- the same shape burstiness a real fleet sees from cache misses or GC pauses. Base load is sized so 4 instances is the right starting point (`initialInstances: 4`, both variants start there identically).\n\nThreaded's worker count is deliberately tuned to 15 with queueSlots at 0 (reject immediately once all 15 are busy -- no extra waiting room) for a specific reason: on 4 cores, once cpu time has real variance, MORE workers doesn't mean LESS latency -- cpuPool's queue is sized to `workers`, so a bigger worker pool just lets more admitted requests pile up waiting for the same 4 cores, and latency-of-the-admitted RISES (measured: workers=30 -> p95 ~211ms; workers=300 -> p95 ~870-1000ms, WORSE). Shrinking workers instead sheds the overflow at the door -- the ones that get in never queue behind ones that don't. Measured (seeds 1-5): threaded holds p95 latency at ~185-200ms throughout -- baseline, ramp, hold, and recovery are all indistinguishable -- for the cost of ~1.7-1.8% rejected, entirely inside the pulse window.\n\nEvent-loop (unlimited workers, 1 core, same exponential service time, same 210rps base) shows 0% errors -- nothing is ever rejected -- but the same pulse produces a mean latency spike of ~10-11.5s and a p95 spike of ~13-14.4s, both peaking just after the pulse itself ends, before the (up to 20-instance) scale-out and boot delay catch up. Zero rejections looks like success on an error-rate dashboard; it isn't. Same load, same variance, same instance count at the moment the pulse lands -- the only variable is whether the unit can say no. Threaded's tuned worker count turns 'too much load' into a small, fast, visible rejection rate. Unlimited workers turn it into an invisible, order-of-magnitude latency event."
+  "notes": "Flip 'server profile' live: threaded (bounded workers, real admission control) vs event-loop (unlimited workers, node.js-style) against the same 5x pulse (700rps -> 3500rps over 5s, held 15s, back down over 5s -- shorter than the 30s boot time, so no capacity added mid-pulse can help). Per-request CPU time and I/O wait are exponential (shifted-exp, near-zero floor + an exponential tail: cpuTimeMs mean ~16ms, ioWaitMs mean ~51ms) for real service-time variance. metricCpuTarget is 0.7 -- deliberately high. The point of this preset is a well-behaved unit driven HOT, not one running with generous headroom: threaded's admission control is what makes 70% sustainable at all, not a low target. Both variants start at the same 4 instances (`initialInstances`), sized for the 700rps base load at that target.\n\nThreaded's worker count is tuned to 25 (queueSlots: 0 -- reject immediately once busy, no extra waiting room) to land exactly on the edge: fewer workers (e.g. 15) sheds even at steady state (~5% baseline errors, target overshoots into rejection before any pulse); more (40+) admits everything but lets p95 climb well past baseline during the burst (workers=60 -> peak p95 ~354ms). 25 is the sweet spot -- 0% errors at steady state (69% measured utilization, matching the 70% target almost exactly) and only a small, bounded rise during the pulse itself.\n\nMeasured (seeds 1-5): threaded holds steady-state errors at 0% and, even at 70% target utilization, keeps p95 to ~208-210ms during the pulse (baseline is ~165-180ms -- a small, real but modest rise) for ~5.4-5.6% rejected, essentially all inside the burst window. It's a well-behaved unit driven hard, not an idle one coasting through the pulse on spare capacity.\n\nEvent-loop -- same pulse, same 700rps/70%-target base, same starting fleet, only workers unbounded -- shows this is not just a headroom story: mean latency spikes to ~66.3-67.0s and p95 to ~81.8-82.2s (seed-robust), taking roughly 6-7 minutes to fully recover, and even sheds ~8.6-8.8% of requests once concurrency outruns its own internal 5000-slot cap -- worse on every axis than threaded's clean, bounded, ~5.5% rejection. Same load, same variance, same starting fleet, same aggressive target -- the only variable is whether the unit can say no, and to what. A well-behaved unit can be run hot; a unit with no admission control cannot, no matter what target you set it to."
 }

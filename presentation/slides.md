@@ -416,38 +416,40 @@ like success on a dashboard that only tracks error rate — it isn't.
 Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip
 "server profile" live: threaded (bounded workers, real admission
 control) vs event-loop (unlimited workers, node.js-style) against the
-same 5x pulse (210rps -> 1050rps over 5s, held 15s, back down over
+same 5x pulse (700rps -> 3500rps over 5s, held 15s, back down over
 5s — shorter than the 30s boot time, so no capacity added mid-pulse
-can help). Per-request CPU time and I/O wait are now exponentially
-distributed (mean ~16ms / ~51ms), not fixed — real variance, the kind
-a real fleet gets from cache misses and GC pauses. Both variants
-start at the same 4 instances (`initialInstances`), sized for the
-210rps base load.
-Threaded's worker count is tuned to 15 (queueSlots: 0 — reject
-immediately once busy, no extra waiting room) for a specific reason:
-with real variance, MORE workers doesn't mean LESS latency on 4
-fixed cores — the CPU-pool queue is sized to the worker count, so a
-bigger pool just lets more admitted requests pile up waiting for the
-same cores (measured: workers=30 → p95 ~211ms; workers=300 → p95
-~870-1000ms, WORSE). Shrinking the pool sheds the overflow at the
-door instead — what gets in never queues behind what doesn't.
-Watch what this buys: threaded holds p95 latency at ~185-200ms
-through baseline, ramp, hold, AND recovery — indistinguishable — for
-~1.7-1.8% rejected, entirely inside the pulse window (seed-robust,
-5 seeds).
-Event-loop — same pulse, same 210rps base, same instance count at
-pulse start, only workers unbounded — shows 0% errors, nothing is
-ever rejected, but mean latency spikes to ~10-11.5s and p95 to
-~13-14.4s, peaking just after the pulse ends, before the (up to
-20-instance) scale-out and its boot delay can catch up.
-Same load, same variance, same starting fleet — the only variable is
-whether the unit can say no. Threaded's tuned pool turns "too much
-load" into a small, fast, visible rejection rate. Unlimited workers
-turn it into an invisible, order-of-magnitude latency event. Zero
-errors looks like success on a dashboard that only tracks error
-rate — it isn't. The fix isn't a smarter autoscaler, it's not letting
-the debt happen: reject early, bound the queue — the Responsible
-Autoscaling callback later.
+can help). Per-request CPU time and I/O wait are exponentially
+distributed (mean ~16ms / ~51ms) for real service-time variance. The
+CPU target is deliberately high — 70% — because the point isn't "a
+unit coasting on spare capacity survives a pulse", it's "a
+well-behaved unit can be run HOT and still survive one." Both
+variants start at the same 4 instances (`initialInstances`), sized
+for the 700rps base load at that target.
+Threaded's worker count is tuned to 25 (queueSlots: 0 — reject
+immediately once busy, no extra room) to land right on the edge:
+fewer (15) sheds even at steady state, before any pulse (~5% baseline
+errors); more (60) admits everything but lets p95 climb well past
+baseline during the burst (~354ms). 25 is the sweet spot — 0% errors
+at steady state (measured utilization ~69%, matching the 70% target)
+and only a small, bounded rise during the pulse.
+Watch what this buys: threaded holds 0% errors at steady state and,
+even run at 70% target, only rises to ~208-210ms p95 during the pulse
+(baseline ~165-180ms — a small, real, but modest rise) for
+~5.4-5.6% rejected, entirely inside the burst window (seed-robust,
+5 seeds). A well-behaved unit driven hard, not an idle one.
+Event-loop — same pulse, same 700rps/70%-target base, same starting
+fleet, only workers unbounded — shows this isn't just a headroom
+story: mean latency spikes to ~66-67s and p95 to ~82s (seed-robust),
+takes 6-7 minutes to fully recover, and even sheds ~8.6-8.8% of
+requests once concurrency outruns its own internal admission ceiling
+— worse than threaded on every axis, including the one (errors) it's
+supposedly avoiding.
+Same load, same variance, same starting fleet, same aggressive
+target — the only variable is whether the unit can say no, and to
+what. A well-behaved unit can be run hot; a unit with no admission
+control cannot, no matter what target you set it to. The fix isn't a
+smarter autoscaler, it's not letting the debt happen: reject early,
+bound the queue — the Responsible Autoscaling callback later.
 -->
 
 ---

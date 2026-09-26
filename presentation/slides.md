@@ -375,10 +375,10 @@ like success on a dashboard that only tracks error rate — it isn't.
 
 # Same Pulse, Same Target — Different Fate
 
-<Sim preset="pulse-compare" :expose="['serverProfile', 'metricCpuTarget', 'baseRps', 'rps', 'holdSec']" :height="130" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'metricCpuTarget', 'baseRps', 'rps', 'holdSec']" :height="130" />
 
 <!--
-Live DES from presets/pulse-compare.json. Flip "server profile" live:
+Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip "server profile" live:
 threaded (bounded workers, real admission control) vs event-loop
 (unlimited workers, node.js-style) against the IDENTICAL 25x pulse
 (8rps -> 200rps over 5s, held 15s, back down over 5s — shorter than

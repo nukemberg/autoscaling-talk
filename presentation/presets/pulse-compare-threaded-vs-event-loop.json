@@ -1,21 +1,25 @@
 {
-  "id": "cpu-step",
-  "name": "pulse-compare",
+  "id": "threaded-vs-event-loop",
   "params": {
-    "baseRps": 8,
-    "rps": 200,
+    "baseRps": 200,
+    "rps": 2000,
     "ramp": "trapezoid",
     "rampSec": 5,
     "holdSec": 15,
     "quietSec": 60,
     "serverProfile": "threaded",
-    "cpuTimeMs": 100,
-    "ioWaitMs": 0,
+    "cores": 1,
+    "workers": 10,
+    "queueSlots": 10,
     "bootSec": 30,
     "maxInstances": 30,
-    "healthCheckSec": 0,
-    "metricCpuTarget": 0.3,
+    "healthCheckSec": 5,
+    "metricCpuTarget": 0.8,
+    "hpaScaleUpPods": 2,
+    "hpaScaleUpPercent": 50,
+    "awsTarget": 0.6,
     "horizonSec": 1200
   },
+  "name": "pulse-compare-threaded-vs-event-loop",
   "notes": "Flip 'server profile' live: threaded (bounded workers, real admission control) vs event-loop (unlimited workers, node.js-style), identical 25x pulse (8rps -> 200rps over 5s, held 15s, back down over 5s -- shorter than the 30s boot time, so no new capacity can possibly arrive before the pulse is over) and, deliberately, the SAME low CPU target (0.3) for both. That last part is the point: ops running node.js commonly pick a low CPU target specifically because the unit can't shed load -- the assumption is that headroom substitutes for backpressure. This shows it doesn't, at least not against a real pulse.\n\nMeasured (seed 1, this exact preset): threaded scales 1 -> 4 instances (needed for the pulse), rejects the overflow it can't seat (~23% errors, all in the single burst window) and otherwise holds latency flat at ~100ms (just the service time) throughout, INCLUDING during the pulse -- the requests that ARE admitted never queue behind the ones that aren't. It's back to steady state within about 40s of the pulse starting.\n\nEvent-loop scales further (1 -> 12 instances -- 3x threaded's peak, chasing a queue more instances can't drain fast enough) and shows 0% errors -- nothing is ever rejected -- but latency explodes: ~12.6s right as the pulse peaks, climbing to a peak of ~89s about 90 seconds after the pulse already ended, and doesn't fall back to baseline until roughly 150-180s after the pulse started, 4-5x longer than threaded. Worse, the oversized fleet (12 instances) doesn't scale back down until HPA's 300s scale-down-stabilization window clears, so it sits over-provisioned for several minutes after latency itself has already recovered -- a second, quieter cost on top of the outage.\n\nThe controller is not the villain and is not the difference: HPA reads the same honest, pinned-at-100%-during-overload CPU metric in both variants and reacts sensibly in both. The difference is entirely in what happens to the requests it can't yet serve. Bounded workers turn 'too much load' into a fast, visible, bounded-blast-radius rejection. Unlimited workers turn the exact same overload into an invisible (0% errors!), unbounded wait that keeps compounding after the traffic that caused it is long gone -- and a lower CPU target doesn't fix that, it just raises the bar for how big a pulse it takes to trigger it."
 }

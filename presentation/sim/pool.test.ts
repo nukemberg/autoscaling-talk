@@ -96,3 +96,37 @@ describe('Pool: busy metric', () => {
     expect(granted).toBe(false)
   })
 })
+
+describe('Pool: outage', () => {
+  test('outage: no acquire, no enqueue; releases return to free without granting waiters', () => {
+    const sim = new Sim()
+    const p = new Pool(sim, { slots: 2, queueLimit: 5 })
+    const held = p.tryAcquire()!
+    let granted = false
+    expect(p.enqueue(() => { granted = true })).toBe(true) // queued before the outage
+    p.outage(10)
+    expect(p.down).toBe(true)
+    expect(p.tryAcquire()).toBeUndefined()
+    expect(p.enqueue(() => {})).toBe(false)
+    p.release(held, false) // in-flight drain during the outage: slot to free, waiter NOT granted
+    expect(granted).toBe(false)
+    expect(p.queued).toBe(1)
+    sim.run(10) // outage ends
+    expect(p.down).toBe(false)
+    expect(p.tryAcquire()).toBeDefined() // recovered slot is usable
+    p.release(0, false) // a release after recovery grants the queued waiter
+    expect(granted).toBe(true)
+  })
+
+  test('outage windows extend, not truncate', () => {
+    const sim = new Sim()
+    const p = new Pool(sim, { slots: 1 })
+    p.outage(5)
+    sim.run(3)
+    p.outage(5) // now until t=8
+    sim.run(4) // t=7: original window expired, extended one hasn't
+    expect(p.down).toBe(true)
+    sim.run(8) // absolute t=8: the extended window has expired
+    expect(p.down).toBe(false)
+  })
+})

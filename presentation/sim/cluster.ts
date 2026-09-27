@@ -39,6 +39,9 @@ export class Cluster {
 
   get ready(): number { return this.pool.filter((i) => i.state === 'ready').length }
 
+  /** The cluster-scoped resource pools, by name (for fault injection, e.g. a DB outage). */
+  get pools(): Record<string, Pool> { return this.clusterPools }
+
   /** Mean utilization across ready instances — the "cluster CPU" an autoscaler sees. */
   get utilization(): number {
     const ready = this.pool.filter((i) => i.state === 'ready')

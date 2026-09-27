@@ -1,4 +1,5 @@
 import { Arrivals } from '../arrivals'
+import { Clients } from '../clients'
 import { Cluster } from '../cluster'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
@@ -7,7 +8,7 @@ import { Rng } from '../rng'
 import { injectFaults } from '../faults'
 import { Stats } from '../stats'
 import {
-  attachController, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
+  attachController, clientParams, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
   neededInstances, scalerParams, serverParams,
 } from './shared'
 import { bool, num, type ParamSpec, type Params, type SimModel } from './types'
@@ -26,7 +27,7 @@ export const cpuModel: SimModel = {
   id: 'cpu-step',
   title: 'CPU autoscaling under a load step',
   description: 'Stable base load, then a ramp. Autoscaler acts on mean busy fraction across ready instances.',
-  params: [...loadParams, ...serverParams, ...scalerParams, ...faultParams, ...simParams],
+  params: [...loadParams, ...clientParams, ...serverParams, ...scalerParams, ...faultParams, ...simParams],
   charts: [
     {
       yLabel: 'instances',
@@ -44,6 +45,7 @@ export const cpuModel: SimModel = {
         { key: 'offeredRps', label: 'incoming', color: 'accent', width: 1.5 },
         { key: 'okRps', label: 'OK', color: 'ok', width: 2 },
         { key: 'failedRps', label: 'errors', color: 'cpu', width: 2 },
+        { key: 'retriedRps', label: 'client retries', color: 'latency', width: 1.5, dash: [2, 3] },
       ],
     },
     {
@@ -70,10 +72,23 @@ export const cpuModel: SimModel = {
     const stats = new Stats(sim, { track: bool(p, 'metricLatency') })
     const latencyTally = new Tally() // OK-request latencies for the current sample window, reset each tick
     const lb = new LoadBalancer(sim, lbOpts(p))
-    lb.onDone = (r) => {
-      stats.record(r)
-      if (r.outcome === 'ok') latencyTally.add(((r.doneAt ?? sim.now) - r.arrivedAt) * 1000)
-    }
+    // External clients sit between the load source and the LB: per-attempt
+    // timeout + retries. Failed attempts are NOT recorded by Stats — a request
+    // is recorded once, with its client-observed (end-to-end) outcome.
+    const clients = new Clients(sim, {
+      sink: (r) => lb.handle(r),
+      onDone: (r) => {
+        stats.record(r)
+        if (r.outcome === 'ok') latencyTally.add(((r.doneAt ?? sim.now) - r.arrivedAt) * 1000)
+      },
+      timeout: num(p, 'clientTimeoutSec') || undefined,
+      maxRetries: num(p, 'clientMaxRetries'),
+      retryDelay: num(p, 'clientRetryDelaySec'),
+      backoff: num(p, 'clientBackoffFactor'),
+      jitterFrac: num(p, 'clientRetryJitterPct') / 100,
+      rng,
+    })
+    lb.onDone = (r) => clients.observe(r)
     const cluster = new Cluster(sim, lb, instanceOpts(p, rng), clusterOpts(p))
     if (progress) sim.onProgress = (now) => progress(Math.min(1, now / end))
 
@@ -86,12 +101,13 @@ export const cpuModel: SimModel = {
     const t0 = sim.now
 
     const offered = loadProfile(p, t0 + quietSec, rng)
-    new Arrivals(sim, rng, offered, (r) => lb.handle(r)).start()
+    new Arrivals(sim, rng, offered, (r) => clients.handle(r)).start()
     const controller = attachController(sim, cluster, p, stats)
     const faultList = faults(p, t0)
-    injectFaults(sim, { cluster }, faultList)
+    injectFaults(sim, { cluster, pools: cluster.pools }, faultList)
 
     let lastTotals = { ...stats.totals }
+    let lastRetries = clients.retries
     const delta = (k: keyof typeof stats.totals) => stats.totals[k] - lastTotals[k]
     const rec = new Recorder(sim, sample, {
       instances: () => cluster.size,
@@ -101,10 +117,11 @@ export const cpuModel: SimModel = {
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,
+      retriedRps: () => (clients.retries - lastRetries) / sample,
       latencyMs: () => latencyTally.count ? latencyTally.mean : 0,
       p95Ms: () => latencyTally.count ? latencyTally.percentile(0.95) : 0,
       // Probes run in order; this last one resets the per-window baselines.
-      _tick: () => { lastTotals = { ...stats.totals }; latencyTally.reset(); return 0 },
+      _tick: () => { lastTotals = { ...stats.totals }; lastRetries = clients.retries; latencyTally.reset(); return 0 },
     })
     rec.start()
     sim.run(t0 + horizon)
@@ -124,6 +141,8 @@ export const cpuModel: SimModel = {
         peak: Math.max(...series.instances),
         final: series.instances[series.instances.length - 1],
         'errors %': ok + failed ? (100 * failed / (ok + failed)).toFixed(1) : '0',
+        'client retries': clients.retries,
+        'client timeouts': clients.timeouts,
       },
     }
   },

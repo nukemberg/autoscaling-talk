@@ -7,6 +7,7 @@ import { LoadBalancer } from './lb'
 import { Recorder } from './metrics'
 import { Rng } from './rng'
 import { Autoscaler, threshold } from './scaler'
+import { resolvePreset } from './scenarios/preset'
 import { Stats } from './stats'
 import { flatOpts } from './test-helpers'
 
@@ -93,5 +94,30 @@ describe('end to end', () => {
     const n = Object.values(stats.totals).reduce((a, b) => a + b, 0)
     expect(n).toBeGreaterThan(200_000)
     expect(ms).toBeLessThan(1000)
+  })
+})
+
+describe('external client retries amplify load under overload (herd)', () => {
+  // Full cpu-step model with a slow shared DB: mean latency exceeds the 1s
+  // client timeout, so every in-flight attempt gets abandoned (but keeps
+  // running server-side) and re-sent — the thundering herd, end to end.
+  const herd = (clientMaxRetries: number) => {
+    const { def, params } = resolvePreset({ model: 'cpu-step', params: {} })
+    return def.run({
+      ...params,
+      baseRps: 200, rps: 400, ramp: 'step', rampSec: 60, quietSec: 60, horizonSec: 600,
+      dbPoolSlots: 8, dbQueryMs: 30, workers: 300, queueSlots: 600,
+      clientTimeoutSec: 1, clientMaxRetries, clientRetryDelaySec: 0,
+    })
+  }
+
+  test('timeouts trigger sustained retries (herd), none without retries', () => {
+    const withRetries = herd(3), without = herd(0)
+    const sum = (a: number[]) => a.reduce((s, x) => s + x, 0)
+    expect(sum(withRetries.series.retriedRps)).toBeGreaterThan(0)
+    expect(sum(without.series.retriedRps)).toBe(0)
+    // Sustained, not a blip: retries still flowing in the back half of the run.
+    const half = Math.floor(withRetries.series.retriedRps.length / 2)
+    expect(sum(withRetries.series.retriedRps.slice(half))).toBeGreaterThan(0)
   })
 })

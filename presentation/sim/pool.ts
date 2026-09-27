@@ -26,8 +26,10 @@ export class Pool {
   private readonly queueLimit: number
   private _occupied = 0
   private _retired = 0
+  /** The resource (e.g. the shared DB) is down until this time: capacity 0, no queueing. */
+  private downUntil = -Infinity
 
-  constructor(sim: Sim, private opts: PoolOpts) {
+  constructor(private readonly sim: Sim, private opts: PoolOpts) {
     this.busy = new TimeWeighted(sim, 0)
     for (let i = 0; i < opts.slots; i++) this.free.push(i)
     this.queueLimit = opts.queueLimit ?? 0
@@ -39,8 +41,23 @@ export class Pool {
   get poisonProb(): number { return this.opts.poisonProb ?? 0 }
   /** Slots permanently lost to poisoning. */
   get retired(): number { return this._retired }
+  /** Whether the pool is currently in an outage window. */
+  get down(): boolean { return this.sim.now < this.downUntil }
+
+  /**
+   * The underlying resource is unavailable for `duration`: no acquisitions, no
+   * queueing — callers fail fast (a DB that refuses connections is a fast
+   * error, not a slow one). In-flight holders are unaffected; they release
+   * naturally on their own timers (queries are short, so the drain is
+   * negligible next to a real outage). Slots they release go back to `free`
+   * but grant no waiters until recovery.
+   */
+  outage(duration: number): void {
+    this.downUntil = Math.max(this.downUntil, this.sim.now + duration)
+  }
 
   tryAcquire(): number | undefined {
+    if (this.down) return undefined
     const i = this.free.shift()
     if (i === undefined) return undefined
     this._occupied++
@@ -50,6 +67,7 @@ export class Pool {
 
   /** Queues `onGranted` to fire once a slot frees. False if the queue is also full — caller must reject. */
   enqueue(onGranted: (slot: number) => void): boolean {
+    if (this.down) return false
     if (this.waiters.length >= this.queueLimit) return false
     this.waiters.push(onGranted)
     return true
@@ -65,6 +83,13 @@ export class Pool {
     }
     this._occupied--
     this.busy.set(this._occupied / this.opts.slots)
+    // While down, don't hand the slot to a waiter — the resource can't serve
+    // it. The slot just returns to `free` and waiters keep waiting (they drain
+    // again after recovery, on the next release).
+    if (this.down) {
+      this.free.push(slot)
+      return
+    }
     const next = this.waiters.shift()
     if (next) {
       this._occupied++

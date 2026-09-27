@@ -68,6 +68,21 @@ export function loadProfile(p: Params, t0: number, rng: Rng): Rate {
   return bool(p, 'noisyLoad') ? noisy(withT0, rng, num(p, 'noiseAmpPct') / 100) : withT0
 }
 
+// ---------------- external clients ----------------
+
+export const clientParams: ParamSpec[] = [
+  { key: 'clientTimeoutSec', label: 'client timeout', group: 'load', kind: 'range', min: 0, max: 600, step: 5, default: 0, unit: 's',
+    help: 'Per-attempt client-side timeout. 0 = clients wait forever. On expiry the client abandons the attempt — which keeps running server-side, still holding its resources — and may retry.' },
+  { key: 'clientMaxRetries', label: 'client retries', group: 'load', kind: 'range', min: 0, max: 10, step: 1, default: 0,
+    help: 'How many times external clients re-send after an error or timeout. These are not under our control — at best we can ask callers nicely to change this.' },
+  { key: 'clientRetryDelaySec', label: 'retry delay', group: 'load', kind: 'range', min: 0, max: 120, step: 1, default: 0, unit: 's',
+    help: 'Wait before a client re-sends. 0 = immediate retry: every failed client fires again at the same moment — the thundering herd.' },
+  { key: 'clientBackoffFactor', label: 'retry backoff ×', group: 'load', kind: 'range', min: 1, max: 4, step: 0.5, default: 1,
+    help: 'Retry delay multiplies by this per attempt. 1 = fixed delay; higher = exponential backoff.' },
+  { key: 'clientRetryJitterPct', label: 'retry jitter', group: 'load', kind: 'range', min: 0, max: 100, step: 5, default: 0, unit: '%',
+    help: 'Random spread (±) on the retry delay. Jitter is what de-syncs a herd: without it, all timed-out clients fire again together.' },
+]
+
 // ---------------- server ----------------
 
 export const serverParams: ParamSpec[] = [
@@ -452,7 +467,7 @@ export function neededInstances(p: Params, rps: number): number {
 // ---------------- faults ----------------
 
 const scoped = { faultKind: ['kill', 'hang', 'slow'] }
-const timed = { faultKind: ['hang', 'slow', 'upstreamOutage', 'upstreamSlow'] }
+const timed = { faultKind: ['hang', 'slow', 'upstreamOutage', 'upstreamSlow', 'poolOutage'] }
 
 export const faultParams: ParamSpec[] = [
   { key: 'faultKind', label: 'fault', group: 'fault', kind: 'select', default: 'none', options: [
@@ -461,7 +476,8 @@ export const faultParams: ParamSpec[] = [
     { value: 'hang', label: 'instances hang, then recover' },
     { value: 'slow', label: 'instances get slow' },
     { value: 'rollingRestart', label: 'rolling restart (deploy)' },
-  ], help: 'Something goes wrong at a chosen time. Watch what the autoscaler makes of it.' },
+    { value: 'poolOutage', label: 'shared DB outage (cluster pool)' },
+  ], help: 'Something goes wrong at a chosen time. Watch what the autoscaler makes of it. The shared-DB outage kills the cluster pool (dbPoolSlots > 0 required): every request that reaches its DB step fails fast until the DB returns.' },
   { key: 'faultAtSec', label: 'fault at', group: 'fault', kind: 'range', min: 0, max: 3600, step: 30, default: 1200, unit: 's',
     help: 'When the fault starts (scenario time).', activeWhen: { faultKind: ['kill', 'hang', 'slow', 'rollingRestart', 'upstreamOutage', 'upstreamSlow'] } },
   { key: 'faultCount', label: 'instances affected', group: 'fault', kind: 'range', min: 1, max: 50, step: 1, default: 2,
@@ -486,6 +502,7 @@ export function faults(p: Params, t0: number): Fault[] {
     case 'rollingRestart': return [{ kind: 'rollingRestart', at, batch: num(p, 'rollingBatch'), interval: num(p, 'rollingIntervalSec') }]
     case 'upstreamOutage': return [{ kind: 'upstreamOutage', at, duration: num(p, 'faultDurationSec') }]
     case 'upstreamSlow': return [{ kind: 'upstreamSlow', at, duration: num(p, 'faultDurationSec'), factor: num(p, 'faultFactor') }]
+    case 'poolOutage': return [{ kind: 'poolOutage', pool: 'db', at, duration: num(p, 'faultDurationSec') }]
     default: return []
   }
 }

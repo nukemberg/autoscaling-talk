@@ -1,0 +1,20 @@
+{
+  "model": "cpu-step",
+  "name": "thundering-herd",
+  "params": {
+    "rps": 270,
+    "quietSec": 120,
+    "horizonSec": 1800,
+    "ioWaitMs": 20,
+    "workers": 300,
+    "queueSlots": 600,
+    "dbPoolSlots": 8,
+    "dbQueryMs": 30,
+    "metricCpu": false,
+    "metricLatency": true,
+    "clientTimeoutSec": 3,
+    "clientMaxRetries": 3,
+    "clientRetryDelaySec": 0
+  },
+  "notes": "The thundering herd (foh.3): latency-driven scaler + external client retries. Same skeleton as latency-runaway (scale on mean latency, metricCpu off; shared cluster-wide DB pool 8 slots x 30ms = 266.7 rps hard ceiling; step load to 270rps, ~1% over it; workers 300 / queue 600 per instance deliberately generous so admission control never becomes the story). NEW on top: external clients (sim/clients.ts) with a 3s per-attempt timeout and up to 3 immediate retries (no delay, no jitter, no backoff — the default behavior most HTTP clients ship).\n\nMeasured (seed 1, this exact preset), t relative to load start: healthy base (100rps) at ~104ms mean latency. After the step to 270rps the DB-bound sojourn grows past 3s: at ~285s the first client timeouts fire, by ~290s the retry flood is sustained (>100 retries/s), by ~310s OK throughput has collapsed to ~0, and by ~345s the fleet is pinned at maxInstances (100) — vs ~2 instances a CPU-based sizer would ask for at this load. End state: 0 OK/s, ~270 failed/s (every offered request dies), ~220 client retries/s sustained to the end of the run. Totals: ~404k client timeout give-ups, ~67k re-sent attempts, ~88% client-visible error rate. The autoscaler did everything right by its own metric and made it worse: every added instance just adds more clients hammering the same 8 DB slots.\n\nThree couplings worth calling out on stage:\n1. The timeout is the cliff, not a dial. This preset is latency-runaway with ONE knob changed (clientTimeoutSec 0 -> 3). At a 5s timeout the same run shows zero retries and behaves exactly like latency-runaway (267 rps OK, 1% errors, expensive-but-working). One 2s change in client config flips 'expensive' into 'total outage' — and it's a knob WE DON'T CONTROL: external clients shipped their own timeout and retry policy.\n2. Retries stack load instead of replacing it. A timed-out attempt is abandoned by the client but NOT cancelled by the server: it keeps its worker slot and DB-queue position until it completes. So attempts accumulate: ~490 attempts/s enter the system against 267/s of DB throughput.\n3. The bounded DB queue (1000) is the only reason the herd doesn't grow without bound: overflow attempts are rejected instantly, and 'rejected' is NOT retried (external clients retry errors and timeouts, not 503s, per this model). The herd persists at ~220/s forever — a self-sustaining storm powered entirely by client-side policy. Add jitter/backoff (clientRetryJitterPct / clientBackoffFactor) or remove retries to show the counterfactual live.\n\nChart reading: instances ratchet to max while OK goes to zero — the second feedback loop (retries inflate client-observed latency, which is the scaler's input) means scaling is worse than useless here. No upstream collapse is modeled in cpu-step (the DB is a bounded pool, not the full Upstream failure-mode model) — the meltdown is pure coupling + retry amplification."
+}

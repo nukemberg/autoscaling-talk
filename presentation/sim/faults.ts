@@ -1,6 +1,7 @@
 import type { Cluster } from './cluster'
 import type { Sim } from './engine'
 import type { Instance } from './instance'
+import type { Pool } from './pool'
 import type { Upstream } from './upstream'
 
 /** How many instances a fault touches: absolute or fraction of current size (min 1). */
@@ -13,10 +14,13 @@ export type Fault =
   | { kind: 'rollingRestart'; at: number; batch: number; interval: number }
   | { kind: 'upstreamOutage'; at: number; duration: number }
   | { kind: 'upstreamSlow'; at: number; duration: number; factor: number }
+  | { kind: 'poolOutage'; pool: string; at: number; duration: number }
 
 export interface FaultTargets {
   cluster: Cluster
   upstream?: Upstream
+  /** Cluster-scoped resource pools (e.g. the shared DB), by name — for `poolOutage`. */
+  pools?: Record<string, Pool>
 }
 
 /** Oldest instances first: the ones that have been serving, not fresh boots. */
@@ -31,11 +35,14 @@ export function injectFaults(sim: Sim, targets: FaultTargets, faults: Fault[]): 
     if ((f.kind === 'upstreamOutage' || f.kind === 'upstreamSlow') && !targets.upstream) {
       throw new Error(`fault ${f.kind} needs an upstream`)
     }
+    if (f.kind === 'poolOutage' && targets.pools?.[f.pool] === undefined) {
+      throw new Error(`fault poolOutage needs a "${f.pool}" pool`) // e.g. dbPoolSlots = 0
+    }
     sim.scheduleAt(f.at, () => apply(sim, targets, f))
   }
 }
 
-function apply(sim: Sim, { cluster, upstream }: FaultTargets, f: Fault): void {
+function apply(sim: Sim, { cluster, upstream, pools }: FaultTargets, f: Fault): void {
   switch (f.kind) {
     case 'kill':
       for (const i of pick(cluster, f)) cluster.crash(i)
@@ -64,6 +71,9 @@ function apply(sim: Sim, { cluster, upstream }: FaultTargets, f: Fault): void {
       break
     case 'upstreamSlow':
       upstream!.slow(f.factor, f.duration)
+      break
+    case 'poolOutage':
+      pools![f.pool]!.outage(f.duration)
       break
   }
 }

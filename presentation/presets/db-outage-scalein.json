@@ -1,0 +1,17 @@
+{
+  "model": "cpu-step",
+  "name": "db-outage-scalein",
+  "params": {
+    "rps": 240,
+    "quietSec": 120,
+    "horizonSec": 2700,
+    "ioWaitMs": 50,
+    "cpuTimeMs": 50,
+    "dbPoolSlots": 8,
+    "dbQueryMs": 30,
+    "faultKind": "poolOutage",
+    "faultAtSec": 600,
+    "faultDurationSec": 600
+  },
+  "notes": "Scale-in on upstream failure, then slow recovery (foh.2). Healthy system: 100->240 rps step (under the 8-slot DB's 266.7 rps ceiling), CPU-heavy requests (50ms cpu + 50ms io + 30ms db) sized by the default HPA on CPU (target 50%) to ~6 instances, mean latency ~100ms. At t=600 the shared DB cluster pool goes down for 600s (new 'shared DB outage' fault: pool capacity 0, no queueing — a DB refusing connections is a FAST error; requests die ~20ms in at the DB step, before touching any CPU).\n\nMeasured (seed 1, this exact preset): the moment the DB dies, OK throughput goes to 0 and errors run at the full ~240/s — but the fleet does NOT collapse immediately: HPA's CPU signal decays only as in-flight requests drain, and scale-in stabilization holds ~6 instances for ~2-4 minutes into a total outage. Then the math is merciless: desired = ceil(current x observed/target) with observed ~0 -> 0, clamped to min (1). By t~900 the cluster is one instance — the autoscaler has dutifully shut down the fleet during the outage, exactly the opposite of what the situation needs.\n\nWhy CPU collapses: every request's plan is io -> db -> cpu. The DB step rejects fast, so the cpu step never runs — utilization ~0 while the system is failing at full rate. A utilization metric measures WORK DONE, and an outage is defined by work NOT done. (The latency metric is deliberately immune: metricRegistry reports 'unavailable' when there are no OK completions, so a latency-driven scaler holds instead of shrinking — different failure, same blindness.)\n\nRecovery at t=1200 is the second half of the nightmare: the DB is back but the fleet is one instance. 240 rps floods a single pod: worker pool (300) + queue (600) fill in seconds, rejections spike, mean latency peaks ~900ms. The HPA can only double at its own cadence — one recommendation per sync period, then 60s of boot time — so the climb 1 -> 2 -> 4 -> 7 takes ~10 minutes, and it overshoots (7 > the original 6). Total client-visible error rate ~28%, most of it AFTER the DB recovered.\n\nDeliberately NOT simulated (yet): instances don't die from overload here — recovery overload shows up as queue-full rejections and latency, not crashes. That progressive-degradation beat (foh.4's unstable scaling unit) needs the failure-mode machinery. Client retries are also off: turn them on and the recovery spike gets worse (foh.3's herd, arriving to kick the DB while it's down).\n\nChart reading: instances collapse while errors flatline at 100% of load; then a second error spike AFTER the DB is back — the outage ends, the incident doesn't."
+}

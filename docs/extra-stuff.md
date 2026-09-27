@@ -94,6 +94,14 @@ Things the sims taught us that we didn't expect:
 5. Spot interruption with pool exhaustion.
 6. Two-level HPA + node autoscaler + consolidation.
 
+## In-repo deep dives
+
+- [Queueing networks: from the LB to the DB](queueing-networks.md) — open vs. closed networks,
+  why the LB algorithm changes the network type (least-connections closes the loop through the
+  *response*), the knee where utilization stops meaning anything, and how to tune queue slots,
+  threads, timeout, and LB policy against it. Step-by-step, no queueing-theory background
+  assumed.
+
 ## Related talks
 
 Deeper treatments of ideas this talk only has time to gesture at:

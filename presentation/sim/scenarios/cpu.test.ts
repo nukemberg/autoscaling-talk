@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest'
 import cpuOscillation from '../../presets/cpu-oscillation.json'
 import cpuStep from '../../presets/cpu-step.json'
+import dbOutageScalein from '../../presets/db-outage-scalein.json'
+import thunderingHerd from '../../presets/thundering-herd.json'
 import { cpuModel } from './cpu'
 import { resolvePreset, type Preset } from './preset'
 import { defaults, type Params } from './types'
@@ -8,7 +10,7 @@ import { defaults, type Params } from './types'
 const base = defaults(cpuModel.params)
 const run = (over: Params = {}) => cpuModel.run({ ...base, ...over })
 /** Runs the preset JSON the slides actually load, so these tests track what's on stage. */
-const presets: Record<string, Preset> = { 'cpu-oscillation': cpuOscillation, 'cpu-step': cpuStep }
+const presets: Record<string, Preset> = { 'cpu-oscillation': cpuOscillation, 'cpu-step': cpuStep, 'thundering-herd': thunderingHerd, 'db-outage-scalein': dbOutageScalein }
 const runPreset = (name: string) => cpuModel.run(resolvePreset(presets[name]).params)
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
@@ -157,8 +159,42 @@ describe('cpu model', () => {
     expect(r.summary.final).toBe(r.summary.peak) // never scales past where it ends up
   })
 
-  test('summary reports needed / peak / final / error %', () => {
+  test('summary reports needed / peak / final / error % / client retry counts', () => {
     const r = run()
-    expect(Object.keys(r.summary)).toEqual(['needed', 'peak', 'final', 'errors %'])
+    expect(Object.keys(r.summary)).toEqual(['needed', 'peak', 'final', 'errors %', 'client retries', 'client timeouts'])
+  })
+
+  test('thundering-herd preset (as shipped): retry flood, OK collapse, fleet pinned at max', () => {
+    const r = runPreset('thundering-herd')
+    const avg = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length
+    const tail = (s: number[]) => avg(s.slice(-10))
+    // The full meltdown arc: retries start, OK collapses, the fleet maxes out.
+    expect(r.summary.peak).toBe(100) // pinned at maxInstances
+    expect(tail(r.series.okRps)).toBeLessThan(5) // no goodput left
+    expect(tail(r.series.failedRps)).toBeGreaterThan(250) // every offered request dies
+    expect(tail(r.series.retriedRps)).toBeGreaterThan(100) // sustained retry flood, not a blip
+    // Healthy before the step: base-load latency stays ~100ms for the first samples.
+    expect(avg(r.series.latencyMs.slice(0, 5))).toBeLessThan(200)
+  })
+
+  test('db-outage-scalein preset (as shipped): fast DB death, fleet shrinks to min during outage, slow recovery', () => {
+    const r = runPreset('db-outage-scalein')
+    const at = (t: number) => Math.round(t / 5) // sampleSec = 5, t is t0-relative
+    const inst = (t: number) => r.series.instances[at(t)]
+    const avg = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length
+    // Healthy before the fault: ~6 instances, low latency.
+    expect(inst(580)).toBeGreaterThan(4)
+    expect(avg(r.series.latencyMs.slice(at(400), at(580)))).toBeLessThan(200)
+    // Outage: total goodput loss, fleet shrinks to min.
+    expect(avg(r.series.okRps.slice(at(700), at(1100)))).toBeLessThan(5)
+    expect(avg(r.series.failedRps.slice(at(700), at(1100)))).toBeGreaterThan(200)
+    expect(inst(900)).toBeLessThanOrEqual(2) // scaled in during the outage
+    expect(inst(1150)).toBeLessThanOrEqual(2) // and stays there until the DB is back
+    // Recovery is slow: still degraded well after the DB returned (t=1200).
+    expect(avg(r.series.failedRps.slice(at(1250), at(1350)))).toBeGreaterThan(50)
+    expect(inst(1350)).toBeLessThan(6)
+    // Eventually healthy again — and slightly overshot (7 > the original 6).
+    expect(avg(r.series.okRps.slice(-10))).toBeGreaterThan(200)
+    expect(inst(2690)).toBeGreaterThanOrEqual(6)
   })
 })

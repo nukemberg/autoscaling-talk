@@ -34,6 +34,10 @@ export interface InstanceOpts {
   hungCpu?: number
   /** Uniform [0,1) sampler used to roll poison on pool release. Default: never poisons. */
   rollUniform?: () => number
+  /** Service-time multiplier for instance-scoped steps, sampled at step start from this
+   *  instance's own live outstanding count (in-flight + queued) — self-inflicted, automatic
+   *  slowdown under load, as opposed to `slow()`'s time-windowed injected fault. Default: none. */
+  degradation?: (outstanding: number) => number
 }
 
 interface Occupant {
@@ -95,6 +99,8 @@ export class Instance {
 
   get inFlight(): number { return this.workerPool.occupied }
   get queued(): number { return this.workerQueue.length }
+  /** In-flight + queued — the load signal `degradation` is sampled against. */
+  get outstanding(): number { return this.inFlight + this.queued }
   get utilization(): number { return this.workerPool.occupied / this.workerPool.slots }
   get hung(): boolean { return this.sim.now < this.hungUntil }
   /** What a health check sees: serving and not stuck. */
@@ -233,6 +239,7 @@ export class Instance {
     const step = occ.plan[occ.stepIndex]!
     let duration = step.duration
     if (step.scope === 'instance' && this.sim.now < this.slowUntil) duration *= this.slowFactor
+    if (step.scope === 'instance' && this.opts.degradation) duration *= this.opts.degradation(this.outstanding)
     const pool = step.scope === 'cluster'
       ? this.clusterPools[step.pool]
       : step.pool === 'cpu' ? this.cpuPool : this.instancePools[step.pool]

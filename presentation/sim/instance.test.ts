@@ -446,6 +446,43 @@ describe('Instance faults', () => {
     expect(done[0]!.doneAt).toBe(1) // unaffected — a local-instance fault shouldn't inflate a shared upstream's time
   })
 
+  test('degradation: multiplies instance-scoped step duration by a function of live outstanding count', () => {
+    const sim = new Sim()
+    const { inst, done } = make(sim, {
+      workerPool: { slots: 4 }, cpuPool: { slots: 4 }, steps: () => [cpuStep(1)],
+      degradation: (outstanding) => (outstanding >= 3 ? 3 : 1),
+    })
+    inst.handle(req(sim, 0)) // outstanding 1 at start -> factor 1, done at 1
+    inst.handle(req(sim, 1)) // outstanding 2 at start -> factor 1, done at 1
+    inst.handle(req(sim, 2)) // outstanding 3 at start -> factor 3, done at 3
+    sim.run()
+    expect(done.map((r) => r.doneAt)).toEqual([1, 1, 3])
+  })
+
+  test('degradation does not multiply cluster-scoped steps', () => {
+    const sim = new Sim()
+    const db = new Pool(sim, { slots: 5 })
+    const { inst, done } = make(sim, {
+      cpuPool: { slots: 1 }, clusterPools: { db }, steps: () => [{ pool: 'db', scope: 'cluster', duration: 1 }],
+      degradation: () => 3,
+    })
+    inst.handle(req(sim, 0))
+    sim.run()
+    expect(done[0]!.doneAt).toBe(1)
+  })
+
+  test('degradation composes with slow(): both multipliers apply to the same instance-scoped step', () => {
+    const sim = new Sim()
+    const { inst, done } = make(sim, {
+      workerPool: { slots: 4 }, cpuPool: { slots: 4 }, steps: () => [cpuStep(1)],
+      degradation: () => 2,
+    })
+    inst.slow(3, 10)
+    inst.handle(req(sim, 0))
+    sim.run()
+    expect(done[0]!.doneAt).toBe(6) // 1 * slowFactor(3) * degradation(2)
+  })
+
   test('booting instance is not healthy', () => {
     const sim = new Sim()
     const { inst } = make(sim, { bootTime: 5 })

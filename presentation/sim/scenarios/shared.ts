@@ -5,6 +5,7 @@ import {
 import type { Sim } from '../engine'
 import type { Cluster, ClusterOpts } from '../cluster'
 import type { Fault } from '../faults'
+import { buildDegradation } from '../degradation'
 import type { InstanceOpts, Step } from '../instance'
 import type { LbOpts } from '../lb'
 import { AwsSimpleScaling, AwsStepScaling, AwsTargetTracking } from '../controllers/aws'
@@ -140,6 +141,31 @@ export const serverParams: ParamSpec[] = [
   { key: 'hungCpu', label: 'CPU reported while hung', group: 'server', kind: 'select', default: 'slots', options: [
     { value: 'slots', label: 'slots busy (honest)' }, { value: 'idle', label: '0% — stuck on I/O' }, { value: 'spinning', label: '100% — GC / spin' },
   ], help: 'What the metrics agent reports for a hung instance. The autoscaler believes it.' },
+  { key: 'degradationShape', label: 'overload degradation', group: 'server', kind: 'select', default: 'none', options: [
+    { value: 'none', label: 'none (bounded pools just reject)' },
+    { value: 'step', label: 'step: cliff past a threshold' },
+    { value: 'logistic', label: 'logistic: smooth ramp before the cliff' },
+    { value: 'usl', label: 'USL: contention + coherency (locks, GC, cache/kernel cross-talk)' },
+  ], help: 'Self-inflicted service-time multiplier as a function of THIS instance\'s own live outstanding '
+    + 'requests (in-flight + queued) — more load makes each request slower, which keeps more requests '
+    + 'outstanding, a positive feedback loop. Distinct from the fault-injected, time-windowed `slow`: this is '
+    + 'automatic and driven purely by live load. Requests still complete (badly) — no new rejections.' },
+  { key: 'degradationThreshold', label: 'degradation threshold', group: 'server', kind: 'range', min: 1, max: 500, step: 1, default: 40,
+    activeWhen: { degradationShape: ['step', 'logistic'] },
+    help: 'Outstanding-request count where degradation kicks in ("step": the cliff; "logistic": the curve\'s midpoint).' },
+  { key: 'degradationMaxFactor', label: 'degradation max factor', group: 'server', kind: 'range', min: 1, max: 50, step: 0.5, default: 5,
+    activeWhen: { degradationShape: ['step', 'logistic'] },
+    help: 'Service-time multiplier once fully degraded.' },
+  { key: 'degradationWidth', label: 'degradation width', group: 'server', kind: 'range', min: 0.1, max: 200, step: 0.1, default: 10,
+    activeWhen: { degradationShape: 'logistic' },
+    help: 'How gradual the ramp is around the threshold — smaller is a sharper transition, closer to "step".' },
+  { key: 'degradationAlpha', label: 'USL contention (α)', group: 'server', kind: 'range', min: 0, max: 0.2, step: 0.001, default: 0.01,
+    activeWhen: { degradationShape: 'usl' },
+    help: 'Linear penalty per unit of outstanding load — serialization / lock-wait time.' },
+  { key: 'degradationBeta', label: 'USL coherency (β)', group: 'server', kind: 'range', min: 0, max: 0.01, step: 0.0001, default: 0.0005,
+    activeWhen: { degradationShape: 'usl' },
+    help: 'Quadratic penalty per unit of outstanding load — cache-coherency traffic, stop-the-world GC, kernel '
+      + 'scheduler cross-CPU sync. Past a point this makes MORE load produce LESS throughput: real thrashing collapse.' },
 ]
 
 /** Requests per second one instance can serve at 100% CPU — the CPU-bound ceiling. I/O overlaps for free given enough workers. */
@@ -178,6 +204,15 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
   // cores is the usual config (I/O waits on the worker, not on the core).
   const workers = bool(p, 'unlimitedWorkers') ? UNBOUNDED_WORKERS : num(p, 'workers')
 
+  const degradationShape = str(p, 'degradationShape')
+  const degradation = degradationShape === 'none' ? undefined : buildDegradation(
+    degradationShape === 'step'
+      ? { shape: 'step', threshold: num(p, 'degradationThreshold'), maxFactor: num(p, 'degradationMaxFactor') }
+      : degradationShape === 'logistic'
+        ? { shape: 'logistic', center: num(p, 'degradationThreshold'), width: num(p, 'degradationWidth'), maxFactor: num(p, 'degradationMaxFactor') }
+        : { shape: 'usl', alpha: num(p, 'degradationAlpha'), beta: num(p, 'degradationBeta') },
+  )
+
   return {
     bootTime: () => sampleDist(rng, p, 'bootSec'),
     workerPool: { slots: workers, queueLimit: num(p, 'queueSlots'), poisonProb: num(p, 'poisonProb') },
@@ -190,6 +225,7 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
       return plan
     },
     instancePools: { io: { slots: workers } }, // I/O wait doesn't contend on a bounded resource of its own; the worker envelope already bounds concurrency
+    degradation,
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
     rollUniform: () => rng.next(), // real roll for workerPool.poisonProb — Instance's own default (rollUniform omitted) never poisons, so this must be supplied for poisonProb to do anything
   }

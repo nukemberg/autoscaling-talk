@@ -38,6 +38,11 @@ export interface InstanceOpts {
    *  instance's own live outstanding count (in-flight + queued) — self-inflicted, automatic
    *  slowdown under load, as opposed to `slow()`'s time-windowed injected fault. Default: none. */
   degradation?: (outstanding: number) => number
+  /** Which instance-scoped steps `degradation` multiplies: 'all' (default) — a generic
+   *  everything's-slower overload; 'cpu' — only the step naming pool 'cpu', for modeling
+   *  thrashing (GC pauses, lock/cache contention, kernel scheduling overhead) that burns extra
+   *  CPU time without touching I/O wait, and shows up honestly as higher CPU pool occupancy. */
+  degradationTarget?: 'all' | 'cpu'
 }
 
 interface Occupant {
@@ -239,7 +244,9 @@ export class Instance {
     const step = occ.plan[occ.stepIndex]!
     let duration = step.duration
     if (step.scope === 'instance' && this.sim.now < this.slowUntil) duration *= this.slowFactor
-    if (step.scope === 'instance' && this.opts.degradation) duration *= this.opts.degradation(this.outstanding)
+    if (step.scope === 'instance' && this.opts.degradation && (this.opts.degradationTarget !== 'cpu' || step.pool === 'cpu')) {
+      duration *= this.opts.degradation(this.outstanding)
+    }
     const pool = step.scope === 'cluster'
       ? this.clusterPools[step.pool]
       : step.pool === 'cpu' ? this.cpuPool : this.instancePools[step.pool]

@@ -150,6 +150,15 @@ export const serverParams: ParamSpec[] = [
     + 'requests (in-flight + queued) — more load makes each request slower, which keeps more requests '
     + 'outstanding, a positive feedback loop. Distinct from the fault-injected, time-windowed `slow`: this is '
     + 'automatic and driven purely by live load. Requests still complete (badly) — no new rejections.' },
+  { key: 'degradationTarget', label: 'degradation target', group: 'server', kind: 'select', default: 'all', options: [
+    { value: 'all', label: 'everything (generic overload)' },
+    { value: 'cpu', label: 'CPU only (thrashing: GC / lock / cache / kernel-sched contention)' },
+  ], activeWhen: { degradationShape: ['step', 'logistic', 'usl'] },
+    help: '"Everything" stretches every instance-scoped step, including I/O wait — a generic "the whole '
+      + 'request got slower" model. "CPU only" stretches just the cpu step, leaving I/O wait untouched — models '
+      + 'thrashing mechanisms (GC pauses, lock contention, cache-line bouncing, kernel scheduler cross-CPU '
+      + 'overhead) that burn extra CPU cycles per request without affecting I/O; the honest side effect is the '
+      + 'CPU metric itself rising with the degradation — no lying required, unlike a hung/spinning instance.' },
   { key: 'degradationThreshold', label: 'degradation threshold', group: 'server', kind: 'range', min: 1, max: 500, step: 1, default: 40,
     activeWhen: { degradationShape: ['step', 'logistic'] },
     help: 'Outstanding-request count where degradation kicks in ("step": the cliff; "logistic": the curve\'s midpoint).' },
@@ -226,6 +235,7 @@ export function instanceOpts(p: Params, rng: Rng): InstanceOpts {
     },
     instancePools: { io: { slots: workers } }, // I/O wait doesn't contend on a bounded resource of its own; the worker envelope already bounds concurrency
     degradation,
+    degradationTarget: str(p, 'degradationTarget') as 'all' | 'cpu',
     hungCpu: hung === 'idle' ? 0 : hung === 'spinning' ? 1 : undefined,
     rollUniform: () => rng.next(), // real roll for workerPool.poisonProb — Instance's own default (rollUniform omitted) never poisons, so this must be supplied for poisonProb to do anything
   }

@@ -471,6 +471,30 @@ describe('Instance faults', () => {
     expect(done[0]!.doneAt).toBe(1)
   })
 
+  test("degradationTarget 'cpu': only multiplies the step naming pool 'cpu', not other instance-scoped steps", () => {
+    const sim = new Sim()
+    const { inst, done } = make(sim, {
+      cpuPool: { slots: 4 }, instancePools: { io: { slots: 4 } },
+      steps: () => [{ pool: 'io', scope: 'instance', duration: 3 }, cpuStep(2)],
+      degradation: () => 4, degradationTarget: 'cpu',
+    })
+    inst.handle(req(sim))
+    sim.run()
+    expect(done[0]!.doneAt).toBe(3 + 2 * 4) // io untouched, cpu step x4
+  })
+
+  test("degradationTarget default ('all') still multiplies every instance-scoped step, including io", () => {
+    const sim = new Sim()
+    const { inst, done } = make(sim, {
+      cpuPool: { slots: 4 }, instancePools: { io: { slots: 4 } },
+      steps: () => [{ pool: 'io', scope: 'instance', duration: 3 }, cpuStep(2)],
+      degradation: () => 4,
+    })
+    inst.handle(req(sim))
+    sim.run()
+    expect(done[0]!.doneAt).toBe(3 * 4 + 2 * 4)
+  })
+
   test('degradation composes with slow(): both multipliers apply to the same instance-scoped step', () => {
     const sim = new Sim()
     const { inst, done } = make(sim, {

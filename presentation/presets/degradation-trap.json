@@ -1,0 +1,25 @@
+{
+  "model": "cpu-step",
+  "name": "degradation-trap",
+  "params": {
+    "baseRps": 300,
+    "rps": 1600,
+    "ramp": "pulse-box",
+    "rampSec": 60,
+    "quietSec": 180,
+    "horizonSec": 1800,
+    "noisyLoad": false,
+    "cores": 4,
+    "cpuTimeMs": 10,
+    "ioWaitMs": 90,
+    "workers": 50,
+    "queueSlots": 1000,
+    "minInstances": 4,
+    "maxInstances": 4,
+    "initialInstances": 4,
+    "degradationShape": "step",
+    "degradationThreshold": 30,
+    "degradationMaxFactor": 8
+  },
+  "notes": "A 60s load pulse the fleet never recovers from — not because it isn't sized back down, but because overload permanently wrecked each instance's own service time (rk6's self-inflicted degradation model, not a fault or an autoscaler failure). Fixed 4-instance fleet (min=max=initial=4, autoscaler along for the ride but never the story) — isolates the degradation trap from any scaling confound, same style as lb-policy-compare.\n\nHealthy baseline: 300rps/4 = 75rps/instance, ~7.5 concurrent requests per instance (100ms mean service: 90ms io + 10ms cpu) against a 50-worker pool and a step degradation threshold of 30 outstanding — nowhere close, latency steady at 100ms, 0% errors.\n\nAt t=180 the pulse hits 1600rps (400rps/instance) for 60s. Concurrency per instance shoots past 30, `step` degradation snaps the cpu-step multiplier to 8x — the SAME real compute, now taking 8x as long to leave the worker. That's the trap closing: longer holds mean MORE outstanding at the next arrival, which is already past 30, so the multiplier stays clamped at 8x. The math against 75rps/instance settles it for good: effective capacity through a degraded instance is roughly workers/serviceTime = 50 / 0.8s = 62.5rps — below the 75rps/instance BASE load, let alone the pulse. There is no rps low enough to drain it once the ramp ends.\n\nMeasured (seed 1, this exact preset): the pulse climbs the scaling metric to 100% and mean latency to ~21s; the metric and latency then hold there for the rest of the 1800s horizon (checked out to 5000s while tuning — it never budges). Steady OK throughput settles at ~202rps (not 300) with ~100rps of queue-full rejections on top — the pre-existing bounded-queue admission control doing its job on a permanently-degraded fleet, a second, independent failure mode layered on top of the first.\n\nControl check: the identical run with `degradationShape: 'none'` recovers fully the moment the pulse ends — 0% errors, 100ms latency, steady state restored. The trap is purely the degradation model; nothing else in this preset would cause it.\n\nWhy the autoscaler can't save this demo (and isn't asked to): held at min=max=4 on purpose. In a free-scaling run, HPA would react to the 100% metric — but note it's now driven by REAL per-request occupancy (each degraded request genuinely holds a core 8x longer), so the metric isn't lying the way a hung/spinning instance's would; scaling out adds real capacity as usual. The pedagogical point here is upstream of that: a single instance's own load-response curve has a cliff its own admission control doesn't protect it from, because it's a service-TIME effect, not a queue-full reject."
+}

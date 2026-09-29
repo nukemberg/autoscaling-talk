@@ -1,0 +1,26 @@
+{
+  "model": "cpu-step",
+  "name": "degradation-trap-cpu",
+  "params": {
+    "baseRps": 300,
+    "rps": 800,
+    "ramp": "pulse-box",
+    "rampSec": 60,
+    "quietSec": 180,
+    "horizonSec": 1800,
+    "noisyLoad": false,
+    "cores": 4,
+    "cpuTimeMs": 10,
+    "ioWaitMs": 90,
+    "workers": 50,
+    "queueSlots": 1000,
+    "minInstances": 2,
+    "maxInstances": 20,
+    "initialInstances": 2,
+    "degradationShape": "step",
+    "degradationTarget": "cpu",
+    "degradationThreshold": 30,
+    "degradationMaxFactor": 80
+  },
+  "notes": "Same load pulse and same free-scaling fleet (min=2, init=2, max=20) as `degradation-trap`, but `degradationTarget: 'cpu'` instead of the default 'all' — models thrashing (GC pauses, lock contention, cache-line bouncing, kernel scheduler cross-CPU overhead) that burns extra CPU cycles per request WITHOUT touching I/O wait, instead of a generic 'everything got slower'.\n\nBecause only the 10ms cpu step (not the 90ms io step) is multiplied, hitting an equivalent trap needs a much bigger factor: 80x here vs 8x in the 'all' variant. Below the 30-outstanding threshold the cpu step is untouched, so the quiet baseline is byte-for-byte identical to `degradation-trap`'s: 2 instances, 100ms latency, 0% errors.\n\nAt t=180 the pulse pushes per-instance concurrency past 30. The cpu step jumps from 10ms to 800ms (io stays 90ms) — service time 890ms vs the healthy 100ms, all of it now CPU-bound. That's the honest part of thrashing: the CPU metric isn't lying, these instances really are spending 8x longer per request ON THE CORE, same as a real GC pause or a spinlock burning cycles instead of yielding.\n\nMeasured (seed 1, this exact preset): autoscaler reacts, 2 -> 4 -> 5 instances by t~400-500, then holds at 5 for the rest of the horizon (checked past 3000s while tuning) — the same 'stuck at a plausible-looking metric' equilibrium as the 'all' variant, but worse: ~49% CPU (same as before, satisfying the 50% target) yet mean latency ~10.8s and a ~37% error rate, both higher than the 'all' cut's ~7.6s / ~7%. Isolating the degradation to CPU alone, at the factor needed to trip the same threshold, produces a nastier outcome than spreading it across the whole request — worth a beat on its own if the CPU-vs-everything distinction is part of the talk.\n\nControl: `degradationShape: 'none'` on these exact params reproduces `degradation-trap`'s control run — full recovery to 2 instances, 0% errors. Compare this preset against `degradation-trap` directly (same load, same fleet, only `degradationTarget` differs) to show CPU-specific thrashing is not just cosmetically different from generic overload — it's a worse failure mode at equivalent trigger conditions."
+}

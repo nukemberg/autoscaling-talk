@@ -328,6 +328,26 @@ queue with a bigger blast radius and bill.
 -->
 
 ---
+
+# The Thundering Herd
+
+<Sim preset="thundering-herd" :expose="['clientTimeoutSec', 'clientMaxRetries', 'clientRetryDelaySec']" :height="130" />
+
+<!--
+Live DES from presets/thundering-herd.json — latency-runaway with ONE knob changed:
+clientTimeoutSec 0 -> 3. Same DB ceiling (266.7rps), same 270rps step. At ~285s client
+timeouts start firing; by ~310s OK throughput is at zero; by ~345s the fleet is pinned at
+max (100) vs ~2 a CPU sizer would want. End state: 0 OK/s, ~220 retries/s sustained forever,
+~88% client-visible errors. The autoscaler did exactly what its metric told it to and made
+it worse — every added instance is just more clients hammering the same 8 DB slots.
+Live flip: clientTimeoutSec 3 -> 5 on stage collapses the herd back to latency-runaway's
+plain 1%-error trap — the timeout is the cliff, not a dial, and it's a knob we don't
+control (external clients ship their own policy). Second point if time allows: a timed-out
+attempt is abandoned client-side but NOT cancelled server-side — it keeps its worker/DB
+slot until it finishes, so retries stack load instead of replacing it.
+-->
+
+---
 layout: default
 ---
 

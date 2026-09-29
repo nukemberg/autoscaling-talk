@@ -44,7 +44,7 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 ## Sim scenarios (foh epic) — status
 
 - **foh.2** — scale-in on upstream failure, fail to recover (feeds Coupling) — not built
-- **foh.3** — thundering herd from runaway scaling (feeds Coupling) — not built
+- **foh.3** — thundering herd from runaway scaling (feeds Coupling) — **done**, `presets/thundering-herd.json` + slide "The Thundering Herd" (right after "Scaling on Latency: The Trap")
 - **foh.4** — unstable scaling unit sim — **superseded**: built directly as the `unitModel` sim feature (loss/bounded-queue/node.js) instead of a one-off scenario; see slide 10
 - **foh.7** — the fix: headroom + load shedding + backpressure vs autoscaler (feeds Responsible Autoscaling) — not built
 - **foh.8** — control theory step-response demo — **done**, this is the `cpu-step`/`cpu-oscillation` sim already on slides 6–7

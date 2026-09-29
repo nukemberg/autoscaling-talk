@@ -45,6 +45,13 @@ export const loadParams: ParamSpec[] = [
     help: 'Adds bounded random jitter on top of whichever shape is chosen, so "steady" load is never perfectly flat.' },
   { key: 'noiseAmpPct', label: 'noise amplitude', group: 'load', kind: 'range', min: 1, max: 50, step: 1, default: 10, unit: '%',
     help: 'Jitter as a fraction of the instantaneous rate.', activeWhen: { noisyLoad: 'true' } },
+  { key: 'scraperRps', label: 'external actor rate', group: 'load', kind: 'range', min: 0, max: 2000, step: 10, default: 0, unit: 'rps',
+    help: 'A second, independent traffic source — scraper, bot, or a client stuck retrying — mixed into the same '
+      + 'cluster as a step at `external actor start`. Indistinguishable from real demand to the server or the '
+      + 'autoscaler; only this scenario tags it, so it can be split back out as "useful" vs. total throughput on '
+      + 'the chart. 0 = no external actor.' },
+  { key: 'scraperStartSec', label: 'external actor start', group: 'load', kind: 'range', min: 0, max: 1800, step: 30, default: 300, unit: 's',
+    help: 'When the external actor shows up, as a step from 0 to `external actor rate`. Only matters when that rate is > 0.' },
 ]
 
 /** Rate profile: baseRps until t0, then ramp to rps. Absolute time. */

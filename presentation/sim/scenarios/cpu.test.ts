@@ -161,7 +161,9 @@ describe('cpu model', () => {
 
   test('summary reports needed / peak / final / error % / client retry counts / total cost', () => {
     const r = run()
-    expect(Object.keys(r.summary)).toEqual(['needed', 'peak', 'final', 'errors %', 'client retries', 'client timeouts', 'total cost'])
+    expect(Object.keys(r.summary)).toEqual([
+      'needed', 'peak', 'final', 'errors %', 'client retries', 'client timeouts', 'external actor requests', 'total cost',
+    ])
   })
 
   test('instanceCost accrues with fleet size; extraCost is 0 below the threshold', () => {
@@ -170,6 +172,25 @@ describe('cpu model', () => {
     const last = r.series.instanceCost[r.series.instanceCost.length - 1]
     expect(last).toBeGreaterThan(0)
     expect(r.series.extraCost.every((v) => v === 0)).toBe(true)
+  })
+
+  test('scraperRps 0 (default): usefulRps equals okRps, no external actor requests counted', () => {
+    const r = run({ horizonSec: 300, sampleSec: 10 })
+    expect(r.summary['external actor requests']).toBe(0)
+    for (let i = 0; i < r.series.okRps.length; i++) expect(r.series.usefulRps[i]).toBe(r.series.okRps[i])
+  })
+
+  test('scraperRps > 0: drives okRps up without moving usefulRps, and shows up in the summary', () => {
+    const r = run({
+      horizonSec: 600, sampleSec: 10, baseRps: 50, rps: 50, scraperRps: 100, scraperStartSec: 60,
+    })
+    const before = r.t.findIndex((t) => t >= 30)
+    const after = r.t.findIndex((t) => t >= 300)
+    // Before the scraper shows up, useful == total; well after, the scraper inflates okRps but not usefulRps.
+    expect(r.series.usefulRps[before]).toBeCloseTo(r.series.okRps[before], 0)
+    expect(r.series.okRps[after]).toBeGreaterThan(r.series.usefulRps[after] + 50)
+    expect(r.series.usefulRps[after]).toBeLessThan(60)
+    expect(r.summary['external actor requests']).toBeGreaterThan(0)
   })
 
   test('extraCost turns on once the fleet crosses extraCostThreshold', () => {

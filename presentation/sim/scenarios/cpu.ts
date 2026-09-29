@@ -1,4 +1,4 @@
-import { Arrivals } from '../arrivals'
+import { Arrivals, step } from '../arrivals'
 import { Clients } from '../clients'
 import { Cluster } from '../cluster'
 import { Cost } from '../cost'
@@ -45,6 +45,7 @@ export const cpuModel: SimModel = {
       series: [
         { key: 'offeredRps', label: 'incoming', color: 'accent', width: 1.5 },
         { key: 'okRps', label: 'OK', color: 'ok', width: 2 },
+        { key: 'usefulRps', label: 'useful (excl. external actor)', color: 'accent', width: 1.5, dash: [4, 4] },
         { key: 'failedRps', label: 'errors', color: 'cpu', width: 2 },
         { key: 'retriedRps', label: 'client retries', color: 'latency', width: 1.5, dash: [2, 3] },
       ],
@@ -83,11 +84,15 @@ export const cpuModel: SimModel = {
     // External clients sit between the load source and the LB: per-attempt
     // timeout + retries. Failed attempts are NOT recorded by Stats — a request
     // is recorded once, with its client-observed (end-to-end) outcome.
+    let scraperOk = 0
     const clients = new Clients(sim, {
       sink: (r) => lb.handle(r),
       onDone: (r) => {
         stats.record(r)
-        if (r.outcome === 'ok') latencyTally.add(((r.doneAt ?? sim.now) - r.arrivedAt) * 1000)
+        if (r.outcome === 'ok') {
+          latencyTally.add(((r.doneAt ?? sim.now) - r.arrivedAt) * 1000)
+          if (r.source === 'scraper') scraperOk++
+        }
       },
       timeout: num(p, 'clientTimeoutSec') || undefined,
       maxRetries: num(p, 'clientMaxRetries'),
@@ -112,12 +117,18 @@ export const cpuModel: SimModel = {
 
     const offered = loadProfile(p, t0 + quietSec, rng)
     new Arrivals(sim, rng, offered, (r) => clients.handle(r)).start()
+    const scraperRps = num(p, 'scraperRps')
+    if (scraperRps > 0) {
+      const scraperRate = step(t0 + num(p, 'scraperStartSec'), 0, scraperRps)
+      new Arrivals(sim, rng, scraperRate, (r) => { r.source = 'scraper'; clients.handle(r) }).start()
+    }
     const controller = attachController(sim, cluster, p, stats)
     const faultList = faults(p, t0)
     injectFaults(sim, { cluster, pools: cluster.pools }, faultList)
 
     let lastTotals = { ...stats.totals }
     let lastRetries = clients.retries
+    let lastScraperOk = scraperOk
     const delta = (k: keyof typeof stats.totals) => stats.totals[k] - lastTotals[k]
     const rec = new Recorder(sim, sample, {
       instances: () => cluster.size,
@@ -126,6 +137,7 @@ export const cpuModel: SimModel = {
       metric: () => controller.metricKind === 'utilization' ? controller.metric * 100 : controller.metric,
       offeredRps: () => offered(sim.now),
       okRps: () => delta('ok') / sample,
+      usefulRps: () => (delta('ok') - (scraperOk - lastScraperOk)) / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,
       retriedRps: () => (clients.retries - lastRetries) / sample,
       latencyMs: () => latencyTally.count ? latencyTally.mean : 0,
@@ -133,7 +145,7 @@ export const cpuModel: SimModel = {
       instanceCost: () => cost.instanceCost,
       extraCost: () => cost.extraCost,
       // Probes run in order; this last one resets the per-window baselines.
-      _tick: () => { lastTotals = { ...stats.totals }; lastRetries = clients.retries; latencyTally.reset(); return 0 },
+      _tick: () => { lastTotals = { ...stats.totals }; lastRetries = clients.retries; lastScraperOk = scraperOk; latencyTally.reset(); return 0 },
     })
     rec.start()
     sim.run(t0 + horizon)
@@ -155,6 +167,7 @@ export const cpuModel: SimModel = {
         'errors %': ok + failed ? (100 * failed / (ok + failed)).toFixed(1) : '0',
         'client retries': clients.retries,
         'client timeouts': clients.timeouts,
+        'external actor requests': scraperOk,
         'total cost': `$${cost.total.toFixed(2)}`,
       },
     }

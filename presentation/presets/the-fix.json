@@ -1,0 +1,20 @@
+{
+  "model": "cpu-step",
+  "name": "the-fix",
+  "params": {
+    "baseRps": 300,
+    "rps": 690,
+    "bootSec": 240,
+    "horizonSec": 3000,
+    "sampleSec": 10,
+    "workers": 40,
+    "queueSlots": 10,
+    "clientTimeoutSec": 3,
+    "clientMaxRetries": 3,
+    "clientRetryDelaySec": 0,
+    "minInstances": 4,
+    "maxInstances": 4,
+    "initialInstances": 4
+  },
+  "notes": "foh.7 — the fix. Same load as `cpu-oscillation` (baseRps 300 -> rps 690, 240s boot) AND the same hostile client behavior as `thundering-herd` (3s timeout, 3 immediate retries) — deliberately reusing both prior failure triggers on one preset. What's different: bounded per-instance admission (workers 40 / queueSlots 10 — sheds fast instead of queueing forever) and, as saved, a fixed fleet sized for peak (min=max=initial=4, `ceil(needed)` at the target load).\n\nMeasured (seed 1, this exact preset): flat 100ms latency and 0% errors for the entire 3000s run, load step included — the fleet was already sized for where the load was going, so there's no chasing-from-below to get wrong, and bounded pools mean any surprise excess sheds instantly instead of queueing into a timeout. Zero client retries ever fire, because latency never gets remotely close to the 3s trigger — the herd never gets a reason to start.\n\nLive flip: set `minInstances: 1`, `maxInstances: 50` (leave `initialInstances: 0` so it auto-sizes to base load) to put a real, default-tuned HPA on top instead of a fixed fleet. Measured: starts at 2 instances (sized for the 300rps base), one small transient during the step to 690rps (~87% CPU for one 15s HPA sync tick, a single-digit rejected request) while it climbs 2 -> 4, then settles into the EXACT SAME steady state as the fixed panel — flat 100ms, 0% errors, 0 retries, for the rest of the run. The point: a well-tuned scaler (HPA's real defaults — 15s sync, 300s scale-down stabilization, capped scale-up rate — none of `cpu-oscillation`'s deliberately-terrible zero-cooldown/no-tolerance-band setup) reaches the identical stable answer as pre-sizing for peak, with only a bounded, momentary wobble during the step itself, not a sustained limit cycle or a runaway death spiral.\n\nThis preset is the answer to three earlier failure demos at once: `cpu-oscillation`'s flapping (fixed by using HPA's real tuning, not aws-simple with cooldown 0), `thundering-herd`'s retry storm (fixed by bounded admission control — rejects are never retried, only errors/timeouts are, and nothing here ever gets slow enough to time out), and `unstable-scaling-unit`'s hidden collapse (fixed by the SAME bounded pool discipline — an admission ceiling that says no is what a good unit does under load, on purpose)."
+}

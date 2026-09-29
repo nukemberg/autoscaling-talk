@@ -43,13 +43,18 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 
 ## Sim scenarios (foh epic) — status
 
-- **foh.2** — scale-in on upstream failure, fail to recover (feeds Coupling) — **done**, `presets/db-outage-scalein.json` + slide "Scale-In That Bites Back" (right after "The Thundering Herd")
-- **foh.3** — thundering herd from runaway scaling (feeds Coupling) — **done**, `presets/thundering-herd.json` + slide "The Thundering Herd" (right after "Scaling on Latency: The Trap")
-- **foh.4** — unstable scaling unit sim — **superseded**: built directly as the `unitModel` sim feature (loss/bounded-queue/node.js) instead of a one-off scenario; see slide 10
-- **foh.7** — the fix: headroom + load shedding + backpressure vs autoscaler (feeds Responsible Autoscaling) — **done**, `presets/the-fix.json` + slide "Same Load, Same Hostile Clients — Fixed" (right after "Responsible Autoscaling")
+- **foh.2** — scale-in on upstream failure, fail to recover (feeds Coupling) — **built, shelved for time**: `presets/db-outage-scalein.json` + slide "Scale-In That Bites Back" in `presentation/shelved.md`, ready to re-add
+- **foh.3** — thundering herd from runaway scaling (feeds Coupling) — **built, shelved for time**: `presets/thundering-herd.json` + slide "The Thundering Herd" in `presentation/shelved.md`, ready to re-add
+- **foh.4** — unstable scaling unit sim — **superseded**: built directly as the `unitModel` sim feature (loss/bounded-queue/node.js) instead of a one-off scenario; see slide 10. (rk6's separate degradation-model presets — `unstable-scaling-unit.json` etc. — exist but have no slide.)
+- **foh.7** — the fix: headroom + load shedding + backpressure vs autoscaler (feeds Responsible Autoscaling) — **built, shelved for time**: `presets/the-fix.json` + slide "Same Load, Same Hostile Clients — Fixed" in `presentation/shelved.md`, ready to re-add
 - **foh.8** — control theory step-response demo — **done**, this is the `cpu-step`/`cpu-oscillation` sim already on slides 6–7
-- **foh.6** — runaway scaling pushes cost upstream (feeds The Cost Problem) — **done**, `presets/runaway-cost.json` + slide "Buying Nothing, at Scale" (right after "The Cost Problem"); also added cost accounting to the `cpu-step` model itself (new 'cost' param group, cumulative-$ chart)
-- **foh.5** — external actor drives scale-up and spend (feeds The Cost Problem) — **done**, `presets/external-actor.json` + slide "One Client, No Attack, No Bug On Your Side" (right after "Buying Nothing, at Scale"); added `scraperRps`/`scraperStartSec` load params + `usefulRps` series to `cpu-step`
+- **foh.6** — runaway scaling pushes cost upstream (feeds The Cost Problem) — **built, shelved for time**: `presets/runaway-cost.json` + slide "Buying Nothing, at Scale" in `presentation/shelved.md`, ready to re-add; cost accounting itself (new 'cost' param group, cumulative-$ chart) IS live in the `cpu-step` model, just this slide is shelved
+- **foh.5** — external actor drives scale-up and spend (feeds The Cost Problem) — **built, shelved for time**: `presets/external-actor.json` + slide "One Client, No Attack, No Bug On Your Side" in `presentation/shelved.md`, ready to re-add; `scraperRps`/`scraperStartSec`/`usefulRps` IS live in the `cpu-step` model, just this slide is shelved
+
+Note: all five presets above, their `cpu.test.ts` regression coverage, and the model-level
+engine changes (Cost wiring, external-actor traffic, degradation model) are fully committed
+and tested on `master` — only the slide markup itself moved to `presentation/shelved.md`.
+Re-adding any of them to the deck is a pure copy-paste (see that file's header).
 
 ## foh epic: complete (15/15, foh.8 closed as superseded)
 

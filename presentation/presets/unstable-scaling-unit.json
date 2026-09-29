@@ -1,0 +1,28 @@
+{
+  "model": "cpu-step",
+  "name": "unstable-scaling-unit",
+  "params": {
+    "baseRps": 100,
+    "rps": 350,
+    "ramp": "trapezoid",
+    "rampSec": 150,
+    "holdSec": 60,
+    "quietSec": 60,
+    "horizonSec": 600,
+    "noisyLoad": false,
+    "cores": 40,
+    "cpuTimeMs": 100,
+    "ioWaitMs": 900,
+    "unlimitedWorkers": true,
+    "workers": 150,
+    "queueSlots": 20,
+    "minInstances": 1,
+    "maxInstances": 1,
+    "initialInstances": 1,
+    "degradationShape": "logistic",
+    "degradationThreshold": 300,
+    "degradationWidth": 30,
+    "degradationMaxFactor": 10
+  },
+  "notes": "Three-panel live-flip demo (foh.4) — a single fixed scaling unit (min=max=initial=1, isolating the unit's own response curve from any fleet/scaler confound) with an unbounded thread pool (`unlimitedWorkers`): it never rejects, so overload shows up ONLY as latency, never as a 503. A slow rise-hold-fall load pulse (trapezoid: 100 -> 350rps over 150s, holds 60s, falls back to 100 over another 150s) crosses the unit's own instability threshold partway through the rise.\n\nPanel 1 (this preset, as saved) — `degradationShape: 'logistic'`: watch the metric creep 25% -> 36% as load climbs through 100-150rps — looks like ordinary, unremarkable scaling, no alarm would fire. Then between rps 150 and 200 (~t=120, well before the load even reaches its 350rps peak) it snaps: metric pins at 100%, latency runs away UNBOUNDED (not a step to a new plateau — it never stops climbing, ~15s -> ~415s mean latency by the end of the 600s horizon). This is the pedagogical point of `logistic`: the shape's own width creates a self-reinforcing pre-threshold creep, so the system tips into collapse well before load nominally reaches the stated `degradationThreshold` (300) at all.\n\nPanel 2 — flip `degradationShape` to `'step'` (same threshold=300, maxFactor=10, no width knob): the SAME collapse eventually happens, but now everything reads perfectly healthy (metric climbing smoothly 25% -> 59%, latency flat at 1000ms) right up until rps crosses 300 at ~t=180 — then the identical sudden collapse. Same ending, no warning at all beforehand. This is the contrast worth narrating out loud: the cliff was always there in both cases: `logistic` just told you about it 60+ seconds early.\n\nPanel 3 (the actual fix's absence) — flip `unlimitedWorkers` off AND `degradationShape` to `'none'` (leaves `workers`/`queueSlots`, already set to 150/20, in effect): admission control caps throughput cleanly at 150rps the moment demand exceeds it, latency stays flat (~1000-1130ms) the entire run, and the system recovers INSTANTLY the moment load drops back to baseline. The trade a real incident makes here is between two failure modes: bounded-pool rejects some requests fast and comes back clean; the unbounded pool never rejects anyone and never comes back.\n\nWhy neither collapsed panel recovers even after the pulse fully retreats (both checked out past t=600, well after load is back to the original safe 100rps): this is genuine hysteresis, not a slow decay. Once collapsed, sustainable throughput is capped by the degraded per-request service time (`workers / (ioWaitMs+cpuTimeMs)/1000 * maxFactor` at full degradation, ~40rps here) — permanently below the ORIGINAL 100rps baseline that was perfectly healthy on the way up. There is no rps low enough, once tipped, to drain the backlog; it needs the unit itself replaced, not less load (`unlimitedWorkers` gives it no queue-full signal to even notice it should reject).\n\nTechnical note for anyone re-tuning this: `cpuTimeMs`/`ioWaitMs` are scaled 10x higher than other presets (100ms/900ms vs the usual 10ms/90ms) specifically to keep the discrete-event backlog a manageable few thousand deep instead of hundreds of thousands once collapsed — same concurrency dynamics (Little's law: outstanding = rps x serviceTime is unchanged by this substitution), 10x fewer Pool queue operations per second, well within the engine's practical performance envelope (see the sim/preset tuning notes on `Pool`'s O(n^2) waiter-array behavior at very deep backlogs)."
+}

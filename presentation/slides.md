@@ -395,6 +395,28 @@ into "an outage you chose."
 -->
 
 ---
+
+# Buying Nothing, at Scale
+
+<Sim preset="runaway-cost" :expose="['maxInstances', 'instancePriceHourly', 'extraCostRateHourly']" :height="130" />
+
+<!--
+Live DES from presets/runaway-cost.json — exactly "The Thundering Herd" (same DB-bound herd,
+same 3s client timeout) with cost turned on: $0.10/instance-hour, plus a $50/hour surcharge
+once the fleet crosses 20 instances (a DB tier upgrade / RDS proxy / NAT gateway that scales
+with instance count, not with useful throughput). As saved (max 100, thundering-herd's own
+default): fleet hits 100, ~$25 total spend, 87.9% errors.
+Live flip #1: maxInstances 20 (right at the surcharge threshold) — IDENTICAL 87.9% errors,
+same OK throughput, but $0.87 total. Every dollar above that bought nothing: the DB was
+always the ceiling on real throughput, not instance count.
+Live flip #2: maxInstances 100000 (no cap at all) — the fleet still finds its own equilibrium
+around 125, not infinity (the metric feedback loop has its own fixed point) — but that
+fixed point costs MORE than the deliberate 100-instance ceiling for the same 87.9% errors.
+Land it: max isn't a safety net against overload here — the DB was always going to cap that.
+It's a safety net against paying for the incident twice: once in errors, once on the bill.
+-->
+
+---
 layout: image-right
 image: /memes/drake-autoscaling.jpg
 backgroundSize: contain

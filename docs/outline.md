@@ -48,7 +48,8 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 - **foh.4** — unstable scaling unit sim — **superseded**: built directly as the `unitModel` sim feature (loss/bounded-queue/node.js) instead of a one-off scenario; see slide 10
 - **foh.7** — the fix: headroom + load shedding + backpressure vs autoscaler (feeds Responsible Autoscaling) — **done**, `presets/the-fix.json` + slide "Same Load, Same Hostile Clients — Fixed" (right after "Responsible Autoscaling")
 - **foh.8** — control theory step-response demo — **done**, this is the `cpu-step`/`cpu-oscillation` sim already on slides 6–7
-- **foh.5**, **foh.6** — external actor / runaway cost sims (feed The Cost Problem) — not built, P2
+- **foh.6** — runaway scaling pushes cost upstream (feeds The Cost Problem) — **done**, `presets/runaway-cost.json` + slide "Buying Nothing, at Scale" (right after "The Cost Problem"); also added cost accounting to the `cpu-step` model itself (new 'cost' param group, cumulative-$ chart)
+- **foh.5** — external actor drives scale-up and spend (feeds The Cost Problem) — not built, P2
 
 ## Open threads (not slide content, tracked here so they don't get lost)
 

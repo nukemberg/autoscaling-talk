@@ -1,0 +1,23 @@
+{
+  "model": "cpu-step",
+  "name": "runaway-cost",
+  "params": {
+    "rps": 270,
+    "quietSec": 120,
+    "horizonSec": 1800,
+    "ioWaitMs": 20,
+    "workers": 300,
+    "queueSlots": 600,
+    "dbPoolSlots": 8,
+    "dbQueryMs": 30,
+    "metricCpu": false,
+    "metricLatency": true,
+    "clientTimeoutSec": 3,
+    "clientMaxRetries": 3,
+    "clientRetryDelaySec": 0,
+    "instancePriceHourly": 0.10,
+    "extraCostThreshold": 20,
+    "extraCostRateHourly": 50
+  },
+  "notes": "foh.6 — exactly `thundering-herd` (same DB-bound herd: 8-slot pool x 30ms = 266.7rps ceiling, 270rps step, 3s client timeout + retries) with cost accounting turned on: $0.10/instance-hour, plus a step-function $50/hour surcharge once the fleet crosses 20 instances (modeling a DB tier upgrade / RDS proxy / NAT gateway that has to scale with instance count, not with useful throughput).\n\nAs saved (default `maxInstances`: 100 — thundering-herd's own default, no override): the autoscaler chases the lying latency metric all the way to its ceiling, exactly as `thundering-herd` describes. Measured (seed 1): 100 instances, ~$25/hour-equivalent total spend over the 1800s run ($4.14 instance cost + $20.83 extra), 87.9% client-visible errors — IDENTICAL to what a much smaller fleet gets, because the DB caps real throughput regardless of instance count.\n\nLive flip #1 — `maxInstances: 20` (right at the extra-cost threshold, so it never triggers): same 87.9% errors, same everything except cost — total spend $0.87 instead of $25. Every dollar above that was bought for literally nothing: same OK throughput, same error rate, same client experience. Live flip #2 — `maxInstances: 100000` (no ceiling at all): the fleet still finds its own (bad) equilibrium around 125 instances rather than growing forever — the ceiling isn't the only thing capping growth, the metric feedback loop has its own fixed point — but that fixed point is WORSE than the deliberate 100-instance ceiling, and costs even more ($26 vs $25) for essentially the same 87.9% error rate. Unlimited max doesn't buy runaway growth here so much as remove the one thing that was capping a bad decision's cost.\n\nLand it: `max` isn't a safety net against overload (the DB was always going to cap real throughput) — it's a safety net against paying for an incident twice, once in errors and once on the bill."
+}

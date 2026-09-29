@@ -1,0 +1,17 @@
+{
+  "model": "cpu-step",
+  "name": "external-actor",
+  "params": {
+    "baseRps": 100,
+    "rps": 100,
+    "quietSec": 60,
+    "horizonSec": 1500,
+    "noisyLoad": false,
+    "scraperRps": 800,
+    "scraperStartSec": 300,
+    "instancePriceHourly": 0.10,
+    "minInstances": 1,
+    "maxInstances": 30
+  },
+  "notes": "foh.5 — one client, no attack, no bug on your side. Organic demand is FLAT the entire run (baseRps == rps == 100 — nothing about real usage ever changes). At t=300 a single external actor (scraper, bot, or a client stuck in a retry loop) starts hammering at 800rps, mixed into the exact same requests the real users send — nothing server-side can tell them apart.\n\nMeasured (seed 1, this exact preset): the scaler does exactly its job — total OK throughput jumps from ~100 to ~900rps, fleet climbs 1 -> 5 instances by t~675, cost climbs from $0.004 to $0.16 over the 1500s window (extrapolate that to a day or a bad weekend). The tell: `usefulRps` (total OK minus the tagged external-actor completions) never moves — it sits at ~90-105 for the ENTIRE run, before, during, and after the actor shows up. Every one of those extra 4 instances, and every cent of the cost climb, bought zero additional real throughput.\n\nLive flip: `scraperRps` back to 0 to show the counterfactual — flat 1-instance fleet, flat cost, for the identical organic demand. Or push `maxInstances` down to show the scaler eventually capping out while the actor keeps hammering (same `runaway-cost` mechanics, different trigger).\n\nLand it: the autoscaler isn't malfunctioning here — it's doing exactly what a utilization-based signal is designed to do. The signal itself can't distinguish 'more real users' from 'one client that won't stop.' `usefulRps` is a line only this simulation can draw; a real dashboard usually can't split it out either, which is the actual problem."
+}

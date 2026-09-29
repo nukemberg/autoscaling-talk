@@ -417,6 +417,25 @@ It's a safety net against paying for the incident twice: once in errors, once on
 -->
 
 ---
+
+# One Client, No Attack, No Bug On Your Side
+
+<Sim preset="external-actor" :expose="['scraperRps', 'scraperStartSec', 'maxInstances']" :height="130" />
+
+<!--
+Live DES from presets/external-actor.json. Organic demand is FLAT the whole run (100rps,
+never changes). At t=300 a single external actor — scraper, bot, or a client stuck retrying
+— starts at 800rps, mixed into the exact same requests real users send; nothing server-side
+can tell them apart. Measured: fleet climbs 1 -> 5, cost climbs 40x over the run — but
+"useful" throughput (total OK minus the tagged actor traffic, a line only this sim can draw)
+never moves off ~90-105rps the entire time, before, during, and after.
+Live flip: scraperRps back to 0 — flat fleet, flat cost, for the identical organic demand.
+Land it: the autoscaler isn't broken here — it's doing exactly what a utilization signal is
+FOR. The signal can't tell "more real users" from "one client that won't stop," and neither,
+usually, can a real dashboard.
+-->
+
+---
 layout: image-right
 image: /memes/drake-autoscaling.jpg
 backgroundSize: contain

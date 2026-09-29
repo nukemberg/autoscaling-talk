@@ -49,7 +49,9 @@ Status tracks `bd` content tickets (`autoscaling-talk-kur.*`) and sim tickets
 - **foh.7** — the fix: headroom + load shedding + backpressure vs autoscaler (feeds Responsible Autoscaling) — **done**, `presets/the-fix.json` + slide "Same Load, Same Hostile Clients — Fixed" (right after "Responsible Autoscaling")
 - **foh.8** — control theory step-response demo — **done**, this is the `cpu-step`/`cpu-oscillation` sim already on slides 6–7
 - **foh.6** — runaway scaling pushes cost upstream (feeds The Cost Problem) — **done**, `presets/runaway-cost.json` + slide "Buying Nothing, at Scale" (right after "The Cost Problem"); also added cost accounting to the `cpu-step` model itself (new 'cost' param group, cumulative-$ chart)
-- **foh.5** — external actor drives scale-up and spend (feeds The Cost Problem) — not built, P2
+- **foh.5** — external actor drives scale-up and spend (feeds The Cost Problem) — **done**, `presets/external-actor.json` + slide "One Client, No Attack, No Bug On Your Side" (right after "Buying Nothing, at Scale"); added `scraperRps`/`scraperStartSec` load params + `usefulRps` series to `cpu-step`
+
+## foh epic: complete (15/15, foh.8 closed as superseded)
 
 ## Open threads (not slide content, tracked here so they don't get lost)
 

@@ -1,6 +1,6 @@
 /** Declarative description of a sim model: params, how to run, how to chart. */
 
-export type ParamGroup = 'load' | 'server' | 'scaler' | 'lb' | 'upstream' | 'fault' | 'sim'
+export type ParamGroup = 'load' | 'server' | 'scaler' | 'lb' | 'upstream' | 'fault' | 'cost' | 'sim'
 
 interface Common {
   key: string

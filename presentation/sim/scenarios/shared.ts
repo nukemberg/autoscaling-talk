@@ -268,6 +268,27 @@ export function clusterOpts(p: Params): ClusterOpts {
   }
 }
 
+// ---------------- cost ----------------
+
+export const costParams: ParamSpec[] = [
+  { key: 'instancePriceHourly', label: '$ / instance-hour', group: 'cost', kind: 'range', min: 0, max: 5, step: 0.01, default: 0.10, unit: '$/h',
+    help: 'Compute price per instance-hour — the direct autoscaling bill. Charged for the whole time an instance exists, booting included.' },
+  { key: 'extraCostThreshold', label: 'extra-cost threshold', group: 'cost', kind: 'range', min: 0, max: 1000, step: 5, default: 20,
+    help: 'Instance count above which upstream capacity has to scale too (bigger DB tier, RDS proxy, NAT gateway) — the cost autoscaling drags along that a per-instance price alone hides. 0 = always on.' },
+  { key: 'extraCostRateHourly', label: 'extra $ / hour above threshold', group: 'cost', kind: 'range', min: 0, max: 200, step: 1, default: 20, unit: '$/h',
+    help: 'Extra spend rate once instance count crosses the threshold. 0 = no upstream cost modeled.' },
+]
+
+/** Instance-hours -> instance-seconds price, plus a step-function upstream surcharge once instance count crosses a threshold. */
+export function costOpts(p: Params, cluster: Cluster): { instancePrice: number; extraRate?: () => number } {
+  const threshold = num(p, 'extraCostThreshold')
+  const extraRateHourly = num(p, 'extraCostRateHourly')
+  return {
+    instancePrice: num(p, 'instancePriceHourly') / 3600,
+    extraRate: extraRateHourly > 0 ? () => (cluster.size > threshold ? extraRateHourly / 3600 : 0) : undefined,
+  }
+}
+
 // ---------------- autoscaler ----------------
 
 const hpa = { algo: 'hpa' }

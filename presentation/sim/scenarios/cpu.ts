@@ -1,6 +1,7 @@
 import { Arrivals } from '../arrivals'
 import { Clients } from '../clients'
 import { Cluster } from '../cluster'
+import { Cost } from '../cost'
 import { Sim } from '../engine'
 import { LoadBalancer } from '../lb'
 import { Recorder, Tally } from '../metrics'
@@ -8,8 +9,8 @@ import { Rng } from '../rng'
 import { injectFaults } from '../faults'
 import { Stats } from '../stats'
 import {
-  attachController, clientParams, clusterOpts, faultParams, faults, instanceOpts, lbOpts, loadParams, loadProfile,
-  neededInstances, scalerParams, serverParams,
+  attachController, clientParams, clusterOpts, costOpts, costParams, faultParams, faults, instanceOpts, lbOpts,
+  loadParams, loadProfile, neededInstances, scalerParams, serverParams,
 } from './shared'
 import { bool, num, type ParamSpec, type Params, type SimModel } from './types'
 
@@ -27,7 +28,7 @@ export const cpuModel: SimModel = {
   id: 'cpu-step',
   title: 'CPU autoscaling under a load step',
   description: 'Stable base load, then a ramp. Autoscaler acts on mean busy fraction across ready instances.',
-  params: [...loadParams, ...clientParams, ...serverParams, ...scalerParams, ...faultParams, ...simParams],
+  params: [...loadParams, ...clientParams, ...serverParams, ...scalerParams, ...faultParams, ...costParams, ...simParams],
   charts: [
     {
       yLabel: 'instances',
@@ -53,6 +54,13 @@ export const cpuModel: SimModel = {
       series: [
         { key: 'latencyMs', label: 'latency (mean, OK requests)', color: 'latency', width: 2 },
         { key: 'p95Ms', label: 'latency (p95, OK requests)', color: 'cpu', width: 1.5, dash: [4, 4] },
+      ],
+    },
+    {
+      yLabel: 'cumulative $',
+      series: [
+        { key: 'instanceCost', label: 'instance cost', color: 'inst', width: 2 },
+        { key: 'extraCost', label: 'extra upstream cost', color: 'cpu', width: 1.5, dash: [4, 4] },
       ],
     },
   ],
@@ -90,6 +98,8 @@ export const cpuModel: SimModel = {
     })
     lb.onDone = (r) => clients.observe(r)
     const cluster = new Cluster(sim, lb, instanceOpts(p, rng), clusterOpts(p))
+    const cost = new Cost(sim, { cluster, ...costOpts(p, cluster) })
+    cost.start()
     if (progress) sim.onProgress = (now) => progress(Math.min(1, now / end))
 
     // Start already sized for the base load, warm — the steady state before anything happens.
@@ -120,6 +130,8 @@ export const cpuModel: SimModel = {
       retriedRps: () => (clients.retries - lastRetries) / sample,
       latencyMs: () => latencyTally.count ? latencyTally.mean : 0,
       p95Ms: () => latencyTally.count ? latencyTally.percentile(0.95) : 0,
+      instanceCost: () => cost.instanceCost,
+      extraCost: () => cost.extraCost,
       // Probes run in order; this last one resets the per-window baselines.
       _tick: () => { lastTotals = { ...stats.totals }; lastRetries = clients.retries; latencyTally.reset(); return 0 },
     })
@@ -143,6 +155,7 @@ export const cpuModel: SimModel = {
         'errors %': ok + failed ? (100 * failed / (ok + failed)).toFixed(1) : '0',
         'client retries': clients.retries,
         'client timeouts': clients.timeouts,
+        'total cost': `$${cost.total.toFixed(2)}`,
       },
     }
   },

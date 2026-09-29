@@ -159,9 +159,27 @@ describe('cpu model', () => {
     expect(r.summary.final).toBe(r.summary.peak) // never scales past where it ends up
   })
 
-  test('summary reports needed / peak / final / error % / client retry counts', () => {
+  test('summary reports needed / peak / final / error % / client retry counts / total cost', () => {
     const r = run()
-    expect(Object.keys(r.summary)).toEqual(['needed', 'peak', 'final', 'errors %', 'client retries', 'client timeouts'])
+    expect(Object.keys(r.summary)).toEqual(['needed', 'peak', 'final', 'errors %', 'client retries', 'client timeouts', 'total cost'])
+  })
+
+  test('instanceCost accrues with fleet size; extraCost is 0 below the threshold', () => {
+    const r = run({ horizonSec: 600, sampleSec: 10, instancePriceHourly: 3600, extraCostRateHourly: 0 })
+    // $3600/h == $1/s: instanceCost should track cumulative instance-seconds 1:1.
+    const last = r.series.instanceCost[r.series.instanceCost.length - 1]
+    expect(last).toBeGreaterThan(0)
+    expect(r.series.extraCost.every((v) => v === 0)).toBe(true)
+  })
+
+  test('extraCost turns on once the fleet crosses extraCostThreshold', () => {
+    const r = run({
+      horizonSec: 600, sampleSec: 10, baseRps: 100, rps: 2000, minInstances: 1, maxInstances: 30,
+      extraCostThreshold: 3, extraCostRateHourly: 3600,
+    })
+    expect(Math.max(...r.series.instances)).toBeGreaterThan(3)
+    const last = r.series.extraCost[r.series.extraCost.length - 1]
+    expect(last).toBeGreaterThan(0)
   })
 
   test('thundering-herd preset (as shipped): retry flood, OK collapse, fleet pinned at max', () => {

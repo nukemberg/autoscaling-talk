@@ -269,6 +269,36 @@ the only things different are the dead band and the anti-windup. That's the setu
 -->
 
 ---
+layout: default
+---
+
+# War Story: Dead on Arrival
+
+<div class="content">
+
+A CPU-triggered autoscaler, tuned for a fast reaction, had a sync period far shorter than
+boot time — so every cycle without immediate relief ordered another batch of instances
+before the last batch had even finished starting. Utilization swung from pegged to
+starved and back as oversized batches landed all at once, and on every down-swing the
+scale-in policy killed youngest-first — which meant the instances still booting, the ones
+that had never served a single request. The cluster spent real money cycling capacity
+that existed only on paper.
+
+</div>
+
+<div class="takeaway">
+
+Dead time doesn't forgive a fast loop. It punishes it.
+
+</div>
+
+<!--
+[1 min] Payoff for the control-system pivot flagged in AGENTS.md's outline. Land: this is
+the exact shape of the next slide's sim — 15s period vs 240s boot, youngest-first kill on
+the down-swing. Keep it tight, the sim does the rest.
+-->
+
+---
 
 # Oscillation, by Default
 

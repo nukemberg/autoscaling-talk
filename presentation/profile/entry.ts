@@ -1,18 +1,18 @@
 // Profiling harness — bundled by vite, run under `node --cpu-prof`.
-import { cpuScenario } from '../sim/scenarios/cpu'
+import { cpuModel } from '../sim/scenarios/cpu'
 import { defaults } from '../sim/scenarios/types'
 import type { Params } from '../sim/scenarios/types'
 
 function timeRun(p: Params, label: string): void {
   const t0 = performance.now()
-  const r = cpuScenario.run(p)
+  const r = cpuModel.run(p)
   const ms = performance.now() - t0
   const n = r.series.okRps.length
   console.log(`${label}: ${ms.toFixed(0)} ms (${(ms * 1000 / n).toFixed(0)} µs/sample), peak=${r.summary.peak}`)
 }
 
 // The preset that was live in the workbench tab (aws-simple, slow boot, 1360 rps).
-const p1 = defaults(cpuScenario.params)
+const p1 = defaults(cpuModel.params)
 p1.baseRps = 300
 p1.rps = 1360
 p1.ramp = 'step'
@@ -27,7 +27,7 @@ p1.ioWaitMs = 0
 p1.cores = 16
 
 // A heavier, HPA-flavored run: higher load, longer horizon, finer sampling.
-const p2 = defaults(cpuScenario.params)
+const p2 = defaults(cpuModel.params)
 p2.baseRps = 300
 p2.rps = 4000
 p2.ramp = 'logistic'

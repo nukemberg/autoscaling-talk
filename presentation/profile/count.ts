@@ -1,9 +1,9 @@
 // Event-count instrumentation — bundled by vite, run with plain node.
 import { Sim } from '../sim/engine'
-import { cpuScenario } from '../sim/scenarios/cpu'
+import { cpuModel } from '../sim/scenarios/cpu'
 import { defaults } from '../sim/scenarios/types'
 
-const p = defaults(cpuScenario.params)
+const p = defaults(cpuModel.params)
 // Exact workbench URL params (cpu-oscillation preset)
 p.baseRps = 300
 p.rps = 1360
@@ -33,6 +33,6 @@ Sim.prototype.scheduleAt = function (this: Sim, t: number, fn: () => void) {
 }
 
 const t0 = performance.now()
-const r = cpuScenario.run(p)
+const r = cpuModel.run(p)
 const ms = performance.now() - t0
 console.log(`run: ${ms.toFixed(0)} ms, scheduled events: ${scheduled}, cancelled: ${cancelled}, peak=${r.summary.peak}`)

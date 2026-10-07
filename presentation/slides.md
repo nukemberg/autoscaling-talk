@@ -361,6 +361,35 @@ changed. Bonus demo: drag period below the 5s metric resolution and the alarm go
 layout: default
 ---
 
+# War Story: The Autoscaler Ate the Database
+
+<div class="content">
+
+A load spike triggered a scale-out, and the fleet grew well past its usual size within
+minutes. Nobody had sized the database for that fleet — each instance opened its own
+connection pool, and the sum of all those pools blew past the database's connection limit.
+The database fell over under connection overhead alone, every instance lost its queries,
+and clients retried immediately. When the database came back, every instance reconnected
+at once — the exact same spike, self-inflicted, on a system already running on fumes.
+
+</div>
+
+<div class="takeaway">
+
+The autoscaler did its job perfectly. That was the problem — it scaled the blast radius, not just the capacity.
+
+</div>
+
+<!--
+[1 min] Payoff for AGENTS.md's [6 min] "coupling and blast radius" beat: an autoscaler
+overwhelmed the very database it depended on and triggered a cascading failure. Land: this
+is the mechanics on the next slide — N instances = N connection pools, recovery is a herd.
+-->
+
+---
+layout: default
+---
+
 # Coupling and Blast Radius
 
 <div class="content">

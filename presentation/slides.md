@@ -391,6 +391,30 @@ than threaded on EVERY axis, including errors. Only variable: can the unit say n
 -->
 
 ---
+layout: default
+---
+
+# War Story: The Latency Trap
+
+<div class="content">
+
+A service's response time crept up during a routine traffic bump. The autoscaler's trigger was mean latency, not CPU — so it did exactly what it was configured to do and scaled out. Every new instance opened more connections to the same shared database, whose connection pool was the actual bottleneck and didn't grow with the fleet. Latency kept climbing regardless, so the autoscaler kept adding instances — all the way to the configured max, hundreds of them, no capacity gained, nothing fixed.
+
+</div>
+
+<div class="takeaway">
+
+The metric measured the symptom. The autoscaler could only ever treat the symptom.
+
+</div>
+
+<!--
+[1 min] The promised payoff of the earlier "war story to tell" tease. Keep it short — the
+sim on the next slide is the receipts. Land: this is the trap from "Scaling on Latency" two
+slides ago (scaling on a symptom = closed loop), now with a body count.
+-->
+
+---
 
 # Scaling on Latency: The Trap
 

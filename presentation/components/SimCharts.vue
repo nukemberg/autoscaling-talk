@@ -9,6 +9,9 @@ const props = withDefaults(defineProps<{
   charts: ChartSpec[]
   result: RunResult
   height?: number
+  /** Override the primary (left) y-axis's auto range — e.g. to keep two side-by-side
+   *  panels fed by different RunResults on the same scale for a fair visual comparison. */
+  yRange?: [number, number]
 }>(), { height: 180 })
 
 // A factory, not a shared constant: uPlot mutates axis/grid config objects in
@@ -144,7 +147,7 @@ const panels = computed(() => {
     ],
     scales: {
       x: { time: false },
-      y: { range: yRange },
+      y: props.yRange ? { range: props.yRange } : { range: yRange },
       ...Object.fromEntries(Object.entries(c.scales ?? {}).map(([k, v]) => {
         const dynamic = k === 'pct' && props.result.metricKind === 'absolute'
         // uPlot only scans series data for a scale's min/max when `auto` is true — a static

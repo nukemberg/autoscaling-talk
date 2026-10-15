@@ -118,21 +118,21 @@ when you don't have to" — cost optimization, not capacity engineering.
 <CostCompare preset="overshoot-cost" :static-instances="7" :height="110" />
 
 <!--
-Live DES from presets/overshoot-cost.json, run twice side by side (CostCompare.vue): once
-autoscaled, once with min=max=initial pinned to 7 — the exact count the autoscaler itself
-converges to, not hindsight. Same load (flat 2 instances/50%/0 errors for 300s, then a step
-to 1360rps) on both sides. Left: zero cooldown + 15s period ordering blind for the full
-240s boot climbs to 23 instances (~t=620, well over 3x the 7 actually needed) before
-walking back down, with 16.3% errors during the climb — the overshoot didn't even buy
-better service. Right: flat line, the whole run.
+Live DES from presets/overshoot-cost.json, run twice, stacked top/bottom on the same y-axis
+bounds (CostCompare.vue): once autoscaled, once with min=max=initial pinned to 7 — the
+exact count the autoscaler itself converges to, not hindsight. Same load (flat 2
+instances/50%/0 errors for 300s, then a step to 1360rps) on both. Top: zero cooldown + 15s
+period ordering blind for the full 240s boot climbs to 23 instances (~t=620, well over 3x
+the 7 actually needed) before walking back down, with 16.3% errors during the climb — the
+overshoot didn't even buy better service. Bottom: flat line, the whole run — same axis, so
+the overshoot's height reads directly against it.
 
-The $ panel is the punchline: left's cumulative-cost line keeps bending upward through the
-overshoot; right's is a near-straight ramp. Over this exact 900s window: $0.76 autoscaled
-vs $0.23 static — 3.3x (cost accounting starts at the pre-horizon boot/health-check warmup,
-so the static side isn't simply 7 × 900s by hand either — both sides pay for their initial
-fleet booting). That ratio falls the longer the window runs past the recovery (2.6x by
-1500s, 2.0x by 2400s) as the one-time overshoot amortizes — not "autoscaling always costs
-more," just that a controller's mistake is a real, measurable dollar cost.
+The big number is the punchline: $0.76 autoscaled vs $0.23 static over this exact 900s
+window — 3.3x (cost accounting starts at the pre-horizon boot/health-check warmup, so the
+static side isn't simply 7 × 900s by hand either — both sides pay for their initial fleet
+booting). That ratio falls the longer the window runs past the recovery (2.6x by 1500s,
+2.0x by 2400s) as the one-time overshoot amortizes — not "autoscaling always costs more,"
+just that a controller's mistake is a real, measurable dollar cost.
 
 Land: this is the same aws-simple setup as the oscillation slide coming up — same dead
 time, same missing anti-windup, just a baseline/step that both happen to land inside the

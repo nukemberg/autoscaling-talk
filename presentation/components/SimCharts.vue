@@ -82,6 +82,9 @@ function markerHook(labelled: boolean) {
 // width can drift with tick label digit count.
 const LEFT_AXIS_SIZE = 56
 const RIGHT_AXIS_SIZE = 50
+// Blank bottom padding reserved inside the last panel's plot box so its legend (which mounts
+// inside that box, see legendMount) has empty room to sit in instead of overlapping data.
+const LEGEND_BOTTOM_PAD = 28
 const hasSecondary = computed(() => props.charts.some((c) => c.scales && Object.keys(c.scales).length))
 
 // Primary y-scale always anchors at 0 and keeps a non-degenerate span, so a
@@ -166,8 +169,16 @@ const panels = computed(() => {
     legend: { show: c.series.length > 1, live: false, mount: legendMount(last) },
     cursor: { sync: { key: cursorSyncKey } },
     hooks: { draw: [markerHook(i === 0)] },
-    // Reserve room above the plot for marker labels so they don't overlap the series.
-    ...(i === 0 ? { padding: [24, 8, null, null] as unknown as [number, number, number, number] } : {}),
+    // Reserve room above the plot for marker labels so they don't overlap the series, and
+    // below it (last panel only) for the legend — otherwise the legend's own negative offset
+    // (see .sim-legend--last) has nowhere blank to land and ends up overlapping whatever
+    // series happens to be at that corner instead.
+    padding: [
+      i === 0 ? 24 : null,
+      i === 0 ? 8 : null,
+      last ? LEGEND_BOTTOM_PAD : null,
+      null,
+    ] as unknown as [number, number, number, number],
   }
   // The last panel also carries the x-axis (ticks + "seconds" label) and the
   // legend row, inside the same height budget — without extra room its own
@@ -202,9 +213,10 @@ watchChartTheme(() => { panelsTrigger.value++ })
    A negative bottom pulls it entirely below u.over's own box, into the
    thin gap before the next stacked panel — clear of the plot square
    altogether instead of just clear of where the data happens to be.
-   The last panel has no such gap below it (the x-axis tick row sits there
-   instead), so it gets a smaller offset that clears the plot without
-   landing on the ticks.
+   The last panel has no such gap below it (the x-axis tick row sits
+   right where u.over ends) — its own blank LEGEND_BOTTOM_PAD padding
+   (reserved inside u.over, see the panel's uPlot `padding` option)
+   gives it somewhere clear to sit instead, right at the box's own edge.
    The translucent panel-bg chip keeps labels readable over data lines. */
 .sim-charts :deep(.sim-legend) {
   position: absolute;
@@ -221,7 +233,7 @@ watchChartTheme(() => { panelsTrigger.value++ })
   border-radius: 3px;
   background: color-mix(in srgb, var(--chart-panel-bg, #fff) 78%, transparent);
 }
-.sim-charts :deep(.sim-legend--last) { bottom: -6px; }
+.sim-charts :deep(.sim-legend--last) { bottom: 0; }
 .sim-charts :deep(.sim-legend .u-series > *) { padding: 1px 4px; }
 .sim-charts :deep(.u-marker) { height: 2px; }
 </style>

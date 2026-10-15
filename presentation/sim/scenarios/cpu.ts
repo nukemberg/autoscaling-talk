@@ -45,9 +45,9 @@ export const cpuModel: SimModel = {
       series: [
         { key: 'offeredRps', label: 'incoming', color: 'accent', width: 1.5 },
         { key: 'okRps', label: 'OK', color: 'ok', width: 2 },
-        { key: 'usefulRps', label: 'useful (excl. external actor)', color: 'accent', width: 1.5, dash: [4, 4] },
+        { key: 'usefulRps', label: 'organic load', color: 'accent', width: 1.5, dash: [4, 4] },
         { key: 'failedRps', label: 'errors', color: 'cpu', width: 2 },
-        { key: 'retriedRps', label: 'client retries', color: 'latency', width: 1.5, dash: [2, 3] },
+        { key: 'retriedRps', label: 'failure load', color: 'latency', width: 1.5, dash: [2, 3] },
       ],
     },
     {

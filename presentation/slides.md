@@ -224,49 +224,6 @@ just unnamed.
 layout: default
 ---
 
-# HPA Is a P Controller, Gain 1
-
-<div class="content">
-
-- `desired = ceil(current × metric/target)` — proportional control on the **ratio**, not the raw error
-- Metric 10% over target → order 10% more replicas. That multiplier on the ratio is the gain, and it's exactly 1
-- `tolerance: 0.1` — a dead band around the setpoint; inside it, no correction fires at all
-- `stabilizationWindowSeconds: 300` (scale-down only) — remembers the highest recent recommendation; one quiet sync can't undo a loud one
-
-</div>
-
-<div class="takeaway">
-
-Gain 1 is not the risky part. Dead time is.
-
-</div>
-
-<!--
-[3 min] Worked example (hpa.ts, cpu-step default params: cores 16, 100ms cpu + 90ms io,
-4 instances @ 300rps ~47% util): step to 690rps at t=60.
-
-t=75 (first sync + metric read after the step): avg util reads 99.5%, current=4 ->
-desired = ceil(4 × 99.5/50) = ceil(4 × 1.99) = 8. One shot, correct answer, because gain
-is exactly 1 on the ratio — no geometric walk needed when the signal is already current.
-
-t=80-130: only the original 4 are ready; metric is pinned at 100% (saturated, stale-looking)
-every sync tick, but desired STAYS at 8 — doesn't escalate again. Why: `current` already
-counts the 4 ordered-but-booting pods, so the second-pass ratio check divides by 8, not 4,
-and lands back at ~1.0 (within tolerance) before a decision is made. That set-aside math is
-the anti-windup AWS simple scaling (next slide) doesn't have.
-
-t=135: new pods ready. t=165: metric settles ~54% (inside the 0.45-0.55 tolerance band) ->
-holds at 8, no oscillation, for the rest of the run.
-
-Land: same proportional math, same gain, as the controller about to oscillate next slide —
-the only things different are the dead band and the anti-windup. That's the setup for
-"Oscillation, by Default."
--->
-
----
-layout: default
----
-
 # War Story: Dead on Arrival
 
 <div class="content">

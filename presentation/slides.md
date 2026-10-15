@@ -92,7 +92,7 @@ layout: default
 <div class="content">
 
 - You design and load-test for max load — autoscaling or not
-- Shared resources don't scale linearly (USL)
+- Shared resources don't scale linearly (Universal Scalability Law)
 - You're scaling **down** from max, not up from min
 
 </div>
@@ -210,7 +210,7 @@ sim on the next slide is the receipts. Land: this is the symptom-scaling closed 
 
 # Scaling on Latency: The Trap
 
-<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :height="130" />
+<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" :height="130" />
 
 <!--
 Live DES from presets/latency-runaway.json. Scaling on mean latency against a shared DB
@@ -267,7 +267,7 @@ just unnamed.
 
 # Oscillation, by Default
 
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :height="130" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :height="130" />
 
 <!--
 War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
@@ -320,7 +320,7 @@ period / metric delay lever on the next slide.
 
 # The Metric Pipeline Is Dead Time Too
 
-<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :height="130" />
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps']" :height="130" />
 
 <!--
 Live DES from presets/metric-delay-compare.json. Flip period/delay live: AWS realistic
@@ -411,7 +411,7 @@ Tease: live demo next — flip "server profile", same pulse.
 
 # Tuned Threads vs. Node.js, Same Pulse
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'workers', 'baseRps', 'rps', 'holdSec']" :height="130" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" :height="130" />
 
 <!--
 Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip "server profile"

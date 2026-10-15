@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { resolvePreset, type Preset } from '../sim/scenarios/preset'
-import type { Params, RunResult } from '../sim/scenarios/types'
+import type { ChartSpec, Params, RunResult } from '../sim/scenarios/types'
 import RunWorker from '../bench/runWorker?worker'
 import type { RunRequest, RunResponse } from '../bench/runWorker'
 
@@ -20,7 +20,14 @@ const props = withDefaults(defineProps<{
   /** Param keys to show in the fold. Empty → no controls. */
   expose?: string[]
   height?: number
-}>(), { params: () => ({}), expose: () => [], height: 180 })
+  /** Chart panels to keep, by `yLabel` (e.g. 'instances', 'req/s'), in the
+   *  model's own order — not the order given here. Empty/omitted → all panels. */
+  charts?: string[]
+  /** Series keys to drop from whichever panels remain — for slides where a
+   *  line would distract from the point being made (e.g. "failure load" on
+   *  a slide with no retries in the story). Empty/omitted → all series. */
+  hideSeries?: string[]
+}>(), { params: () => ({}), expose: () => [], height: 180, charts: () => [], hideSeries: () => [] })
 
 const presets = import.meta.glob<Preset>('../presets/*.json', { eager: true, import: 'default' })
 
@@ -36,6 +43,12 @@ watch(resolved, (r) => { params.value = r.params })
 const notes = computed(() => load(props.preset).notes)
 
 const def = computed(() => resolved.value.def)
+
+const visibleCharts = computed((): ChartSpec[] => {
+  const charts = props.charts.length ? def.value.charts.filter((c) => props.charts.includes(c.yLabel)) : def.value.charts
+  if (!props.hideSeries.length) return charts
+  return charts.map((c) => ({ ...c, series: c.series.filter((s) => !props.hideSeries.includes(s.key)) }))
+})
 
 const MIN_RUN_DELAY_MS = 50
 const MAX_RUN_DELAY_MS = 500
@@ -118,8 +131,8 @@ const summary = computed(() => {
       <div class="progress" :class="{ active: pending }" aria-hidden="true">
         <div class="bar" :style="{ width: `${Math.max(2, Math.round(progress * 100))}%` }" />
       </div>
-      <SimCharts v-if="result" :charts="def.charts" :result="result" :height="height" />
-      <div v-else class="placeholder" :style="{ height: `${height * def.charts.length}px` }">
+      <SimCharts v-if="result" :charts="visibleCharts" :result="result" :height="height" />
+      <div v-else class="placeholder" :style="{ height: `${height * visibleCharts.length}px` }">
         <span class="spinner" />
       </div>
     </div>

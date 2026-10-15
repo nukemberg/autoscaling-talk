@@ -1,0 +1,21 @@
+{
+  "model": "cpu-step",
+  "name": "overshoot-cost",
+  "params": {
+    "baseRps": 400,
+    "rps": 1360,
+    "algo": "aws-simple",
+    "awsOutThreshold": 0.55,
+    "awsInThreshold": 0.45,
+    "awsOutPeriods": 1,
+    "awsInPeriods": 1,
+    "awsPeriodSec": 15,
+    "awsMetricDelaySec": 0,
+    "awsCooldownSec": 0,
+    "bootSec": 240,
+    "horizonSec": 900,
+    "sampleSec": 10,
+    "noisyLoad": false
+  },
+  "notes": "The cost-optimization slide's demo: a genuinely quiet steady state, then a step, then the dead-time overshoot costs more than just running the right-sized fleet the whole time would have. `baseRps: 400` is chosen so 2 instances land cleanly inside the 0.45-0.55 band (~50%, flat, zero errors) — unlike `cpu-oscillation`'s 300rps baseline, which straddles the band and never truly settles. `rps: 1360` is the same step `cpu-oscillation` uses at that value: it also lands cleanly in-band (7 instances, ~49%), just with a worse path to get there.\n\nMeasured (seed 1, noisyLoad off so the mechanism is pure dead time, not noise, numbers from `resolvePreset`+`run()` directly — the same path `Sim.vue` uses, not a chart read): flat 2 instances/50%/0 errors for the first 300s, then the step. +1 ordered every 15s (zero cooldown) while 240s boots are in flight orders ~21 instances before the first one (launched at t=300) is ready at t≈540 — peak 23 at t≈620, well over 3x the 7 actually needed. The batch arriving all at once craters utilization, and the fleet walks back down to 7 by t≈900 (`horizonSec: 900` is deliberately the shortest cut that lands exactly on the resettle — shorter and it's still recovering, e.g. `final` is still 18-21 at 600-720s).\n\nCost (`instancePriceHourly` at its default $0.10/h) at this exact `horizonSec: 900`: the autoscaled run's `total cost` is $0.76. A static fleet of 7 (the number this exact autoscaler converges to on its own, so not hindsight bias) for the same 900s costs $0.175. The overshoot made this run 4.3x costlier than just running the right size the whole time — on top of 16.3% errors during the climb, so the overshoot didn't even buy better service. The ratio shrinks the longer the window runs past the recovery (3.5x at 1200s, 3.0x at 1500s, 2.3x at 2400s) as the one-time overshoot amortizes — the point isn't that autoscaling always costs more, it's that a controller's mistake is a real, measurable cost, not just a reliability footnote. Live flip: drag `horizonSec` up on the workbench to watch that ratio fall in real time.\n\nLand it: this is the same aws-simple-with-every-knob-responsive setup as `cpu-oscillation` — the failure mode there was flapping forever; here, with a baseline and step that both happen to land in-band, it's a single overshoot. Same dead time, same lack of anti-windup, same bill."
+}

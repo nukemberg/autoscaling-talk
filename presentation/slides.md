@@ -112,6 +112,38 @@ when you don't have to" — cost optimization, not capacity engineering.
 -->
 
 ---
+
+# A Cost Optimization That Didn't
+
+<Sim preset="overshoot-cost" :expose="['baseRps', 'rps', 'awsPeriodSec', 'awsCooldownSec']" :height="130" />
+
+<div class="takeaway">
+
+Overshoot during the climb costs more than just running the right size the whole time.
+
+</div>
+
+<!--
+Live DES from presets/overshoot-cost.json. Flat 2 instances/50%/0 errors for 300s (a
+genuinely stable base, unlike cpu-oscillation's), then a step to 1360rps. Zero cooldown +
+15s period ordering blind for the full 240s boot: peak 23 instances (~t=620) vs the 7 the
+autoscaler itself settles on by t≈900 — well over 3x the needed count, plus 16.3% errors
+during the climb (too few ready instances even while massively over-ordering).
+
+Cost (default $0.10/instance-hour): over this exact 900s window the autoscaled run's total
+cost is $0.76; a static fleet of 7 (what this same autoscaler converges to on its own, not
+hindsight) for the same window costs $0.175 — 4.3x costlier for the overshoot, on top of
+worse service. That ratio falls the longer the window runs past the recovery (3.0x by
+1500s, 2.3x by 2400s) as the one-time overshoot amortizes — not "autoscaling always costs
+more," just that a controller's mistake is a real, measurable dollar cost. Land: this is
+the same aws-simple setup as the oscillation slide coming
+up — same dead time, same missing anti-windup, just a baseline/step that both happen to
+land inside the band so it overshoots once instead of flapping forever. The "cost
+optimization" from the last slide isn't automatic; a controller that reacts without
+accounting for its own pending orders can spend MORE than no autoscaler at all.
+-->
+
+---
 layout: default
 ---
 

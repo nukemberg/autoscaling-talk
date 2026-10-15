@@ -174,8 +174,51 @@ falls back to CPU/latency proxies — and the moment you scale on a symptom you'
 closed feedback loop.
 
 If you DID know per-server capacity, that's queueing theory (Little's Law);
-nobody has it, and load is compressible anyway. War story to tell: a latency-scaled system
-ran away to hundreds of instances while fixing nothing. This is the pivot into control theory.
+nobody has it, and load is compressible anyway. War story up next: a latency-scaled system
+ran away to hundreds of instances while fixing nothing.
+-->
+
+---
+layout: default
+---
+
+# War Story: The Latency Trap
+
+<div class="takeaway">
+
+The metric measured the symptom. The autoscaler could only ever treat the symptom.
+
+</div>
+
+<!--
+TODO: no meme/graphic picked yet for this one — public/memes/ only has
+putin-laughing, agent-hpa-license-to-spend, drake-autoscaling, all used elsewhere.
+
+[1 min] Tell it live, don't read it: a service's response time crept up during a routine
+traffic bump. The autoscaler's trigger was mean latency, not CPU — so it did exactly what
+it was configured to do and scaled out. Every new instance opened more connections to the
+same shared database, whose connection pool was the actual bottleneck and didn't grow with
+the fleet. Latency kept climbing regardless, so the autoscaler kept adding instances — all
+the way to the configured max, hundreds of them, no capacity gained, nothing fixed.
+
+The promised payoff of the previous slide's "war story to tell" tease. Keep it short — the
+sim on the next slide is the receipts. Land: this is the symptom-scaling closed loop from
+"Scaling by Metrics" one slide back, now with a body count.
+-->
+
+---
+
+# Scaling on Latency: The Trap
+
+<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :height="130" />
+
+<!--
+Live DES from presets/latency-runaway.json. Scaling on mean latency against a shared DB
+pool that doesn't grow: ceiling = 8 slots / 30ms = 266.7 rps; load steps to 270rps — 1%
+over, permanently. Numbers: latency ~58ms → ~3.3s, still climbing at end of run; instances
+hit max (60) vs ~1.4 a CPU sizing would want; errors stay ~1% — a pure latency story.
+Land it: the bottleneck was never compute, so adding compute fixes nothing — the same
+queue with a bigger blast radius and bill.
 -->
 
 ---
@@ -378,49 +421,6 @@ Threaded tuned to 25 workers / queueSlots 0 (sweet spot: 15 sheds at steady stat
 p95 climb): 0% steady-state errors, p95 only ~165→210ms during the pulse, ~5.5% rejected
 inside the burst. Event-loop: p95 ~82s, 6-7 min recovery, and still sheds ~8.7% — worse
 than threaded on EVERY axis, including errors. Only variable: can the unit say no.
--->
-
----
-layout: default
----
-
-# War Story: The Latency Trap
-
-<div class="takeaway">
-
-The metric measured the symptom. The autoscaler could only ever treat the symptom.
-
-</div>
-
-<!--
-TODO: no meme/graphic picked yet for this one — public/memes/ only has
-putin-laughing, agent-hpa-license-to-spend, drake-autoscaling, all used elsewhere.
-
-[1 min] Tell it live, don't read it: a service's response time crept up during a routine
-traffic bump. The autoscaler's trigger was mean latency, not CPU — so it did exactly what
-it was configured to do and scaled out. Every new instance opened more connections to the
-same shared database, whose connection pool was the actual bottleneck and didn't grow with
-the fleet. Latency kept climbing regardless, so the autoscaler kept adding instances — all
-the way to the configured max, hundreds of them, no capacity gained, nothing fixed.
-
-The promised payoff of the earlier "war story to tell" tease. Keep it short — the sim on
-the next slide is the receipts. Land: this is the trap from "Scaling on Latency" two slides
-ago (scaling on a symptom = closed loop), now with a body count.
--->
-
----
-
-# Scaling on Latency: The Trap
-
-<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :height="130" />
-
-<!--
-Live DES from presets/latency-runaway.json. Scaling on mean latency against a shared DB
-pool that doesn't grow: ceiling = 8 slots / 30ms = 266.7 rps; load steps to 270rps — 1%
-over, permanently. Numbers: latency ~58ms → ~3.3s, still climbing at end of run; instances
-hit max (60) vs ~1.4 a CPU sizing would want; errors stay ~1% — a pure latency story.
-Land it: the bottleneck was never compute, so adding compute fixes nothing — the same
-queue with a bigger blast radius and bill.
 -->
 
 ---

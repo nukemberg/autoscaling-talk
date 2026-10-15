@@ -224,41 +224,6 @@ just unnamed.
 
 ---
 layout: default
-class: tradeoffs
----
-
-# Same Knobs, Real Names
-
-<div class="tradeoffs">
-
-| Control term | k8s HPA | AWS target tracking | AWS step / simple | KEDA |
-|---|---|---|---|---|
-| Sampling period T | loop `15s`; metrics-server cache `60s` | CloudWatch datapoint `60s`¹ | same `60s`¹ datapoint | `pollingInterval` `30s` |
-| Gain | `1`, on metric/target ratio | `1`, on metric/target ratio | fixed step table (you pick it) | delegates to the HPA it creates |
-| Dead band | `tolerance: 0.1` (±10%) | scale-in only below `0.9×target`² | alarm threshold itself — no symmetric band | inherits HPA's `0.1` |
-| Anti-windup | unready pods counted in `current`, not in the metric avg | warming instances excluded from metric, counted in desired | same warm-up exclusion as TT | via the HPA it creates |
-| Scale-down brake | `stabilizationWindowSeconds: 300` | scale-in blocked while anything's still warming | `Cooldown: 300` blocks *any* action, not just down | `cooldownPeriod: 300` before scale-to-zero³ |
-
-</div>
-
-<div class="tradeoffs-note">
-
-¹ `60s` needs detailed monitoring enabled — basic (default, free) EC2 monitoring is 5-min datapoints, 5× the dead time.
-² "default instance warmup" has no built-in value — TT/step policies fall back to the group's `Cooldown` (`300s`) when it's unset.
-³ a different knob than HPA's stabilization: scale-to-zero cooldown, not downscale damping — KEDA's own HPA still applies `0.1`/`300s` on top.
-
-</div>
-
-<!--
-[3 min] The crash-course terms, with the actual product defaults next to them — so nobody
-leaves thinking "gain" or "dead band" is a made-up abstraction. Numbers verified against
-current k8s/AWS/KEDA docs (not just this repo's sim defaults, which match them).
-
-Land: every column has the same four knobs. Different names, same control loop.
--->
-
----
-layout: default
 ---
 
 # HPA Is a P Controller, Gain 1

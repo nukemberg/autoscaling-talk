@@ -221,42 +221,21 @@ just unnamed.
 -->
 
 ---
-layout: default
----
-
-# War Story: Dead on Arrival
-
-<div class="content">
-
-A CPU-triggered autoscaler, tuned for a fast reaction, had a sync period far shorter than
-boot time — so every cycle without immediate relief ordered another batch of instances
-before the last batch had even finished starting. Utilization swung from pegged to
-starved and back as oversized batches landed all at once, and on every down-swing the
-scale-in policy killed youngest-first — which meant the instances still booting, the ones
-that had never served a single request. The cluster spent real money cycling capacity
-that existed only on paper.
-
-</div>
-
-<div class="takeaway">
-
-Dead time doesn't forgive a fast loop. It punishes it.
-
-</div>
-
-<!--
-[1 min] Payoff for the control-system pivot flagged in AGENTS.md's outline. Land: this is
-the exact shape of the next slide's sim — 15s period vs 240s boot, youngest-first kill on
-the down-swing. Keep it tight, the sim does the rest.
--->
-
----
 
 # Oscillation, by Default
 
 <Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :height="130" />
 
 <!--
+War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
+CPU-triggered autoscaler, tuned for a fast reaction, had a sync period far shorter than
+boot time — so every cycle without immediate relief ordered another batch of instances
+before the last batch had even finished starting. Utilization swung from pegged to
+starved and back as oversized batches landed all at once, and on every down-swing the
+scale-in policy killed youngest-first — the instances still booting, the ones that had
+never served a single request. The cluster spent real money cycling capacity that existed
+only on paper. Dead time doesn't forgive a fast loop; it punishes it.
+
 Live DES from presets/cpu-oscillation.json. AWS simple scaling ±1, thresholds 0.55/0.45,
 cooldown 0, 15s period vs 240s boot: +1 every 15s orders ~16 instances before one helps;
 needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps to 1360 —

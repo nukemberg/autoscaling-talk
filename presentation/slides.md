@@ -294,17 +294,6 @@ layout: default
 
 # War Story: The Autoscaler Ate the Database
 
-<div class="content">
-
-A load spike triggered a scale-out, and the fleet grew well past its usual size within
-minutes. Nobody had sized the database for that fleet — each instance opened its own
-connection pool, and the sum of all those pools blew past the database's connection limit.
-The database fell over under connection overhead alone, every instance lost its queries,
-and clients retried immediately. When the database came back, every instance reconnected
-at once — the exact same spike, self-inflicted, on a system already running on fumes.
-
-</div>
-
 <div class="takeaway">
 
 The autoscaler did its job perfectly. That was the problem — it scaled the blast radius, not just the capacity.
@@ -312,9 +301,20 @@ The autoscaler did its job perfectly. That was the problem — it scaled the bla
 </div>
 
 <!--
-[1 min] Payoff for AGENTS.md's [6 min] "coupling and blast radius" beat: an autoscaler
-overwhelmed the very database it depended on and triggered a cascading failure. Land: this
-is the mechanics on the next slide — N instances = N connection pools, recovery is a herd.
+TODO: no meme/graphic picked yet for this one — public/memes/ only has
+putin-laughing, agent-hpa-license-to-spend, drake-autoscaling, all used elsewhere.
+
+[1 min] Tell it live, don't read it: a load spike triggered a scale-out, and the fleet grew
+well past its usual size within minutes. Nobody had sized the database for that fleet —
+each instance opened its own connection pool, and the sum of all those pools blew past the
+database's connection limit. The database fell over under connection overhead alone, every
+instance lost its queries, and clients retried immediately. When the database came back,
+every instance reconnected at once — the exact same spike, self-inflicted, on a system
+already running on fumes.
+
+Payoff for AGENTS.md's [6 min] "coupling and blast radius" beat: an autoscaler overwhelmed
+the very database it depended on and triggered a cascading failure. Land: this is the
+mechanics on the next slide — N instances = N connection pools, recovery is a herd.
 -->
 
 ---
@@ -386,12 +386,6 @@ layout: default
 
 # War Story: The Latency Trap
 
-<div class="content">
-
-A service's response time crept up during a routine traffic bump. The autoscaler's trigger was mean latency, not CPU — so it did exactly what it was configured to do and scaled out. Every new instance opened more connections to the same shared database, whose connection pool was the actual bottleneck and didn't grow with the fleet. Latency kept climbing regardless, so the autoscaler kept adding instances — all the way to the configured max, hundreds of them, no capacity gained, nothing fixed.
-
-</div>
-
 <div class="takeaway">
 
 The metric measured the symptom. The autoscaler could only ever treat the symptom.
@@ -399,9 +393,19 @@ The metric measured the symptom. The autoscaler could only ever treat the sympto
 </div>
 
 <!--
-[1 min] The promised payoff of the earlier "war story to tell" tease. Keep it short — the
-sim on the next slide is the receipts. Land: this is the trap from "Scaling on Latency" two
-slides ago (scaling on a symptom = closed loop), now with a body count.
+TODO: no meme/graphic picked yet for this one — public/memes/ only has
+putin-laughing, agent-hpa-license-to-spend, drake-autoscaling, all used elsewhere.
+
+[1 min] Tell it live, don't read it: a service's response time crept up during a routine
+traffic bump. The autoscaler's trigger was mean latency, not CPU — so it did exactly what
+it was configured to do and scaled out. Every new instance opened more connections to the
+same shared database, whose connection pool was the actual bottleneck and didn't grow with
+the fleet. Latency kept climbing regardless, so the autoscaler kept adding instances — all
+the way to the configured max, hundreds of them, no capacity gained, nothing fixed.
+
+The promised payoff of the earlier "war story to tell" tease. Keep it short — the sim on
+the next slide is the receipts. Land: this is the trap from "Scaling on Latency" two slides
+ago (scaling on a symptom = closed loop), now with a body count.
 -->
 
 ---

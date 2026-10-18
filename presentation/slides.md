@@ -4,7 +4,8 @@ title: 'Autoscaling: Cost Optimization Turned Reliability Nightmare'
 info: |
   ## Autoscaling: Cost Optimization Turned Reliability Nightmare
   Reversim 2026
-class: text-center
+class: text-center title-slide
+layout: center
 drawings:
   persist: false
 transition: slide-left
@@ -36,10 +37,10 @@ layout: default
 
 <div class="content">
 
-- Automagically handles extra load
-- Makes server issues go away
-- Simple, easy solution
-- Advanced tooling widely available
+- Absorbs extra load
+- Makes server issues vanish
+- Simple
+- Tooling everywhere
 
 </div>
 
@@ -66,9 +67,9 @@ layout: default
 <div class="content">
 
 - Runaway bills
-- Dynamic, cascading failures — escalating minor faults
-- Low-utilization clusters
-- Hard to tune — engineers fiddling with params forever
+- Cascading failures
+- Idle clusters
+- Endless tuning
 
 </div>
 
@@ -91,17 +92,15 @@ layout: default
 
 <div class="content">
 
-- You design and load-test for max load — autoscaling or not
-- Shared resources don't scale linearly (Universal Scalability Law)
-- You're scaling **down** from max, not up from min
+- You load-test for **max** — autoscaling or not
+- Shared resources don't scale linearly
+- You scale **down** from max, not up from min
 
 </div>
 
 <div class="takeaway">
 
-Autoscaling is a **cost optimization**, not a scaleout solution.
-
-Treat it as scaleout, and you find out in prod you can't actually scale.
+Autoscaling is **cost optimization**, not scaleout.
 
 </div>
 
@@ -109,8 +108,11 @@ Treat it as scaleout, and you find out in prod you can't actually scale.
 [1.5 min] The max-scale ceiling exists regardless of the autoscaler — find it in
 load tests, not in prod. Once max is known, autoscaling's only job is "don't run at max
 when you don't have to" — cost optimization, not capacity engineering.
+Treat it as scaleout, and you find out in prod you can't actually scale.
 -->
 
+---
+class: sim
 ---
 
 # A Cost Optimization That Didn't
@@ -149,23 +151,23 @@ layout: default
 
 <div class="cards">
   <div class="card">
-    <div class="card-label">1. Demand (Cause)</div>
-    <div class="card-title">What you want to scale on</div>
+    <div class="card-label">Cause</div>
+    <div class="card-title">Demand</div>
     <p class="card-body">Incoming work, queue depth</p>
-    <p class="card-note">Hard to isolate per instance (LB distribution)</p>
+    <p class="card-note">Hard to measure per instance</p>
   </div>
 
   <div class="card card-symptom">
-    <div class="card-label">2. Symptoms (Effect)</div>
-    <div class="card-title">What you actually have</div>
-    <p class="card-body">CPU utilization, latency</p>
-    <p class="card-note">Readily available proxies — but deceptive</p>
+    <div class="card-label">Effect</div>
+    <div class="card-title">Symptoms</div>
+    <p class="card-body">CPU, latency</p>
+    <p class="card-note">Easy to get. Deceptive.</p>
   </div>
 </div>
 
 <div class="takeaway">
-  <div><strong class="accent-takeaway">3. Latency</strong> is an <em>effect</em>, not a capacity shortage.</div>
-  <div class="punchline">When you scale on symptoms, you've built a closed feedback loop.</div>
+  <div><strong class="accent-takeaway">Latency</strong> is an effect, not a capacity shortage.</div>
+  <div class="punchline">Scale on symptoms = closed feedback loop.</div>
 </div>
 
 <!--
@@ -179,14 +181,17 @@ ran away to hundreds of instances while fixing nothing.
 -->
 
 ---
-layout: default
+layout: center
+class: statement
 ---
 
 # War Story: The Latency Trap
 
-<div class="takeaway">
+<div class="big">
 
-The metric measured the symptom. The autoscaler could only ever treat the symptom.
+The metric measured the **symptom**.
+
+<span class="sub">So the autoscaler could only treat the symptom.</span>
 
 </div>
 
@@ -206,6 +211,8 @@ sim on the next slide is the receipts. Land: this is the symptom-scaling closed 
 "Scaling by Metrics" one slide back, now with a body count.
 -->
 
+---
+class: sim
 ---
 
 # Scaling on Latency: The Trap
@@ -229,16 +236,16 @@ layout: default
 
 <div class="content">
 
-- **Characteristic time vs. dead time** — how fast load moves vs. how long you take to react
-- **Gain** — how hard you react to error
-- **Discrete sampling** — can't react faster than you sample; cooldown is a second limit
-- **Stateful vs. stateless controllers** — memory rides out momentary fluctuations, at the cost of speed and complexity
+- **Dead time** vs. how fast load moves
+- **Gain** — how hard you react
+- **Sampling** — can't react faster than you look
+- **Memory** — smooth, but slower
 
 </div>
 
 <div class="takeaway">
 
-No control algorithm is perfect. There's **always** a tradeoff.
+No controller is perfect. **Always** a tradeoff.
 
 </div>
 
@@ -263,6 +270,8 @@ Land: HPA/ASG knobs (sync-period, stabilization, cooldown, warm-up) are these sa
 just unnamed.
 -->
 
+---
+class: sim
 ---
 
 # Oscillation, by Default
@@ -293,21 +302,21 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
   <div class="card">
     <div class="card-label">Patient</div>
     <div class="card-title">Nudge, then wait</div>
-    <p class="card-body">Turn the hot tap a little. Wait for the pipe's dead time to actually pass before touching it again — the water already on its way has to arrive first. One or two nudges, dialed in.</p>
-    <p class="card-note">time between adjustments ≫ pipe delay</p>
+    <p class="card-body">Let the water already in the pipe arrive. Dialed in.</p>
+    <p class="card-note">adjust interval ≫ pipe delay</p>
   </div>
 
   <div class="card card-symptom">
     <div class="card-label">Impatient</div>
-    <div class="card-title">Turn, still cold, turn more</div>
-    <p class="card-body">Crank it hotter — still feels cold, that water hasn't arrived yet. Crank hotter again. Then it all arrives at once, scalding, so you crank cold. Repeat forever.</p>
-    <p class="card-note">time between adjustments ≈ pipe delay (or less)</p>
+    <div class="card-title">Still cold? Turn more.</div>
+    <p class="card-body">It all arrives at once. Scalding. Repeat forever.</p>
+    <p class="card-note">adjust interval ≈ pipe delay</p>
   </div>
 </div>
 
 <div class="takeaway">
-  <div>The pipe's delay never changed. How often you touched the knob did.</div>
-  <div class="punchline">Adjust <strong class="accent-takeaway">slower</strong> than the delay you're waiting on — or you're fighting your own last move.</div>
+  <div>Adjust <strong class="accent-takeaway">slower</strong> than the delay you're waiting on.</div>
+  <div class="punchline">Or you fight your own last move.</div>
 </div>
 
 <!--
@@ -316,6 +325,8 @@ knob you control is your own adjustment interval, not the pipe. That's exactly t
 period / metric delay lever on the next slide.
 -->
 
+---
+class: sim
 ---
 
 # The Metric Pipeline Is Dead Time Too
@@ -332,14 +343,19 @@ changed. Bonus demo: drag period below the 5s metric resolution and the alarm go
 -->
 
 ---
-layout: default
+layout: center
+class: statement
 ---
 
 # War Story: The Autoscaler Ate the Database
 
-<div class="takeaway">
+<div class="big">
 
-The autoscaler did its job perfectly. That was the problem — it scaled the blast radius, not just the capacity.
+It did its job perfectly.
+
+**That was the problem.**
+
+<span class="sub">It scaled the blast radius, not just the capacity.</span>
 
 </div>
 
@@ -368,10 +384,10 @@ layout: default
 
 <div class="content">
 
-- N instances = **N× connection pools** on the same upstream — not just more capacity
-- LB registration + health checks are dead time too — new instances aren't helping yet
-- Recovery is a **herd** — everything reconnects at once
-- Fast-onset load beats any scaler whose dead time > onset time. No controller fixes that.
+- N instances = **N× connection pools**
+- LB registration + health checks = dead time
+- Recovery is a **herd**
+- Fast-onset load beats any controller
 
 </div>
 
@@ -389,14 +405,24 @@ layout: default
 
 <div class="content">
 
-- **Well-behaved unit** — bounded workers = admission control: sheds fast when full, predictable capacity, bounded latency, boots fast, honest metrics
-- **Bad unit** — never says no: an unbounded worker pool admits everything, then queues it all on the same finite CPU
+<div class="cards">
+  <div class="card">
+    <div class="card-label">Well-behaved</div>
+    <div class="card-title">Bounded workers</div>
+    <p class="card-body">Says no when full. Honest metrics.</p>
+  </div>
+  <div class="card card-symptom">
+    <div class="card-label">Bad</div>
+    <div class="card-title">Never says no</div>
+    <p class="card-body">Queues everything on the same CPU.</p>
+  </div>
+</div>
 
 </div>
 
 <div class="takeaway">
 
-A unit that can't reject still runs out of CPU — it just fails as latency instead of errors.
+A unit that can't reject fails as **latency**, not errors.
 
 </div>
 
@@ -407,6 +433,8 @@ the overload goes during dead time: fast honest errors vs silent unbounded laten
 Tease: live demo next — flip "server profile", same pulse.
 -->
 
+---
+class: sim
 ---
 
 # Tuned Threads vs. Node.js, Same Pulse
@@ -431,10 +459,10 @@ layout: default
 
 <div class="content">
 
-- Autoscaling means **someone else controls your bill** — retry storms, scrapers, a bug in a client
-- Scaling costs your upstream too — DB tiers, egress, per-connection pricing
-- Scaling is an attack surface — economic DoS
-- **Always set `max`.** It's the rate limit on your own wallet.
+- **Someone else** controls your bill
+- Scaling costs your upstream too
+- Scaling is an attack surface
+- **Always set `max`.**
 
 </div>
 
@@ -459,8 +487,8 @@ backgroundSize: contain
 
 <div class="content">
 
-- Autoscaling absorbs perf problems painlessly — so nothing forces you to actually fix them
-- You're not reducing cost **per request**. You're paying for more capacity, forever.
+- Autoscaling hides perf problems
+- You pay for more capacity. **Forever.**
 
 </div>
 
@@ -487,17 +515,17 @@ layout: default
 
 <div class="content">
 
-- Design for max scale first. Load-test it. Autoscaling is cost, not capacity.
-- Well-behaved units — bounded, shed fast, honest metrics
-- A signal that actually tracks load
-- Tune the loop **on purpose**. Slow is fine.
+- Load-test **max** first
+- Well-behaved units
+- A signal that tracks load
+- Tune **on purpose** — slow is fine
 - Protect upstream. Set `max`.
 
 </div>
 
 <div class="takeaway">
 
-The real fix is often **less** autoscaling: warm headroom, load shedding, backpressure.
+Often the fix is **less** autoscaling: headroom, shedding, backpressure.
 
 </div>
 
@@ -508,16 +536,17 @@ Slow and boring beats fast and wrong.
 -->
 
 ---
-layout: default
+layout: center
+class: statement
 ---
 
 # Summary
 
-<div class="content">
+<div class="big">
 
-Autoscaling is a cost optimization with a feedback loop attached — and every feedback loop has failure modes the static version didn't.
+A cost optimization with a **feedback loop** attached.
 
-**Simpler is often better. Don't run before you walk.**
+<span class="sub">Simpler is often better. Don't run before you walk.</span>
 
 </div>
 

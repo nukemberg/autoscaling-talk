@@ -437,18 +437,31 @@ Tease: live demo next — flip "server profile", same pulse.
 class: sim
 ---
 
-# Tuned Threads vs. Node.js, Same Pulse
+# Same Pulse, Tuned Threads
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
 
 <!--
-Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip "server profile"
-live. Same 5x pulse (shorter than the 30s boot — no mid-pulse capacity can help); same
-starting fleet; 70% CPU target on purpose — a well-behaved unit run HOT, not coasting.
-Threaded tuned to 25 workers / queueSlots 0 (sweet spot: 15 sheds at steady state, 60 lets
-p95 climb): 0% steady-state errors, p95 only ~165→210ms during the pulse, ~5.5% rejected
-inside the burst. Event-loop: p95 ~82s, 6-7 min recovery, and still sheds ~8.7% — worse
-than threaded on EVERY axis, including errors. Only variable: can the unit say no.
+Live DES from presets/pulse-compare-threaded-vs-event-loop.json, threaded profile. 5x pulse
+(shorter than the 30s boot — no mid-pulse capacity can help); 70% CPU target on purpose — a
+well-behaved unit run HOT, not coasting. Tuned to 25 workers / queueSlots 0 (sweet spot: 15
+sheds at steady state, 60 lets p95 climb): 0% steady-state errors, p95 only ~165→210ms during
+the pulse, ~5.5% rejected inside the burst. Setup for the next slide: same pulse, same
+fleet, only the unit changes.
+-->
+
+---
+class: sim
+---
+
+# Same Pulse, Node.js
+
+<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
+
+<!--
+Same preset, serverProfile=event-loop (unbounded workers). p95 ~82s, 6-7 min recovery, and
+still sheds ~8.7% — worse than threaded on EVERY axis, including errors. Flip back to the
+previous slide to compare. Only variable: can the unit say no.
 -->
 
 ---

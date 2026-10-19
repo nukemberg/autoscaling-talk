@@ -117,7 +117,7 @@ class: sim
 
 # A Cost Optimization That Didn't
 
-<CostCompare preset="overshoot-cost" :static-instances="7" :height="110" />
+<CostCompare preset="overshoot-cost" :static-instances="7" />
 
 <!--
 Live DES from presets/overshoot-cost.json, run twice, stacked top/bottom on the same y-axis
@@ -217,7 +217,7 @@ class: sim
 
 # Scaling on Latency: The Trap
 
-<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" :height="130" />
+<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
 
 <!--
 Live DES from presets/latency-runaway.json. Scaling on mean latency against a shared DB
@@ -276,7 +276,7 @@ class: sim
 
 # Oscillation, by Default
 
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :height="130" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" />
 
 <!--
 War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
@@ -331,7 +331,7 @@ class: sim
 
 # The Metric Pipeline Is Dead Time Too
 
-<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps']" :height="130" />
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps']" />
 
 <!--
 Live DES from presets/metric-delay-compare.json. Flip period/delay live: AWS realistic
@@ -439,7 +439,7 @@ class: sim
 
 # Tuned Threads vs. Node.js, Same Pulse
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" :height="130" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['serverProfile', 'workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
 
 <!--
 Live DES from presets/pulse-compare-threaded-vs-event-loop.json. Flip "server profile"

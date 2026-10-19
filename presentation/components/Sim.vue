@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { resolvePreset, type Preset } from '../sim/scenarios/preset'
 import type { ChartSpec, Params, RunResult } from '../sim/scenarios/types'
+import { LAST_PANEL_PX, useFillHeight } from './fill'
 import RunWorker from '../bench/runWorker?worker'
 import type { RunRequest, RunResponse } from '../bench/runWorker'
 
@@ -19,6 +20,7 @@ const props = withDefaults(defineProps<{
   params?: Params
   /** Param keys to show in the fold. Empty → no controls. */
   expose?: string[]
+  /** Per-panel px. Omitted → fill the slide's remaining height. */
   height?: number
   /** Chart panels to keep, by `yLabel` (e.g. 'instances', 'req/s'), in the
    *  model's own order — not the order given here. Empty/omitted → all panels. */
@@ -27,7 +29,7 @@ const props = withDefaults(defineProps<{
    *  line would distract from the point being made (e.g. "failure load" on
    *  a slide with no retries in the story). Empty/omitted → all series. */
   hideSeries?: string[]
-}>(), { params: () => ({}), expose: () => [], height: 180, charts: () => [], hideSeries: () => [] })
+}>(), { params: () => ({}), expose: () => [], height: undefined, charts: () => [], hideSeries: () => [] })
 
 const presets = import.meta.glob<Preset>('../presets/*.json', { eager: true, import: 'default' })
 
@@ -36,6 +38,16 @@ function load(name: string): Preset {
   if (!p) throw new Error(`unknown preset "${name}"; have: ${Object.keys(presets).join(', ')}`)
   return p
 }
+
+const root = ref<HTMLElement>()
+const avail = useFillHeight(root)
+// room taken by the summary line + gap above the charts, and by the last panel's x axis + legend row
+const SUMMARY_PX = 24
+const panelHeight = computed(() => {
+  if (props.height) return props.height
+  const n = Math.max(1, visibleCharts.value.length)
+  return Math.max(80, Math.floor((avail.value - SUMMARY_PX - LAST_PANEL_PX) / n)) || 130
+})
 
 const resolved = computed(() => resolvePreset(load(props.preset), props.params))
 const params = ref<Params>(resolved.value.params)
@@ -115,7 +127,7 @@ const summary = computed(() => {
 </script>
 
 <template>
-  <div class="sim">
+  <div ref="root" class="sim">
     <details v-if="expose.length || notes" class="fold">
       <summary>{{ summary }}</summary>
       <div class="panel">
@@ -131,8 +143,8 @@ const summary = computed(() => {
       <div class="progress" :class="{ active: pending }" aria-hidden="true">
         <div class="bar" :style="{ width: `${Math.max(2, Math.round(progress * 100))}%` }" />
       </div>
-      <SimCharts v-if="result" :charts="visibleCharts" :result="result" :height="height" />
-      <div v-else class="placeholder" :style="{ height: `${height * visibleCharts.length}px` }">
+      <SimCharts v-if="result" :charts="visibleCharts" :result="result" :height="panelHeight" />
+      <div v-else class="placeholder" :style="{ height: `${panelHeight * visibleCharts.length}px` }">
         <span class="spinner" />
       </div>
     </div>
@@ -142,8 +154,8 @@ const summary = computed(() => {
 <style scoped>
 .sim { display: flex; flex-direction: column; gap: 0.25rem; position: relative; isolation: isolate; }
 .sim :deep(.sim-charts) { position: relative; z-index: 0; }
-.fold, .summary-line { font-size: 0.75rem; font-family: monospace; }
-.fold summary, .summary-line { cursor: pointer; opacity: 0.8; overflow-wrap: anywhere; }
+.fold, .summary-line { font-size: 0.85rem; font-family: monospace; }
+.fold summary, .summary-line { cursor: pointer; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .panel {
   position: absolute; z-index: 100; top: 1.4rem; left: 0; max-width: 100%; font-family: sans-serif;
   padding: 0.6rem 0.8rem; background: var(--chart-panel-bg, white); border: 1px solid var(--chart-panel-border, #ccc); border-radius: 4px;

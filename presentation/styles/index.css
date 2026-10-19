@@ -272,9 +272,9 @@
 
 /* ---- sim slides: chart gets the room ---------------------------------------- */
 
-.sim h1 { font-size: 2.2rem; margin-bottom: 0.5rem; }
+.sim h1 { font-size: 2.2rem; margin-bottom: 0.25rem; }
 .sim h1::after { display: none; }
-.sim.slidev-layout { padding-top: 1.5rem; }
+.sim.slidev-layout { padding: 1rem 2rem 0.5rem; }
 
 .takeaway p, .takeaway div, .card p { line-height: 1.25; }
 .takeaway p { margin: 0 0 0.4rem; }

@@ -11,14 +11,22 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { resolvePreset, type Preset } from '../sim/scenarios/preset'
 import type { RunResult } from '../sim/scenarios/types'
+import SimCharts from './SimCharts.vue'
+import { LAST_PANEL_PX, useFillHeight } from './fill'
 import RunWorker from '../bench/runWorker?worker'
 import type { RunRequest, RunResponse } from '../bench/runWorker'
 
 const props = withDefaults(defineProps<{
   preset: string
   staticInstances: number
+  /** Per-chart px. Omitted → fill the slide's remaining height. */
   height?: number
-}>(), { height: 150 })
+}>(), { height: undefined })
+
+const root = ref<HTMLElement>()
+const avail = useFillHeight(root)
+// Two stacked charts; only the lower one draws the x axis + legend row (60px, see SimCharts).
+const chartHeight = computed(() => props.height || Math.max(100, Math.floor((avail.value - 8 - LAST_PANEL_PX) / 2)) || 150)
 
 const presets = import.meta.glob<Preset>('../presets/*.json', { eager: true, import: 'default' })
 
@@ -77,29 +85,35 @@ const ratio = computed(() => {
 </script>
 
 <template>
-  <div class="cost-compare">
-    <div class="cc-row">
-      <div class="cc-label">Autoscaled</div>
-      <SimCharts v-if="autoResult" :charts="charts" :result="autoResult" :height="height" :y-range="sharedYRange" />
-      <div v-else class="cc-placeholder" :style="{ height: `${height}px` }"><span class="cc-spinner" /></div>
+  <div ref="root" class="cost-compare">
+    <div class="cc-rows">
+      <div class="cc-row">
+        <div class="cc-label">Autoscaled</div>
+        <SimCharts v-if="autoResult" :charts="charts" :result="autoResult" :height="chartHeight" :y-range="sharedYRange" :x-axis="false" :legend="false" />
+        <div v-else class="cc-placeholder" :style="{ height: `${chartHeight}px` }"><span class="cc-spinner" /></div>
+      </div>
+      <div class="cc-row">
+        <div class="cc-label">Static ({{ staticInstances }} instances)</div>
+        <SimCharts v-if="staticResult" :charts="charts" :result="staticResult" :height="chartHeight" :y-range="sharedYRange" />
+        <div v-else class="cc-placeholder" :style="{ height: `${chartHeight + LAST_PANEL_PX}px` }"><span class="cc-spinner" /></div>
+      </div>
     </div>
-    <div class="cc-row">
-      <div class="cc-label">Static ({{ staticInstances }} instances)</div>
-      <SimCharts v-if="staticResult" :charts="charts" :result="staticResult" :height="height" :y-range="sharedYRange" />
-      <div v-else class="cc-placeholder" :style="{ height: `${height}px` }"><span class="cc-spinner" /></div>
+    <div v-if="error" class="cc-error">{{ error }}</div>
+    <div v-else-if="ratio" class="cc-ratio">
+      <div class="cc-ratio-num">{{ ratio.toFixed(1) }}×</div>
+      <div class="cc-ratio-label">the cost</div>
     </div>
-  </div>
-  <div v-if="error" class="cc-error">{{ error }}</div>
-  <div v-else-if="ratio" class="cc-ratio">
-    <span class="cc-ratio-num">{{ ratio.toFixed(1) }}×</span>
-    <span class="cc-ratio-label">the cost</span>
   </div>
 </template>
 
 <style scoped>
-.cost-compare { display: flex; flex-direction: column; gap: 0.5rem; }
+.cost-compare { display: grid; grid-template-columns: 1fr auto; gap: 1rem; align-items: center; }
+.cc-rows { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.cc-row { position: relative; }
 .cc-row :deep(.sim-charts) { position: relative; z-index: 0; }
-.cc-label { font-size: 0.75rem; font-weight: 600; opacity: 0.8; margin-bottom: 0.2rem; }
+/* Label overlays the chart's top padding strip (left of the "load starts" marker) instead of
+   taking its own row — every px of height goes to the plot. */
+.cc-label { position: absolute; top: 0; right: 64px; z-index: 2; font-size: 1.1rem; font-weight: 800; }
 .cc-placeholder { display: grid; place-items: center; }
 .cc-spinner {
   width: 18px; height: 18px; border-radius: 50%;
@@ -107,8 +121,8 @@ const ratio = computed(() => {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.cc-ratio { margin-top: 0.75rem; text-align: center; line-height: 1; }
-.cc-ratio-num { font-size: 3rem; font-weight: 700; color: var(--c-takeaway, #c0392b); }
-.cc-ratio-label { margin-left: 0.5rem; font-size: 1.25rem; opacity: 0.8; }
-.cc-error { margin-top: 0.6rem; color: var(--c-symptom, crimson); font-family: monospace; font-size: 0.8rem; }
+.cc-ratio { text-align: center; line-height: 1; padding: 0 1rem; }
+.cc-ratio-num { font-size: 5.5rem; font-weight: 800; color: var(--c-takeaway, #c0392b); }
+.cc-ratio-label { margin-top: 0.4rem; font-size: 1.8rem; font-weight: 600; }
+.cc-error { color: var(--c-symptom, crimson); font-family: monospace; font-size: 0.8rem; }
 </style>

@@ -4,15 +4,20 @@ import type { AlignedData, Options } from 'uplot'
 import { computed, ref } from 'vue'
 import type { ChartSpec, RunResult } from '../sim/scenarios/types'
 import { chartColors, resolveColor, watchChartTheme } from './theme'
+import { LAST_PANEL_PX } from './fill'
 
 const props = withDefaults(defineProps<{
   charts: ChartSpec[]
   result: RunResult
   height?: number
+  /** Draw the x axis (ticks + label) under the last panel. Off for the upper of two stacked charts sharing a time axis. */
+  xAxis?: boolean
+  /** Show the series legend (single-series panels never do). Off for the upper of two identical stacked charts. */
+  legend?: boolean
   /** Override the primary (left) y-axis's auto range — e.g. to keep two side-by-side
    *  panels fed by different RunResults on the same scale for a fair visual comparison. */
   yRange?: [number, number]
-}>(), { height: 180 })
+}>(), { height: 180, xAxis: true, legend: true })
 
 // A factory, not a shared constant: uPlot mutates axis/grid config objects in
 // place (see Chart.vue's render()), and each panel is a separate uPlot
@@ -80,7 +85,8 @@ function markerHook(labelled: boolean) {
 // Fixed axis widths so stacked panels' plot areas line up — otherwise a panel with
 // a secondary (right-side) scale narrows relative to one without, and left-axis
 // width can drift with tick label digit count.
-const LEFT_AXIS_SIZE = 56
+const AXIS_FONT = '600 14px sans-serif'
+const LEFT_AXIS_SIZE = 60
 const RIGHT_AXIS_SIZE = 50
 // Blank bottom padding reserved inside the last panel's plot box so its legend (which mounts
 // inside that box, see legendMount) has empty room to sit in instead of overlapping data.
@@ -160,13 +166,13 @@ const panels = computed(() => {
       })),
     },
     axes: [
-      last ? { stroke: C.text, grid: mkGrid(), label: 'seconds' } : { show: false },
-      { stroke: C.text, grid: mkGrid(), label: c.yLabel, size: LEFT_AXIS_SIZE },
+      last && props.xAxis ? { stroke: C.text, grid: mkGrid(), size: 34, font: AXIS_FONT } : { show: false },
+      { stroke: C.text, grid: mkGrid(), label: c.yLabel, size: LEFT_AXIS_SIZE, font: AXIS_FONT, labelFont: AXIS_FONT },
       ...rightAxes,
     ],
     // Minimal static legend per panel (see legendMount); only when there's
     // more than one series — a single-series panel is self-explanatory.
-    legend: { show: c.series.length > 1, live: false, mount: legendMount(last) },
+    legend: { show: props.legend && c.series.length > 1, live: false, mount: legendMount(last) },
     cursor: { sync: { key: cursorSyncKey } },
     hooks: { draw: [markerHook(i === 0)] },
     // Reserve room above the plot for marker labels so they don't overlap the series, and
@@ -176,7 +182,7 @@ const panels = computed(() => {
     padding: [
       i === 0 ? 24 : null,
       i === 0 ? 8 : null,
-      last ? LEGEND_BOTTOM_PAD : null,
+      last && props.legend ? LEGEND_BOTTOM_PAD : null,
       null,
     ] as unknown as [number, number, number, number],
   }
@@ -184,8 +190,8 @@ const panels = computed(() => {
   // legend row, inside the same height budget — without extra room its own
   // plot area shrinks well below the other panels', leaving too little
   // vertical space for uPlot to fit more than one y-axis tick label.
-  const LAST_PANEL_EXTRA = 60
-  const height = (c.height ?? props.height) + (last ? LAST_PANEL_EXTRA : 0)
+  const LAST_PANEL_EXTRA = LAST_PANEL_PX
+  const height = (c.height ?? props.height) + (last && props.xAxis ? LAST_PANEL_EXTRA : 0)
   return { data, options, height }
   })
 })
@@ -226,7 +232,7 @@ watchChartTheme(() => { panelsTrigger.value++ })
      the background chip below stretches across the whole panel and grays out
      every series line passing under it, not just the text. */
   width: fit-content;
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   line-height: 1.2;
   pointer-events: none;
   padding: 1px 6px;

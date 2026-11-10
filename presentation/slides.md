@@ -335,16 +335,20 @@ layout: default
 
 <div class="cards">
   <div class="card amber">
-    <div class="card-label">Stateless</div>
-    <div class="card-title">Fast, but jumpy</div>
-    <p class="card-body">Double-orders capacity that's already in flight.</p>
+    <div class="card-label">React</div>
+    <div class="card-title">The present</div>
+    <p class="card-body">What's happening now. But "now" is a window — how wide?</p>
   </div>
 
   <div class="card amber">
-    <div class="card-label">With memory</div>
-    <div class="card-title">Smooth, but slower</div>
-    <p class="card-body">Smoothing, integral, in-flight tracking.</p>
+    <div class="card-label">Predict</div>
+    <div class="card-title">The past</div>
+    <p class="card-body">A guess. Only as good as the future resembles it.</p>
   </div>
+</div>
+
+<div class="takeaway">
+  <div>Short window: <strong class="accent-takeaway">jumpy</strong>. Long window: <strong class="accent-takeaway">slow</strong>.</div>
 </div>
 
 <style>
@@ -352,10 +356,18 @@ layout: default
 </style>
 
 <!--
-[1.5 min] Stateless = reacts to the latest number only: fast but jumpy, and re-orders
-capacity that's already booting. Memory (smoothing, integral term, in-flight tracking)
-rides out noise but is slower to respond. Most default autoscalers are stateless — k8s
-set-aside of unready pods is the exception.
+[1.5 min] The controller never knows what's about to happen — only what it has seen. Two
+options: react to the present, or guess from the past (smoothing, integral term, forecasts,
+tracking capacity that's already in flight).
+
+"The present" isn't a point, it's a window: one sample, a 1-minute average, a 5-minute
+average. Short window = fast but jumpy — and it double-orders capacity that's already
+booting, because the last order hasn't shown up in the numbers yet. Long window = smooth
+but slow — you act on a world that's already moved on. Prediction is the same trade in
+disguise: it works only while the future looks like the past.
+
+Most default autoscalers are stateless (latest window only); k8s set-aside of unready
+pods is the exception.
 -->
 
 ---

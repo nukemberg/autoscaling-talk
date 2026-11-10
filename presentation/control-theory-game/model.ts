@@ -80,49 +80,88 @@ export function randomTarget(rng: () => number = Math.random): number {
   return Math.round((TARGET_MIN + rng() * (TARGET_MAX - TARGET_MIN)) * 2) / 2
 }
 
+/** Water must stay in the band this long (s) to count as stable — then the target moves. */
+export const STABLE_SEC = 2
+/** A moved target is at least this far (°) from the previous one. */
+export const MIN_JUMP = 6
+
+/** Next target: random in range, at least MIN_JUMP away from the previous one. */
+export function nextTarget(prev: number, rng: () => number = Math.random): number {
+  for (let i = 0; i < 30; i++) {
+    const t = Math.round((TARGET_MIN + rng() * (TARGET_MAX - TARGET_MIN)) * 2) / 2
+    if (Math.abs(t - prev) >= MIN_JUMP) return t
+  }
+  // Deterministic fallback so a degenerate rng can't loop forever.
+  return prev < (TARGET_MIN + TARGET_MAX) / 2 ? prev + 2 * MIN_JUMP : prev - 2 * MIN_JUMP
+}
+
 export interface RoundResult {
-  /** % of the round the water was inside the comfort band. */
-  inBandPct: number
-  /** Times the water left the band after first reaching it. */
+  /** Targets the player held steady for STABLE_SEC. */
+  hits: number
+  /** Times the water left the band after first reaching it (before settling). */
   lostBand: number
-  /** Highest the water got above the target (0 if it never overshot). */
+  /** Worst swing past a target after first reaching it (°), 0 if never. Not counted while still approaching. */
   overshoot: number
 }
 
 export class Round {
   elapsed = 0
-  private inBandSec = 0
+  hits = 0
+  /** Seconds the water has been continuously in the band for the current target. */
+  stableSec = 0
   private lostBand = 0
-  private peak = -Infinity
+  private maxOvershoot = 0
+  private dev = 0
   private reached = false
   private wasIn = false
 
   constructor(
-    readonly target: number,
+    public target: number,
     readonly band: number = BAND,
     readonly durationSec: number = ROUND_SEC,
+    private readonly pickNext: (prev: number) => number = (p) => nextTarget(p),
   ) {}
 
   get done(): boolean {
     return this.elapsed >= this.durationSec
   }
 
-  update(water: number, dt: number): void {
-    if (this.done) return
+  /** 0..1 progress towards the current target counting as stable. */
+  get holdFraction(): number {
+    return Math.min(1, this.stableSec / STABLE_SEC)
+  }
+
+  /** Advance the round. Returns true when the target just moved (the previous one was a hit). */
+  update(water: number, dt: number): boolean {
+    if (this.done) return false
     const inBand = Math.abs(water - this.target) <= this.band
     this.elapsed += dt
-    if (inBand) this.inBandSec += dt
     if (this.reached && this.wasIn && !inBand) this.lostBand++
     if (inBand) this.reached = true
+    // Overshoot only counts once the water has been in the band: before that it is still approaching,
+    // and when the target moves away from the water that is the target's doing, not the player's.
+    if (this.reached) this.dev = Math.max(this.dev, Math.abs(water - this.target))
     this.wasIn = inBand
-    this.peak = Math.max(this.peak, water)
+    this.stableSec = inBand ? this.stableSec + dt : 0
+    if (this.stableSec >= STABLE_SEC) {
+      this.hits++
+      this.maxOvershoot = Math.max(this.maxOvershoot, this.dev)
+      this.target = this.pickNext(this.target)
+      this.stableSec = 0
+      this.dev = 0
+      this.reached = false
+      this.wasIn = false
+      return true
+    }
+    return false
   }
 
   result(): RoundResult {
     return {
-      inBandPct: this.elapsed ? Math.round((100 * this.inBandSec) / this.elapsed) : 0,
+      hits: this.hits,
       lostBand: this.lostBand,
-      overshoot: Math.max(0, Math.round((this.peak - this.target) * 10) / 10),
+      // Include the in-progress target's swing too.
+      overshoot: Math.round(Math.max(this.maxOvershoot, this.dev) * 10) / 10,
     }
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { BAND, MAX_OFFSET, randomOffset, randomTarget, Round, Shower, START_TEMP, T_MAX, T_MIN } from './model'
+import { BAND, MAX_OFFSET, MIN_JUMP, nextTarget, randomOffset, randomTarget, Round, Shower, START_TEMP, STABLE_SEC, T_MAX, T_MIN } from './model'
 
 // Tiny smoothing so the water tracks the (delayed) knob almost exactly.
 const sharp = (delaySec: number, offset = 0) => new Shower({ delaySec, smoothSec: 1e-6, offset })
@@ -110,31 +110,98 @@ describe('randomTarget', () => {
   })
 })
 
-describe('Round', () => {
-  test('scores time in band, overshoot and lost-band events', () => {
-    const r = new Round(30, BAND, 10)
-    const dt = 0.5
-    // 2s cold, 3s in band, 1s hot (overshoot + lost band), 2s in band, 2s cold (lost band again)
-    const seq = [...Array(4).fill(20), ...Array(6).fill(30), ...Array(2).fill(35), ...Array(4).fill(30), ...Array(4).fill(20)]
-    for (const w of seq) r.update(w, dt)
-    expect(r.done).toBe(true)
-    const res = r.result()
-    expect(res.inBandPct).toBe(Math.round((100 * 10 * dt) / 10)) // 10 in-band updates of 20
-    expect(res.overshoot).toBe(5)
-    expect(res.lostBand).toBe(2)
+describe('nextTarget', () => {
+  test('is always in range and at least MIN_JUMP from the previous target', () => {
+    for (const prev of [24, 30, 33, 42]) {
+      for (let i = 0; i < 100; i++) {
+        const n = nextTarget(prev)
+        expect(n).toBeGreaterThanOrEqual(24)
+        expect(n).toBeLessThanOrEqual(42)
+        expect(Math.abs(n - prev)).toBeGreaterThanOrEqual(MIN_JUMP)
+      }
+    }
   })
 
-  test('leaving the band before ever reaching it is not a "lost band"', () => {
-    const r = new Round(30, BAND, 10)
-    for (let i = 0; i < 10; i++) r.update(i < 5 ? 15 : 20, 0.5)
-    expect(r.result().lostBand).toBe(0)
+  test('falls back deterministically with a degenerate rng', () => {
+    expect(Math.abs(nextTarget(30, () => 0.5) - 30)).toBeGreaterThanOrEqual(MIN_JUMP) // 33 is too close
+    expect(nextTarget(30, () => 0.5)).toBeDefined()
+  })
+})
+
+describe('Round', () => {
+  const dt = 0.5
+  const run = (r: Round, water: number, sec: number): boolean[] => {
+    const moved: boolean[] = []
+    for (let i = 0; i < sec / dt; i++) moved.push(r.update(water, dt))
+    return moved
+  }
+
+  test('target moves only after the water has been in the band STABLE_SEC straight', () => {
+    const r = new Round(30, BAND, 60, () => 40)
+    const moved = run(r, 30, STABLE_SEC)
+    expect(moved.slice(0, -1).every((m) => !m)).toBe(true)
+    expect(moved.at(-1)).toBe(true)
+    expect(r.target).toBe(40)
+    expect(r.hits).toBe(1)
+  })
+
+  test('leaving the band resets the stability timer', () => {
+    const r = new Round(30, BAND, 60, () => 40)
+    run(r, 30, STABLE_SEC - dt) // almost there
+    run(r, 20, dt) // slips out
+    expect(r.stableSec).toBe(0)
+    const moved = run(r, 30, STABLE_SEC - dt)
+    expect(moved.some((m) => m)).toBe(false) // had to start over
+    expect(r.hits).toBe(0)
+  })
+
+  test('holdFraction tracks progress towards stable', () => {
+    const r = new Round(30, BAND, 60)
+    run(r, 30, STABLE_SEC / 2)
+    expect(r.holdFraction).toBeCloseTo(0.5, 5)
+  })
+
+  test('counts hits across several targets', () => {
+    const targets = [40, 28, 36]
+    const r = new Round(30, BAND, 60, () => targets.shift() ?? 30)
+    run(r, 30, STABLE_SEC)
+    run(r, 40, STABLE_SEC)
+    run(r, 28, STABLE_SEC)
+    expect(r.hits).toBe(3)
+    expect(r.target).toBe(36)
+  })
+
+  test('scores overshoot and lost-band events per target', () => {
+    const r = new Round(30, BAND, 60, () => 40)
+    run(r, 20, 1) // cold, never reached: not a lost band
+    run(r, 30, 1) // reaches the band
+    run(r, 35, 1) // overshoots, loses the band
+    expect(r.result().lostBand).toBe(1)
+    expect(r.result().overshoot).toBe(5)
+    run(r, 30, STABLE_SEC) // settles -> hit
+    expect(r.result()).toMatchObject({ hits: 1, lostBand: 1, overshoot: 5 })
+  })
+
+  test('a target that moves away from the water is not counted as overshoot', () => {
+    const targets = [25]
+    const r = new Round(42, BAND, 60, () => targets.shift() ?? 25)
+    run(r, 42, STABLE_SEC) // hit; target drops to 25 while the water sits at 42
+    run(r, 42, 2) // still far above the new target, never in its band
     expect(r.result().overshoot).toBe(0)
+    expect(r.result().lostBand).toBe(0)
+  })
+
+  test('undershoot after reaching the band counts too', () => {
+    const r = new Round(30, BAND, 60, () => 40)
+    run(r, 30, 1)
+    run(r, 24, 1) // dropped 6 below
+    expect(r.result().overshoot).toBe(6)
   })
 
   test('stops scoring once the round is over', () => {
     const r = new Round(30, BAND, 1)
     r.update(30, 1)
-    r.update(99, 1)
+    expect(r.update(99, 1)).toBe(false)
     expect(r.result().overshoot).toBe(0)
   })
 })

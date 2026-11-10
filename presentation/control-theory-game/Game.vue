@@ -6,10 +6,14 @@ const RATE = 10 // °C per second while a direction is held
 const TRACE_EVERY = 2 // record a trace point every N sim ticks
 
 type Phase = 'ready' | 'running' | 'done'
-interface TracePt { t: number; knob: number; water: number }
+interface TracePt { t: number; knob: number; water: number; target: number }
 
 const delaySec = ref(3)
-const target = ref(randomTarget())
+const startTarget = ref(randomTarget()) // where the round begins; restarts reuse it
+const target = ref(startTarget.value)
+const hits = ref(0)
+const hold = ref(0) // 0..1 progress towards "stable"
+const flash = ref(0) // bumps on every hit, retriggers the badge animation
 let offset = randomOffset() // hidden: water = knob + offset
 const phase = ref<Phase>('ready')
 const knob = ref(START_TEMP)
@@ -19,16 +23,19 @@ const result = ref<RoundResult | null>(null)
 const trace = shallowRef<TracePt[]>([])
 
 let shower = new Shower({ delaySec: delaySec.value, offset })
-let round = new Round(target.value)
+let round = new Round(startTarget.value)
 let tick = 0
 
 function reset(newTarget: boolean): void {
   if (newTarget) {
-    target.value = randomTarget()
+    startTarget.value = randomTarget()
     offset = randomOffset()
   }
   shower = new Shower({ delaySec: delaySec.value, offset })
-  round = new Round(target.value)
+  round = new Round(startTarget.value)
+  target.value = startTarget.value
+  hits.value = 0
+  hold.value = 0
   knob.value = shower.knob
   water.value = START_TEMP
   elapsed.value = 0
@@ -106,9 +113,9 @@ function frame(now: number): void {
     }
     if (phase.value !== 'running') continue
     shower.step()
-    round.update(shower.water, dt)
+    if (round.update(shower.water, dt)) flash.value++
     // The knob is plotted in water units ("what you asked for") so the delay is visible without printing the offset.
-    if (tick++ % TRACE_EVERY === 0) trace.value.push({ t: round.elapsed, knob: shower.knob + offset, water: shower.water })
+    if (tick++ % TRACE_EVERY === 0) trace.value.push({ t: round.elapsed, knob: shower.knob + offset, water: shower.water, target: round.target })
     if (round.done) {
       phase.value = 'done'
       result.value = round.result()
@@ -117,6 +124,9 @@ function frame(now: number): void {
   knob.value = shower.knob
   water.value = shower.water
   elapsed.value = round.elapsed
+  target.value = round.target
+  hits.value = round.hits
+  hold.value = round.holdFraction
   if (phase.value === 'running') triggerRef(trace)
 }
 
@@ -145,12 +155,21 @@ const tx = (t: number): number => (t / ROUND_SEC) * TW
 const ty = (v: number): number => TH - (pct(v) / 100) * TH
 const line = (key: 'knob' | 'water'): string => trace.value.map((p) => `${tx(p.t).toFixed(1)},${ty(p[key]).toFixed(1)}`).join(' ')
 
+// Comfort band over time: upper edge left→right, then lower edge right→left.
+const bandPoly = computed(() => {
+  const pts = trace.value
+  const up = pts.map((p) => `${tx(p.t).toFixed(1)},${ty(p.target + BAND).toFixed(1)}`)
+  const dn = pts.map((p) => `${tx(p.t).toFixed(1)},${ty(p.target - BAND).toFixed(1)}`).reverse()
+  return [...up, ...dn].join(' ')
+})
+
 const verdict = computed(() => {
   const r = result.value
   if (!r) return ''
   // Overshoot is the lesson, so it outranks a flattering time-in-band (the settled tail inflates that).
+  if (r.hits === 0) return 'Never settled. Small moves, then wait for the water.'
   if (r.overshoot > BAND * 3 || r.lostBand >= 2) return 'You chased it. The water kept answering your old moves.'
-  if (r.inBandPct >= 70) return 'Smooth. You waited for the water.'
+  if (r.hits >= 3) return 'Smooth. You waited for the water.'
   return 'Not bad. Try making smaller moves, then waiting.'
 })
 </script>
@@ -159,7 +178,7 @@ const verdict = computed(() => {
   <main class="game">
     <header>
       <h1>Hot / Cold</h1>
-      <p class="hint">Get the water into the green band and keep it there. Hold <kbd>↑</kbd> / <kbd>↓</kbd>, tap − / +, or drag the knob.</p>
+      <p class="hint">Get the water into the green band and hold it there — the target moves once you do. Hold <kbd>↑</kbd> / <kbd>↓</kbd>, tap − / +, or drag the knob.</p>
     </header>
 
     <section class="bars" aria-label="Controls and water temperature">
@@ -184,7 +203,7 @@ const verdict = computed(() => {
     </section>
 
     <svg class="trace" :viewBox="`0 0 ${TW} ${TH}`" preserveAspectRatio="none" aria-label="Your last moves and the water's response">
-      <rect class="tband" :x="0" :y="ty(target + BAND)" :width="TW" :height="ty(target - BAND) - ty(target + BAND)" />
+      <polygon v-if="trace.length" class="tband" :points="bandPoly" />
       <polyline class="tknob" :points="line('knob')" />
       <polyline class="twater" :points="line('water')" />
     </svg>
@@ -194,7 +213,11 @@ const verdict = computed(() => {
       <button class="big" aria-label="Colder" @pointerdown.prevent="heldButton = -1" @pointerup="heldButton = 0" @pointerleave="heldButton = 0" @pointercancel="heldButton = 0">−</button>
       <div class="timer" :class="{ idle: phase === 'ready' }">
         <template v-if="phase === 'ready'">Move the knob to start</template>
-        <template v-else>{{ remaining }}s</template>
+        <template v-else>
+          {{ remaining }}s
+          <small>hits {{ hits }}</small>
+          <div class="hold" aria-label="Hold steady"><i :style="{ width: hold * 100 + '%' }" /></div>
+        </template>
       </div>
       <button class="big" aria-label="Hotter" @pointerdown.prevent="heldButton = 1" @pointerup="heldButton = 0" @pointerleave="heldButton = 0" @pointercancel="heldButton = 0">+</button>
     </section>
@@ -204,13 +227,15 @@ const verdict = computed(() => {
         Pipe delay <b>{{ delaySec }} s</b>
         <input v-model.number="delaySec" type="range" min="0" max="10" step="0.5">
       </label>
-      <button class="ghost" @click="reset(true)">New target <kbd>Space</kbd></button>
+      <button class="ghost" @click="reset(true)">New round <kbd>Space</kbd></button>
     </section>
 
+    <div v-if="flash && phase === 'running'" :key="flash" class="hit" aria-hidden="true">✓ hit</div>
+
     <div v-if="result" class="result" role="status">
-      <div class="score">{{ result.inBandPct }}%<small> in the band</small></div>
+      <div class="score">{{ result.hits }}<small> {{ result.hits === 1 ? 'target' : 'targets' }} held</small></div>
       <p>{{ verdict }}</p>
-      <p class="stats">Lost the band {{ result.lostBand }}×<template v-if="result.overshoot > 0"> · overshot by {{ result.overshoot }}°</template></p>
+      <p class="stats">Lost the band {{ result.lostBand }}×<template v-if="result.overshoot > 0"> · worst overshoot {{ result.overshoot }}°</template></p>
       <p class="bridge">Your pipe delay was <b>{{ delaySec }} s</b>. An autoscaler's is <b>minutes</b>.</p>
       <button class="ghost" @click="reset(true)">Play again <kbd>Space</kbd></button>
     </div>
@@ -270,6 +295,11 @@ kbd { font: inherit; font-size: 0.8em; padding: 0.05em 0.4em; border: 1px solid 
 .big:active { background: color-mix(in srgb, var(--amber) 30%, var(--card)); }
 .timer { text-align: center; font-size: 2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
 .timer.idle { font-size: 1.05rem; font-weight: 700; color: var(--muted); }
+.timer small { display: block; font-size: 0.9rem; font-weight: 700; color: var(--muted); }
+.hold { height: 0.45rem; margin: 0.3rem auto 0; max-width: 8rem; border-radius: 0.25rem; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.hold i { display: block; height: 100%; background: var(--green); }
+.hit { position: absolute; right: 1rem; top: 7.2rem; font-weight: 900; font-size: 1.3rem; color: var(--green); animation: hit 0.9s ease-out forwards; pointer-events: none; }
+@keyframes hit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-14px); } }
 
 .settings { display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 .settings label { display: grid; gap: 0.3rem; font-weight: 700; flex: 1 1 14rem; }

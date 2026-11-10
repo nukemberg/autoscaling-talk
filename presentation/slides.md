@@ -565,13 +565,22 @@ class: statement
 
 A cost optimization with a **feedback loop** attached.
 
-<span class="sub">Complex to operate. Don't use it until you understand it.</span>
+<span class="sub">Default to static.<br>Autoscale when it pays for its own complexity.</span>
 
 </div>
 
 <!--
 [2 min] Full circle to What Could Possibly Go Wrong — the reframe was the point all along.
 Land it, add nothing new.
+
+Thesis: static is the default. Autoscaling has to earn its place. It earns it when:
+1. You understand the ramifications.
+2. The tradeoffs justify the complexity and failure modes — enough scale (no point saving
+   $20/month on a system that makes $10,000/month), enough traffic variability, a mature system.
+3. You have proper monitoring.
+4. You have good scaling signals.
+5. The scaling units are well behaved.
+(...and more — the point is the test, not the list.)
 -->
 
 ---

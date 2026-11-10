@@ -183,15 +183,17 @@ ran away to hundreds of instances while fixing nothing.
 ---
 layout: center
 class: statement
+clicks: 3
 ---
 
 # War Story: The Latency Trap
 
-<div class="big">
+<LatencyFunnel :step="$clicks" />
 
-The metric measured **the symptom**, so the autoscaler could only treat **the symptom**.
-
-</div>
+<style>
+/* Compact title so the diagram + final caption keep a safe bottom margin. */
+.slidev-layout.statement h1 { font-size: 1rem; margin-bottom: 0.5rem; }
+</style>
 
 <!--
 [1 min] Service's response time crept up during a routine

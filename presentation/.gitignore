@@ -6,6 +6,7 @@ dist
 .remote-assets
 components.d.ts
 dist-bench
+dist-game
 
 # wrangler files
 .wrangler

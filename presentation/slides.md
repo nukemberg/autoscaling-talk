@@ -457,6 +457,11 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
   </div>
 </div>
 
+<div class="abs-tr m-4 play">
+  <a href="https://autoscaling-talk.fewbytes.com/shower/" target="_blank" rel="noopener">Play it ↗</a>
+  <Qr path="shower/" :size="90" :label="false" />
+</div>
+
 <div class="takeaway">
   <div>Adjust <strong class="accent-takeaway">slower</strong> than the delay you're waiting on.</div>
   <div class="punchline">… or you fight your own last move.</div>
@@ -470,10 +475,12 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
 .slidev-layout .card-body { font-size: 1.3rem; }
 .slidev-layout .card-note { margin-top: 0.6rem; }
 .slidev-layout .takeaway { margin-top: 1.25rem; margin-bottom: 2.5rem; }
+.slidev-layout .play { display: flex; align-items: center; gap: 0.6rem; }
+.slidev-layout .play a { font-size: 1.3rem; font-weight: 800; color: var(--c-takeaway); text-decoration: none; border-bottom: none; white-space: nowrap; }
 </style>
 
 <!--
-[2 min] Bridge to the AWS sim. Slide tells the story — just land the meta-point: the only
+[2 min] Play it live first: you take the shower (pick a delay, overshoot on purpose), then QR for the room — everyone plays solo on their phone, no backend. Then bridge to the AWS sim. Slide tells the story — just land the meta-point: the only
 knob you control is your own adjustment interval, not the pipe. That's exactly the datapoint
 period / metric delay lever on the next slide.
 -->

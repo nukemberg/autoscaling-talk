@@ -254,22 +254,33 @@ warm-up) are these same four ideas, just unnamed.
 ---
 layout: center
 class: statement
+clicks: 5
 ---
 
 # Dead Time
 
-<div class="big">
+<DeadTimeDiagram :step="$clicks" />
 
-Decide now. Capacity arrives **later**.
-
-<span class="sub">Faster load than delay = always chasing.</span>
-
-</div>
+<style>
+/* Compact title so the diagram + caption keep a safe bottom margin. */
+.slidev-layout.statement h1 { font-size: 1rem; margin-bottom: 0.5rem; }
+</style>
 
 <!--
-[1.5 min] Structural, not a tuning problem: if load changes faster than the time from
-"decide" to "capacity exists", the controller is always acting on a stale picture.
-Foreshadow the oscillation sim — that's what dead time looks like when the loop is fast.
+[1.5 min] Dead time = the silence between "load changed" and "capacity is serving it".
+Three sources, left to right: sensing (metrics have to be collected, aggregated, delivered
+— CloudWatch delay, datapoint period x N alarm evaluations), decision (sync period,
+cooldown, stabilization window), actuation (API call, boot, health checks, LB
+registration). The bar is the gap between the load edge and the capacity edge — the shape
+is the argument.
+
+Consequence 1: until capacity arrives you're short — nothing the controller does shortens
+that. Consequence 2: if load moves faster than the dead time, capacity arrives for a world
+that's already gone — short while load is up, wasted after it's down. Always chasing.
+Foreshadow: the oscillation sim is exactly this with a fast controller on top.
+
+Visibility feeds it: coarse resolution and long windows add to the sensing/decision
+segments (a window average delays the signal by about half the window).
 -->
 
 ---

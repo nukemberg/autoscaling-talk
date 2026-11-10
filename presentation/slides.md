@@ -226,23 +226,15 @@ queue with a bigger blast radius and bill.
 -->
 
 ---
-layout: default
+layout: center
+class: statement
 ---
 
 # Control Theory Crash Course
 
-<div class="content">
+<div class="big">
 
-- **Dead time** vs. how fast load moves
-- **Gain** — how hard you react
-- **Sampling** — can't react faster than you look
-- **Memory** — smooth, but slower
-
-</div>
-
-<div class="takeaway">
-
-No controller is perfect. **Always** a tradeoff.
+Dead time · Gain<br>Sampling · Memory
 
 </div>
 
@@ -251,20 +243,139 @@ No controller is perfect. **Always** a tradeoff.
 </div>
 
 <!--
-[6 min] Framing first: continuous control (thermostat) vs discrete/sampled control —
+[0.5 min] Framing first: continuous control (thermostat) vs discrete/sampled control —
 everything here only sees the world every sync-period. Sims stand in for formal models
-(these loops are too nonlinear for hand math).
+(these loops are too nonlinear for hand math). QR = workbench, people can play along.
 
-Cue per bullet (don't read the slide):
-1. Load moving faster than dead time = always chasing, structurally.
-2. Gain: too high → oscillation; too low → never catches up.
-3. Can't react faster than you sample or cooldown lets you — "just poll faster" isn't free (Nyquist-ish).
-4. Stateless = fast but jumpy, double-orders in-flight capacity; memory (smoothing, integral,
-   in-flight tracking) rides out noise but is slower. Most default autoscalers are stateless —
-   k8s unready-pod set-aside is the exception.
+Land at the end of the section: HPA/ASG knobs (sync-period, stabilization, cooldown,
+warm-up) are these same four ideas, just unnamed.
+-->
 
-Land: HPA/ASG knobs (sync-period, stabilization, cooldown, warm-up) are these same knobs,
-just unnamed.
+---
+layout: center
+class: statement
+---
+
+# Dead Time
+
+<div class="big">
+
+Load that moves faster than your delay is **always** chasing.
+
+<span class="sub">Boot + metrics + sync period: you steer by where things were.</span>
+
+</div>
+
+<!--
+[1.5 min] Structural, not a tuning problem: if load changes faster than the time from
+"decide" to "capacity exists", the controller is always acting on a stale picture.
+Foreshadow the oscillation sim — that's what dead time looks like when the loop is fast.
+-->
+
+---
+layout: default
+---
+
+# Gain
+
+<div class="cards">
+  <div class="card amber">
+    <div class="card-label">Too high</div>
+    <div class="card-title">Oscillation</div>
+    <p class="card-body">Overshoots, swings back, overshoots again.</p>
+  </div>
+
+  <div class="card amber">
+    <div class="card-label">Too low</div>
+    <div class="card-title">Never catches up</div>
+    <p class="card-body">Safe, stable, and always behind.</p>
+  </div>
+</div>
+
+<div class="takeaway">
+  <div>How hard you react <strong class="accent-takeaway">is a dial</strong>, not a default.</div>
+</div>
+
+<style>
+.slidev-layout .card.amber { --card-accent: var(--c-takeaway); }
+</style>
+
+<!--
+[1 min] Gain = how big a correction per unit of error. Too high → oscillation; too low →
+never catches up. No setting is right for every load; this is the knob everyone leaves at
+its default.
+-->
+
+---
+layout: center
+class: statement
+---
+
+# Sampling
+
+<div class="big">
+
+You can't react faster than you **look**.
+
+<span class="sub">Sync period and cooldown set the floor. “Just poll faster” isn't free.</span>
+
+</div>
+
+<!--
+[1 min] Can't react faster than you sample or cooldown lets you (Nyquist-ish). Polling
+faster costs money and noise — and below the metric resolution it just returns empty
+datapoints. Foreshadow: the metric-pipeline sim has a bonus demo of exactly this.
+-->
+
+---
+layout: default
+---
+
+# Memory
+
+<div class="cards">
+  <div class="card amber">
+    <div class="card-label">Stateless</div>
+    <div class="card-title">Fast, but jumpy</div>
+    <p class="card-body">Double-orders capacity that's already in flight.</p>
+  </div>
+
+  <div class="card amber">
+    <div class="card-label">With memory</div>
+    <div class="card-title">Smooth, but slower</div>
+    <p class="card-body">Smoothing, integral, in-flight tracking.</p>
+  </div>
+</div>
+
+<style>
+.slidev-layout .card.amber { --card-accent: var(--c-takeaway); }
+</style>
+
+<!--
+[1.5 min] Stateless = reacts to the latest number only: fast but jumpy, and re-orders
+capacity that's already booting. Memory (smoothing, integral term, in-flight tracking)
+rides out noise but is slower to respond. Most default autoscalers are stateless — k8s
+set-aside of unready pods is the exception.
+-->
+
+---
+layout: center
+class: statement
+---
+
+# The Catch
+
+<div class="big">
+
+No controller is perfect.
+
+<span class="sub">**Always** a tradeoff.</span>
+
+</div>
+
+<!--
+[0.5 min] The section's one-line takeaway. Next: the oscillation sim — dead time and gain
+together.
 -->
 
 ---

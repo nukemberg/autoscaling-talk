@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { resolvePreset, type Preset } from '../sim/scenarios/preset'
-import type { ChartSpec, Params, RunResult } from '../sim/scenarios/types'
+import type { Band, ChartSpec, Params, RunResult } from '../sim/scenarios/types'
 import { LAST_PANEL_PX, useFillHeight } from './fill'
 import RunWorker from '../bench/runWorker?worker'
 import type { RunRequest, RunResponse } from '../bench/runWorker'
@@ -29,7 +29,11 @@ const props = withDefaults(defineProps<{
    *  line would distract from the point being made (e.g. "failure load" on
    *  a slide with no retries in the story). Empty/omitted → all series. */
   hideSeries?: string[]
-}>(), { params: () => ({}), expose: () => [], height: undefined, charts: () => [], hideSeries: () => [] })
+  /** Summary-line keys to show (e.g. ['errors %', 'total cost']). Empty/omitted → all. */
+  summaryKeys?: string[]
+  /** Shaded time windows (sim seconds) drawn behind the series, e.g. to flag wasted capacity. */
+  bands?: Band[]
+}>(), { params: () => ({}), expose: () => [], height: undefined, charts: () => [], hideSeries: () => [], summaryKeys: () => [], bands: () => [] })
 
 const presets = import.meta.glob<Preset>('../presets/*.json', { eager: true, import: 'default' })
 
@@ -121,7 +125,7 @@ onUnmounted(() => {
 const summary = computed(() => {
   if (error.value) return `error: ${error.value}`
   if (!result.value) return pending.value ? 'calculating…' : ''
-  const s = Object.entries(result.value.summary).map(([k, v]) => `${k} ${v}`).join(' · ')
+  const s = Object.entries(result.value.summary).filter(([k]) => !props.summaryKeys.length || props.summaryKeys.includes(k)).map(([k, v]) => `${k} ${v}`).join(' · ')
   return pending.value ? `${s} · calculating… ${(progress.value * 100).toFixed(0)}%` : s
 })
 </script>
@@ -143,7 +147,7 @@ const summary = computed(() => {
       <div class="progress" :class="{ active: pending }" aria-hidden="true">
         <div class="bar" :style="{ width: `${Math.max(2, Math.round(progress * 100))}%` }" />
       </div>
-      <SimCharts v-if="result" :charts="visibleCharts" :result="result" :height="panelHeight" />
+      <SimCharts v-if="result" :charts="visibleCharts" :result="result" :height="panelHeight" :bands="bands" />
       <div v-else class="placeholder" :style="{ height: `${panelHeight * visibleCharts.length}px` }">
         <span class="spinner" />
       </div>

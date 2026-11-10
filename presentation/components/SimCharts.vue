@@ -2,7 +2,7 @@
 import type uPlot from 'uplot'
 import type { AlignedData, Options } from 'uplot'
 import { computed, ref } from 'vue'
-import type { ChartSpec, RunResult } from '../sim/scenarios/types'
+import type { Band, ChartSpec, RunResult } from '../sim/scenarios/types'
 import { chartColors, resolveColor, watchChartTheme } from './theme'
 import { LAST_PANEL_PX } from './fill'
 
@@ -17,7 +17,9 @@ const props = withDefaults(defineProps<{
   /** Override the primary (left) y-axis's auto range — e.g. to keep two side-by-side
    *  panels fed by different RunResults on the same scale for a fair visual comparison. */
   yRange?: [number, number]
-}>(), { height: 180, xAxis: true, legend: true })
+  /** Translucent shaded windows (sim seconds), drawn under the series. */
+  bands?: Band[]
+}>(), { height: 180, xAxis: true, legend: true, bands: () => [] })
 
 // A factory, not a shared constant: uPlot mutates axis/grid config objects in
 // place (see Chart.vue's render()), and each panel is a separate uPlot
@@ -51,6 +53,29 @@ function legendMount(last: boolean) {
     // gap between stacked panels lands on top of those ticks here instead.
     if (last) legendEl.classList.add('sim-legend--last')
     u.over.appendChild(legendEl)
+  }
+}
+
+function bandHook(labelled: boolean) {
+  return (u: uPlot) => {
+    const { left, top, width, height } = u.bbox
+    const ctx = u.ctx
+    for (const b of props.bands) {
+      const x0 = Math.max(left, u.valToPos(b.from, 'x', true))
+      const x1 = Math.min(left + width, u.valToPos(b.to, 'x', true))
+      if (x1 <= x0) continue
+      ctx.save()
+      ctx.fillStyle = 'rgba(220, 38, 38, 0.14)'
+      ctx.fillRect(x0, top, x1 - x0, height)
+      if (labelled && b.label) {
+        ctx.fillStyle = 'rgb(220, 38, 38)'
+        ctx.font = `600 ${14 * devicePixelRatio}px sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'top'
+        ctx.fillText(b.label, (x0 + x1) / 2, top + 6 * devicePixelRatio)
+      }
+      ctx.restore()
+    }
   }
 }
 
@@ -174,7 +199,7 @@ const panels = computed(() => {
     // more than one series — a single-series panel is self-explanatory.
     legend: { show: props.legend && c.series.length > 1, live: false, mount: legendMount(last) },
     cursor: { sync: { key: cursorSyncKey } },
-    hooks: { draw: [markerHook(i === 0)] },
+    hooks: { drawClear: [bandHook(i === 0)], draw: [markerHook(i === 0)] },
     // Reserve room above the plot for marker labels so they don't overlap the series, and
     // below it (last panel only) for the legend — otherwise the legend's own negative offset
     // (see .sim-legend--last) has nowhere blank to land and ends up overlapping whatever

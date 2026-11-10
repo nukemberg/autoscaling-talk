@@ -36,6 +36,9 @@ export type Params = Record<string, number | string | boolean>
 
 export interface Marker { t: number; label: string }
 
+/** A shaded time window on the charts (sim seconds). */
+export interface Band { from: number; to: number; label?: string }
+
 export interface RunResult {
   t: number[]
   series: Record<string, number[]>

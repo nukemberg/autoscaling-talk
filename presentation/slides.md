@@ -189,9 +189,7 @@ class: statement
 
 <div class="big">
 
-The metric measured the **symptom**.
-
-<span class="sub">So the autoscaler could only treat the symptom.</span>
+The metric measured **the symptom**, so the autoscaler could only treat **the symptom**.
 
 </div>
 
@@ -217,7 +215,7 @@ class: sim
 
 # Scaling on Latency: The Trap
 
-<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
+<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %', 'total cost']" />
 
 <!--
 Live DES from presets/latency-runaway.json. Scaling on mean latency against a shared DB
@@ -276,7 +274,7 @@ class: sim
 
 # Oscillation, by Default
 
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :summary-keys="['errors %', 'total cost']" />
 
 <!--
 War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
@@ -316,7 +314,7 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
 
 <div class="takeaway">
   <div>Adjust <strong class="accent-takeaway">slower</strong> than the delay you're waiting on.</div>
-  <div class="punchline">Or you fight your own last move.</div>
+  <div class="punchline">… or you fight your own last move.</div>
 </div>
 
 <!--
@@ -331,7 +329,7 @@ class: sim
 
 # The Metric Pipeline Is Dead Time Too
 
-<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps']" />
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %', 'total cost']" :bands="[{ from: 1000, to: 1400, label: 'wasted: still scaling after recovery' }]" />
 
 <!--
 Live DES from presets/metric-delay-compare.json. Flip period/delay live: AWS realistic
@@ -351,11 +349,9 @@ class: statement
 
 <div class="big">
 
-It did its job perfectly.
+It did its job perfectly. That was the problem.
 
-**That was the problem.**
-
-<span class="sub">It scaled the blast radius, not just the capacity.</span>
+<span class="sub">It scaled the **blast radius**, not just the capacity.</span>
 
 </div>
 
@@ -384,9 +380,9 @@ layout: default
 
 <div class="content">
 
-- N instances = **N× connection pools**
+- **×N** instances = **×N** connection pools
 - LB registration + health checks = dead time
-- Recovery is a **herd**
+- Recovery exhibits **herd behavior**
 - Fast-onset load beats any controller
 
 </div>
@@ -439,7 +435,7 @@ class: sim
 
 # Same Pulse, Tuned Threads
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" />
 
 <!--
 Live DES from presets/pulse-compare-threaded-vs-event-loop.json, threaded profile. 5x pulse
@@ -456,7 +452,7 @@ class: sim
 
 # Same Pulse, Node.js
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" />
 
 <!--
 Same preset, serverProfile=event-loop (unbounded workers). p95 ~82s, 6-7 min recovery, and
@@ -475,7 +471,7 @@ layout: default
 - **Someone else** controls your bill
 - Scaling costs your upstream too
 - Scaling is an attack surface
-- **Always set `max`.**
+- **Always** set `max`.
 
 </div>
 
@@ -559,7 +555,7 @@ class: statement
 
 A cost optimization with a **feedback loop** attached.
 
-<span class="sub">Simpler is often better. Don't run before you walk.</span>
+<span class="sub">Complex to operate. Don't use it until you understand it.</span>
 
 </div>
 

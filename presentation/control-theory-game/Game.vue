@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
-import { BAND, clamp, randomOffset, randomTarget, Round, ROUND_SEC, Shower, START_TEMP, T_MAX, T_MIN, type RoundResult } from './model'
+import { BAND, clamp, randomOffset, randomTarget, Round, ROUND_SEC, Shower, START_TEMP, T_MAX, T_MIN, targetDeadline, type RoundEvent, type RoundResult } from './model'
 
 const RATE = 10 // °C per second while a direction is held
 const TRACE_EVERY = 2 // record a trace point every N sim ticks
@@ -12,6 +12,9 @@ const delaySec = ref(3)
 const startTarget = ref(randomTarget()) // where the round begins; restarts reuse it
 const target = ref(startTarget.value)
 const hits = ref(0)
+const misses = ref(0)
+const timeLeft = ref(1) // 0..1 of the current target's time budget
+const flashKind = ref<RoundEvent>('hit')
 const hold = ref(0) // 0..1 progress towards "stable"
 const flash = ref(0) // bumps on every hit, retriggers the badge animation
 let offset = randomOffset() // hidden: water = knob + offset
@@ -23,7 +26,8 @@ const result = ref<RoundResult | null>(null)
 const trace = shallowRef<TracePt[]>([])
 
 let shower = new Shower({ delaySec: delaySec.value, offset })
-let round = new Round(startTarget.value)
+const newRound = (): Round => new Round(startTarget.value, BAND, ROUND_SEC, undefined, targetDeadline(delaySec.value))
+let round = newRound()
 let tick = 0
 
 function reset(newTarget: boolean): void {
@@ -32,9 +36,11 @@ function reset(newTarget: boolean): void {
     offset = randomOffset()
   }
   shower = new Shower({ delaySec: delaySec.value, offset })
-  round = new Round(startTarget.value)
+  round = newRound()
   target.value = startTarget.value
   hits.value = 0
+  misses.value = 0
+  timeLeft.value = 1
   hold.value = 0
   knob.value = shower.knob
   water.value = START_TEMP
@@ -113,7 +119,11 @@ function frame(now: number): void {
     }
     if (phase.value !== 'running') continue
     shower.step()
-    if (round.update(shower.water, dt)) flash.value++
+    const ev = round.update(shower.water, dt)
+    if (ev) {
+      flashKind.value = ev
+      flash.value++
+    }
     // The knob is plotted in water units ("what you asked for") so the delay is visible without printing the offset.
     if (tick++ % TRACE_EVERY === 0) trace.value.push({ t: round.elapsed, knob: shower.knob + offset, water: shower.water, target: round.target })
     if (round.done) {
@@ -126,6 +136,8 @@ function frame(now: number): void {
   elapsed.value = round.elapsed
   target.value = round.target
   hits.value = round.hits
+  misses.value = round.misses
+  timeLeft.value = round.timeLeftFraction
   hold.value = round.holdFraction
   if (phase.value === 'running') triggerRef(trace)
 }
@@ -167,8 +179,8 @@ const verdict = computed(() => {
   const r = result.value
   if (!r) return ''
   // Overshoot is the lesson, so it outranks a flattering time-in-band (the settled tail inflates that).
-  if (r.hits === 0) return 'Never settled. Small moves, then wait for the water.'
   if (r.overshoot > BAND * 3 || r.lostBand >= 2) return 'You chased it. The water kept answering your old moves.'
+  if (r.hits === 0) return 'Never settled. Small moves, then wait for the water.'
   if (r.hits >= 3) return 'Smooth. You waited for the water.'
   return 'Not bad. Try making smaller moves, then waiting.'
 })
@@ -178,7 +190,7 @@ const verdict = computed(() => {
   <main class="game">
     <header>
       <h1>Hot / Cold</h1>
-      <p class="hint">Get the water into the green band and hold it there — the target moves once you do. Hold <kbd>↑</kbd> / <kbd>↓</kbd>, tap − / +, or drag the knob.</p>
+      <p class="hint">Hold the water in the green band for 2 s — before the target moves on without you. Hold <kbd>↑</kbd> / <kbd>↓</kbd>, tap − / +, or drag the knob.</p>
     </header>
 
     <section class="bars" aria-label="Controls and water temperature">
@@ -215,7 +227,8 @@ const verdict = computed(() => {
         <template v-if="phase === 'ready'">Move the knob to start</template>
         <template v-else>
           {{ remaining }}s
-          <small>hits {{ hits }}</small>
+          <small>hits {{ hits }} · missed {{ misses }}</small>
+          <div class="deadline" :class="{ low: timeLeft < 0.3 }" aria-label="Time left on this target"><i :style="{ width: timeLeft * 100 + '%' }" /></div>
           <div class="hold" aria-label="Hold steady"><i :style="{ width: hold * 100 + '%' }" /></div>
         </template>
       </div>
@@ -230,12 +243,12 @@ const verdict = computed(() => {
       <button class="ghost" @click="reset(true)">New round <kbd>Space</kbd></button>
     </section>
 
-    <div v-if="flash && phase === 'running'" :key="flash" class="hit" aria-hidden="true">✓ hit</div>
+    <div v-if="flash && phase === 'running'" :key="flash" class="hit" :class="{ miss: flashKind === 'miss' }" aria-hidden="true">{{ flashKind === 'hit' ? '✓ hit' : '✗ missed' }}</div>
 
     <div v-if="result" class="result" role="status">
       <div class="score">{{ result.hits }}<small> {{ result.hits === 1 ? 'target' : 'targets' }} held</small></div>
       <p>{{ verdict }}</p>
-      <p class="stats">Lost the band {{ result.lostBand }}×<template v-if="result.overshoot > 0"> · worst overshoot {{ result.overshoot }}°</template></p>
+      <p class="stats">Missed {{ result.misses }} · overshot the band {{ result.lostBand }}×<template v-if="result.overshoot > 0"> · worst overshoot {{ result.overshoot }}°</template></p>
       <p class="bridge">Your lag was <b>{{ delaySec }} s</b>. An autoscaler's is <b>minutes</b>.</p>
       <button class="ghost" @click="reset(true)">Play again <kbd>Space</kbd></button>
     </div>
@@ -296,8 +309,12 @@ kbd { font: inherit; font-size: 0.8em; padding: 0.05em 0.4em; border: 1px solid 
 .timer { text-align: center; font-size: 2rem; font-weight: 900; font-variant-numeric: tabular-nums; }
 .timer.idle { font-size: 1.05rem; font-weight: 700; color: var(--muted); }
 .timer small { display: block; font-size: 0.9rem; font-weight: 700; color: var(--muted); }
+.deadline { height: 0.45rem; margin: 0.3rem auto 0; max-width: 8rem; border-radius: 0.25rem; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
+.deadline i { display: block; height: 100%; background: var(--amber); }
+.deadline.low i { background: var(--rose); }
 .hold { height: 0.45rem; margin: 0.3rem auto 0; max-width: 8rem; border-radius: 0.25rem; background: var(--card); border: 1px solid var(--line); overflow: hidden; }
 .hold i { display: block; height: 100%; background: var(--green); }
+.hit.miss { color: var(--rose); }
 .hit { position: absolute; right: 1rem; top: 7.2rem; font-weight: 900; font-size: 1.3rem; color: var(--green); animation: hit 0.9s ease-out forwards; pointer-events: none; }
 @keyframes hit { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-14px); } }
 

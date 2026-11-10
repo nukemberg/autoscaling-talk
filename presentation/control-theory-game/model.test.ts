@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { BAND, MAX_OFFSET, MIN_JUMP, nextTarget, randomOffset, randomTarget, Round, Shower, START_TEMP, STABLE_SEC, T_MAX, T_MIN } from './model'
+import { BAND, DEADLINE_FLOOR, MAX_OFFSET, MIN_JUMP, nextTarget, randomOffset, randomTarget, Round, Shower, START_TEMP, STABLE_SEC, T_MAX, T_MIN, targetDeadline } from './model'
 
 // Tiny smoothing so the water tracks the (delayed) knob almost exactly.
 const sharp = (delaySec: number, offset = 0) => new Shower({ delaySec, smoothSec: 1e-6, offset })
@@ -152,6 +152,15 @@ describe('randomTarget', () => {
   })
 })
 
+describe('targetDeadline', () => {
+  test('floors at DEADLINE_FLOOR and scales with the lag', () => {
+    expect(targetDeadline(0)).toBe(DEADLINE_FLOOR)
+    expect(targetDeadline(1)).toBe(DEADLINE_FLOOR)
+    expect(targetDeadline(3)).toBeCloseTo(6.6, 5)
+    expect(targetDeadline(10)).toBeGreaterThan(targetDeadline(3))
+  })
+})
+
 describe('nextTarget', () => {
   test('is always in range and at least MIN_JUMP from the previous target', () => {
     for (const prev of [24, 30, 33, 42]) {
@@ -174,7 +183,7 @@ describe('Round', () => {
   const dt = 0.5
   const run = (r: Round, water: number, sec: number): boolean[] => {
     const moved: boolean[] = []
-    for (let i = 0; i < sec / dt; i++) moved.push(r.update(water, dt))
+    for (let i = 0; i < sec / dt; i++) moved.push(r.update(water, dt) !== null)
     return moved
   }
 
@@ -240,10 +249,60 @@ describe('Round', () => {
     expect(r.result().overshoot).toBe(6)
   })
 
+  describe('deadline', () => {
+    const DL = 4
+    const mk = (next = () => 40) => new Round(30, BAND, 60, next, DL)
+
+    test('a target that is not held in time moves on as a miss', () => {
+      const r = mk()
+      const events: (string | null)[] = []
+      for (let i = 0; i < DL / dt; i++) events.push(r.update(20, dt)) // cold, never in band
+      expect(events.slice(0, -1).every((e) => e === null)).toBe(true)
+      expect(events.at(-1)).toBe('miss')
+      expect(r.misses).toBe(1)
+      expect(r.hits).toBe(0)
+      expect(r.target).toBe(40)
+      expect(r.targetSec).toBe(0) // fresh clock for the new target
+    })
+
+    test('being mid-hold in the band at the deadline gets to finish the hold', () => {
+      const r = mk()
+      run(r, 20, DL - 1) // 3s cold: targetSec = 3
+      expect(r.update(30, dt)).toBeNull() // in band, hold 0.5s, targetSec 3.5
+      expect(r.update(30, dt)).toBeNull() // hold 1.0s, targetSec 4 = DL: deadline reached mid-hold
+      expect(r.update(30, dt)).toBeNull() // hold 1.5s, past the deadline: grace, no miss
+      expect(r.update(30, dt)).toBe('hit') // hold 2.0s -> counted as a hit
+      expect(r.misses).toBe(0)
+    })
+
+    test('slipping out of the band after the deadline is a miss', () => {
+      const r = mk()
+      run(r, 20, DL - 1)
+      run(r, 30, 1) // in band, mid-hold, deadline reached
+      expect(r.update(20, dt)).toBe('miss') // slipped out -> the deadline fires
+    })
+
+    test('timeLeftFraction counts down and resets on retarget', () => {
+      const r = mk()
+      expect(r.timeLeftFraction).toBe(1)
+      run(r, 20, DL / 2)
+      expect(r.timeLeftFraction).toBeCloseTo(0.5, 5)
+      run(r, 20, DL / 2) // miss -> new target
+      expect(r.timeLeftFraction).toBe(1)
+    })
+
+    test('no deadline by default', () => {
+      const r = new Round(30, BAND, 600)
+      run(r, 20, 500)
+      expect(r.misses).toBe(0)
+      expect(r.timeLeftFraction).toBe(1)
+    })
+  })
+
   test('stops scoring once the round is over', () => {
     const r = new Round(30, BAND, 1)
     r.update(30, 1)
-    expect(r.update(99, 1)).toBe(false)
+    expect(r.update(99, 1)).toBeNull()
     expect(r.result().overshoot).toBe(0)
   })
 })

@@ -95,6 +95,13 @@ export function randomTarget(rng: () => number = Math.random): number {
 
 /** Water must stay in the band this long (s) to count as stable — then the target moves. */
 export const STABLE_SEC = 2
+/** Time (s) allowed per target before it moves on anyway: scales with the lag so long lags stay playable. */
+export const DEADLINE_FLOOR = 5
+export const DEADLINE_PER_LAG = 2.2
+export const targetDeadline = (delaySec: number): number => Math.max(DEADLINE_FLOOR, DEADLINE_PER_LAG * delaySec)
+
+export type RoundEvent = 'hit' | 'miss'
+
 /** A moved target is at least this far (°) from the previous one. */
 export const MIN_JUMP = 6
 
@@ -111,6 +118,8 @@ export function nextTarget(prev: number, rng: () => number = Math.random): numbe
 export interface RoundResult {
   /** Targets the player held steady for STABLE_SEC. */
   hits: number
+  /** Targets that ran out of time before you held them. */
+  misses: number
   /** Times the water left the band after first reaching it (before settling). */
   lostBand: number
   /** Worst swing past a target after first reaching it (°), 0 if never. Not counted while still approaching. */
@@ -120,8 +129,11 @@ export interface RoundResult {
 export class Round {
   elapsed = 0
   hits = 0
+  misses = 0
   /** Seconds the water has been continuously in the band for the current target. */
   stableSec = 0
+  /** Seconds spent on the current target. */
+  targetSec = 0
   private lostBand = 0
   private maxOvershoot = 0
   private dev = 0
@@ -133,6 +145,8 @@ export class Round {
     readonly band: number = BAND,
     readonly durationSec: number = ROUND_SEC,
     private readonly pickNext: (prev: number) => number = (p) => nextTarget(p),
+    /** Time allowed per target (s); Infinity = no deadline. */
+    readonly deadlineSec: number = Infinity,
   ) {}
 
   get done(): boolean {
@@ -144,11 +158,17 @@ export class Round {
     return Math.min(1, this.stableSec / STABLE_SEC)
   }
 
-  /** Advance the round. Returns true when the target just moved (the previous one was a hit). */
-  update(water: number, dt: number): boolean {
-    if (this.done) return false
+  /** 1 → plenty of time left on this target, 0 → about to move on. */
+  get timeLeftFraction(): number {
+    return Number.isFinite(this.deadlineSec) ? Math.max(0, 1 - this.targetSec / this.deadlineSec) : 1
+  }
+
+  /** Advance the round. Returns 'hit' / 'miss' when the target just moved (and why), else null. */
+  update(water: number, dt: number): RoundEvent | null {
+    if (this.done) return null
     const inBand = Math.abs(water - this.target) <= this.band
     this.elapsed += dt
+    this.targetSec += dt
     if (this.reached && this.wasIn && !inBand) this.lostBand++
     if (inBand) this.reached = true
     // Overshoot only counts once the water has been in the band: before that it is still approaching,
@@ -158,20 +178,32 @@ export class Round {
     this.stableSec = inBand ? this.stableSec + dt : 0
     if (this.stableSec >= STABLE_SEC) {
       this.hits++
-      this.maxOvershoot = Math.max(this.maxOvershoot, this.dev)
-      this.target = this.pickNext(this.target)
-      this.stableSec = 0
-      this.dev = 0
-      this.reached = false
-      this.wasIn = false
-      return true
+      this.advance()
+      return 'hit'
     }
-    return false
+    // Out of time — unless you're mid-hold in the band, in which case you get to finish it.
+    if (this.targetSec >= this.deadlineSec && this.stableSec === 0) {
+      this.misses++
+      this.advance()
+      return 'miss'
+    }
+    return null
+  }
+
+  private advance(): void {
+    this.maxOvershoot = Math.max(this.maxOvershoot, this.dev)
+    this.target = this.pickNext(this.target)
+    this.stableSec = 0
+    this.targetSec = 0
+    this.dev = 0
+    this.reached = false
+    this.wasIn = false
   }
 
   result(): RoundResult {
     return {
       hits: this.hits,
+      misses: this.misses,
       lostBand: this.lostBand,
       // Include the in-progress target's swing too.
       overshoot: Math.round(Math.max(this.maxOvershoot, this.dev) * 10) / 10,

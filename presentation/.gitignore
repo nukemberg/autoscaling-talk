@@ -13,3 +13,6 @@ dist-bench
 !.dev.vars.example
 .env*
 !.env.example
+
+# Claude Code ctags index
+.claude/tags

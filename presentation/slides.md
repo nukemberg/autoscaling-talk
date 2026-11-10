@@ -260,9 +260,9 @@ class: statement
 
 <div class="big">
 
-Load that moves faster than your delay is **always** chasing.
+Decide now. Capacity arrives **later**.
 
-<span class="sub">Boot + metrics + sync period: you steer by where things were.</span>
+<span class="sub">Faster load than delay = always chasing.</span>
 
 </div>
 

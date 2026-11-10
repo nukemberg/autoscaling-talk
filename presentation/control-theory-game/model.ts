@@ -83,7 +83,7 @@ export function randomOffset(rng: () => number = Math.random): number {
   return Math.round((rng() * 2 - 1) * MAX_OFFSET * 2) / 2
 }
 
-export const BAND = 1.5
+export const BAND = 1.2
 export const ROUND_SEC = 30
 const TARGET_MIN = 24
 const TARGET_MAX = 42
@@ -97,13 +97,13 @@ export function randomTarget(rng: () => number = Math.random): number {
 export const STABLE_SEC = 2
 /** Time (s) allowed per target before it moves on anyway: scales with the lag so long lags stay playable. */
 export const DEADLINE_FLOOR = 5
-export const DEADLINE_PER_LAG = 2.2
+export const DEADLINE_PER_LAG = 2.0
 export const targetDeadline = (delaySec: number): number => Math.max(DEADLINE_FLOOR, DEADLINE_PER_LAG * delaySec)
 
 export type RoundEvent = 'hit' | 'miss'
 
 /** A moved target is at least this far (°) from the previous one. */
-export const MIN_JUMP = 6
+export const MIN_JUMP = 8
 
 /** Next target: random in range, at least MIN_JUMP away from the previous one. */
 export function nextTarget(prev: number, rng: () => number = Math.random): number {
@@ -111,8 +111,9 @@ export function nextTarget(prev: number, rng: () => number = Math.random): numbe
     const t = Math.round((TARGET_MIN + rng() * (TARGET_MAX - TARGET_MIN)) * 2) / 2
     if (Math.abs(t - prev) >= MIN_JUMP) return t
   }
-  // Deterministic fallback so a degenerate rng can't loop forever.
-  return prev < (TARGET_MIN + TARGET_MAX) / 2 ? prev + 2 * MIN_JUMP : prev - 2 * MIN_JUMP
+  // Deterministic fallback so a degenerate rng can't loop forever: jump to the far end of the range
+  // (always >= MIN_JUMP away, since the range midpoint is 9 from either end).
+  return prev < (TARGET_MIN + TARGET_MAX) / 2 ? TARGET_MAX : TARGET_MIN
 }
 
 export interface RoundResult {

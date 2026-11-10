@@ -156,7 +156,8 @@ describe('targetDeadline', () => {
   test('floors at DEADLINE_FLOOR and scales with the lag', () => {
     expect(targetDeadline(0)).toBe(DEADLINE_FLOOR)
     expect(targetDeadline(1)).toBe(DEADLINE_FLOOR)
-    expect(targetDeadline(3)).toBeCloseTo(6.6, 5)
+    expect(targetDeadline(3)).toBeCloseTo(6, 5)
+    expect(targetDeadline(5)).toBeCloseTo(10, 5)
     expect(targetDeadline(10)).toBeGreaterThan(targetDeadline(3))
   })
 })
@@ -174,8 +175,12 @@ describe('nextTarget', () => {
   })
 
   test('falls back deterministically with a degenerate rng', () => {
-    expect(Math.abs(nextTarget(30, () => 0.5) - 30)).toBeGreaterThanOrEqual(MIN_JUMP) // 33 is too close
-    expect(nextTarget(30, () => 0.5)).toBeDefined()
+    for (const prev of [24, 28, 30, 33, 36, 42]) {
+      const n = nextTarget(prev, () => 0.5) // always proposes 33: too close for most of these
+      expect(n).toBeGreaterThanOrEqual(24)
+      expect(n).toBeLessThanOrEqual(42)
+      expect(Math.abs(n - prev)).toBeGreaterThanOrEqual(MIN_JUMP)
+    }
   })
 })
 

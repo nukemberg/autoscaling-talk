@@ -194,10 +194,7 @@ The metric measured **the symptom**, so the autoscaler could only treat **the sy
 </div>
 
 <!--
-TODO: no meme/graphic picked yet for this one — public/memes/ only has
-putin-laughing, agent-hpa-license-to-spend, drake-autoscaling, all used elsewhere.
-
-[1 min] Tell it live, don't read it: a service's response time crept up during a routine
+[1 min] Service's response time crept up during a routine
 traffic bump. The autoscaler's trigger was mean latency, not CPU — so it did exactly what
 it was configured to do and scaled out. Every new instance opened more connections to the
 same shared database, whose connection pool was the actual bottleneck and didn't grow with
@@ -366,10 +363,7 @@ It did its job perfectly. That was the problem.
 </div>
 
 <!--
-TODO: no meme/graphic picked yet for this one — public/memes/ only has
-putin-laughing, agent-hpa-license-to-spend, drake-autoscaling, all used elsewhere.
-
-[1 min] Tell it live, don't read it: a load spike triggered a scale-out, and the fleet grew
+[1 min] Load spike triggered a scale-out, and the fleet grew
 well past its usual size within minutes. Nobody had sized the database for that fleet —
 each instance opened its own connection pool, and the sum of all those pools blew past the
 database's connection limit. The database fell over under connection overhead alone, every

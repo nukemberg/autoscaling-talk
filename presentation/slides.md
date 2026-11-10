@@ -252,18 +252,47 @@ warm-up) are these same four ideas, just unnamed.
 -->
 
 ---
-layout: center
-class: statement
-clicks: 5
+layout: default
 ---
 
 # Dead Time
 
-<DeadTimeDiagram :step="$clicks" />
+<div class="stages">
+  <div class="card card-symptom">
+    <div class="card-label">Sensing</div>
+    <div class="card-title">See it</div>
+    <p class="card-body">Metrics lag</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="card card-symptom">
+    <div class="card-label">Decision</div>
+    <div class="card-title">Decide</div>
+    <p class="card-body">Sync period, cooldown</p>
+  </div>
+  <div class="arrow">→</div>
+  <div class="card card-symptom">
+    <div class="card-label">Actuation</div>
+    <div class="card-title">Do it</div>
+    <p class="card-body">Boot, health checks, LB</p>
+  </div>
+</div>
+
+<div class="total"><span>dead time</span></div>
+
+<div class="takeaway">
+  <div>Decide now. Capacity arrives <strong class="accent-takeaway">later</strong>.</div>
+</div>
 
 <style>
-/* Compact title so the diagram + caption keep a safe bottom margin. */
-.slidev-layout.statement h1 { font-size: 1rem; margin-bottom: 0.5rem; }
+.slidev-layout .stages { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+.slidev-layout .stages .card { padding: 1rem 1.25rem; height: 100%; box-sizing: border-box; }
+.slidev-layout .stages .card-title { font-size: 1.9rem; white-space: nowrap; }
+.slidev-layout .stages .card-body { font-size: 1.25rem; }
+.slidev-layout .stages .arrow { font-size: 2.2rem; font-weight: 800; color: var(--c-symptom); }
+/* bracket under the three stages: their sum is the dead time */
+.slidev-layout .total { margin-top: 0.6rem; border: 4px solid var(--c-symptom); border-top: none; border-radius: 0 0 0.75rem 0.75rem; height: 1rem; position: relative; }
+.slidev-layout .total span { position: absolute; left: 50%; top: 0.35rem; transform: translateX(-50%); background: var(--slidev-theme-background, #fff); padding: 0.1rem 0.8rem; font-size: 1.5rem; font-weight: 800; color: var(--c-symptom); }
+.slidev-layout .takeaway { margin-top: 2.25rem; margin-bottom: 2rem; }
 </style>
 
 <!--
@@ -271,13 +300,12 @@ clicks: 5
 Three sources, left to right: sensing (metrics have to be collected, aggregated, delivered
 — CloudWatch delay, datapoint period x N alarm evaluations), decision (sync period,
 cooldown, stabilization window), actuation (API call, boot, health checks, LB
-registration). The bar is the gap between the load edge and the capacity edge — the shape
-is the argument.
+registration). The sum is the dead time.
 
-Consequence 1: until capacity arrives you're short — nothing the controller does shortens
-that. Consequence 2: if load moves faster than the dead time, capacity arrives for a world
-that's already gone — short while load is up, wasted after it's down. Always chasing.
-Foreshadow: the oscillation sim is exactly this with a fast controller on top.
+Why it hurts: until capacity arrives you're short, and nothing the controller does shortens
+that. If load moves faster than the dead time, capacity arrives for a world that's already
+gone — short while load is up, wasted after it's down. Always chasing. Foreshadow: the
+oscillation sim is exactly this with a fast controller on top.
 
 Visibility feeds it: coarse resolution and long windows add to the sensing/decision
 segments (a window average delays the signal by about half the window).

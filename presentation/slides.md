@@ -234,7 +234,7 @@ class: statement
 
 <div class="big">
 
-Dead time · Gain<br>Sampling · Memory
+Dead time · Gain · Visibility
 
 </div>
 
@@ -307,48 +307,27 @@ its default.
 -->
 
 ---
-layout: center
-class: statement
----
-
-# Sampling
-
-<div class="big">
-
-You can't react faster than you **look**.
-
-<span class="sub">Sync period and cooldown set the floor. “Just poll faster” isn't free.</span>
-
-</div>
-
-<!--
-[1 min] Can't react faster than you sample or cooldown lets you (Nyquist-ish). Polling
-faster costs money and noise — and below the metric resolution it just returns empty
-datapoints. Foreshadow: the metric-pipeline sim has a bonus demo of exactly this.
--->
-
----
 layout: default
 ---
 
-# Memory
+# Visibility
 
 <div class="cards">
   <div class="card amber">
-    <div class="card-label">React</div>
-    <div class="card-title">The present</div>
-    <p class="card-body">What's happening now. But "now" is a window — how wide?</p>
+    <div class="card-label">Resolution</div>
+    <div class="card-title">How often</div>
+    <p class="card-body">You can't react faster than you look.</p>
   </div>
 
   <div class="card amber">
-    <div class="card-label">Predict</div>
-    <div class="card-title">The past</div>
-    <p class="card-body">A guess. Only as good as the future resembles it.</p>
+    <div class="card-label">Window</div>
+    <div class="card-title">How far back</div>
+    <p class="card-body">Short window: jumpy. Long window: slow.</p>
   </div>
 </div>
 
 <div class="takeaway">
-  <div>Short window: <strong class="accent-takeaway">jumpy</strong>. Long window: <strong class="accent-takeaway">slow</strong>.</div>
+  <div>You only ever see <strong class="accent-takeaway">a slice of the past</strong>.</div>
 </div>
 
 <style>
@@ -356,18 +335,23 @@ layout: default
 </style>
 
 <!--
-[1.5 min] The controller never knows what's about to happen — only what it has seen. Two
-options: react to the present, or guess from the past (smoothing, integral term, forecasts,
-tracking capacity that's already in flight).
+[2 min] Everything the controller knows is a slice of the past, and the slice has two
+dials.
 
-"The present" isn't a point, it's a window: one sample, a 1-minute average, a 5-minute
-average. Short window = fast but jumpy — and it double-orders capacity that's already
-booting, because the last order hasn't shown up in the numbers yet. Long window = smooth
-but slow — you act on a world that's already moved on. Prediction is the same trade in
-disguise: it works only while the future looks like the past.
+Resolution — how often and how finely you look (sync period, cooldown, metric datapoint
+period). Can't react faster than you sample; "just poll faster" costs money and noise, and
+below the metric's own resolution it just returns empty datapoints (the metric-pipeline sim
+has a bonus demo of exactly this).
 
-Most default autoscalers are stateless (latest window only); k8s set-aside of unready
-pods is the exception.
+Window — how far back you look. "Now" isn't a point: one sample, a 1-minute average, a
+5-minute average. Short window = fast but jumpy, and it double-orders capacity that's
+already booting because the last order hasn't shown up in the numbers yet. Long window =
+smooth but slow — you act on a world that's already moved on.
+
+Prediction is the far end of the window dial: guess the future from the past (smoothing,
+integral term, forecasts, tracking in-flight capacity). Works only while the future looks
+like the past. Most default autoscalers are stateless — latest window only; k8s set-aside
+of unready pods is the exception.
 -->
 
 ---

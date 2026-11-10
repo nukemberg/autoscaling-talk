@@ -352,17 +352,17 @@ changed. Bonus demo: drag period below the 5s metric resolution and the alarm go
 ---
 layout: center
 class: statement
+clicks: 4
 ---
 
 # War Story: The Autoscaler Ate the Database
 
-<div class="big">
+<DbBlastRadius :step="$clicks" />
 
-It did its job perfectly. That was the problem.
-
-<span class="sub">It scaled the **blast radius**, not just the capacity.</span>
-
-</div>
+<style>
+/* Compact title so the diagram + final caption keep a safe bottom margin. */
+.slidev-layout.statement h1 { font-size: 1rem; margin-bottom: 0.5rem; }
+</style>
 
 <!--
 [1 min] Load spike triggered a scale-out, and the fleet grew

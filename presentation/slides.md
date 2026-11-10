@@ -317,6 +317,16 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
   <div class="punchline">… or you fight your own last move.</div>
 </div>
 
+<style>
+/* Tighter cards so the takeaway clears the bottom edge (projector/recording safe area). */
+.slidev-layout .cards { margin-top: 1rem; gap: 1.25rem; }
+.slidev-layout .card { padding: 1rem 1.25rem; }
+.slidev-layout .card-title { font-size: 1.8rem; white-space: nowrap; }
+.slidev-layout .card-body { font-size: 1.3rem; }
+.slidev-layout .card-note { margin-top: 0.6rem; }
+.slidev-layout .takeaway { margin-top: 1.25rem; margin-bottom: 2.5rem; }
+</style>
+
 <!--
 [2 min] Bridge to the AWS sim. Slide tells the story — just land the meta-point: the only
 knob you control is your own adjustment interval, not the pipe. That's exactly the datapoint

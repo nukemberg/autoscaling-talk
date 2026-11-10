@@ -215,7 +215,7 @@ class: sim
 
 # Scaling on Latency: The Trap
 
-<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %', 'total cost']" />
+<Sim preset="latency-runaway" :expose="['metricLatencyTarget', 'dbPoolSlots', 'dbQueryMs']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
 
 <!--
 Live DES from presets/latency-runaway.json. Scaling on mean latency against a shared DB
@@ -274,7 +274,7 @@ class: sim
 
 # Oscillation, by Default
 
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :summary-keys="['errors %', 'total cost']" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :summary-keys="['errors %']" />
 
 <!--
 War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
@@ -339,7 +339,7 @@ class: sim
 
 # The Metric Pipeline Is Dead Time Too
 
-<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %', 'total cost']" :bands="[{ from: 1000, to: 1400, label: 'wasted: still scaling after recovery' }]" />
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" :bands="[{ from: 1000, to: 1400, label: 'wasted: still scaling after recovery' }]" />
 
 <!--
 Live DES from presets/metric-delay-compare.json. Flip period/delay live: AWS realistic
@@ -445,7 +445,7 @@ class: sim
 
 # Same Pulse, Tuned Threads
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :expose="['workers', 'baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
 
 <!--
 Live DES from presets/pulse-compare-threaded-vs-event-loop.json, threaded profile. 5x pulse
@@ -462,7 +462,7 @@ class: sim
 
 # Same Pulse, Node.js
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
 
 <!--
 Same preset, serverProfile=event-loop (unbounded workers). p95 ~82s, 6-7 min recovery, and

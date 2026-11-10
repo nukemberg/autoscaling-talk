@@ -13,38 +13,49 @@ export const START_TEMP = 16
 
 export const clamp = (v: number, lo = T_MIN, hi = T_MAX): number => Math.min(hi, Math.max(lo, v))
 
+/** Number of lag stages in the chain. Three gives a clear S-curve (slow start, then faster) without a long tail. */
+export const STAGES = 3
+
 export interface ShowerOpts {
-  /** Pipe delay: seconds between turning the knob and the water starting to respond. */
+  /** Lag: mean delay (s) between turning the knob and the water catching up. 0 = instant. */
   delaySec: number
   /** Hidden knob→water offset (°): steady-state water = knob + offset. Lets the player feel the mapping instead of reading it. */
   offset?: number
-  /** First-order smoothing time constant (s) applied after the delay. */
-  smoothSec?: number
   /** Fixed simulation tick (s). */
   stepSec?: number
   startTemp?: number
 }
 
+/**
+ * Hot/Cold shower: the knob drives a chain of STAGES first-order lags, each with time constant
+ * delaySec / STAGES, so the *mean* delay is delaySec. The water is the last stage.
+ *
+ * The water starts responding on the very first tick (rate ∝ error), but only barely: the
+ * downstream stages have to fill first, so the effective gain ramps up — slow start, S-curve,
+ * smooth settle, never an overshoot. Every knob move still arrives late, however you move the
+ * knob afterwards (linear: no reset on re-adjusting), which is what makes chasing your own last
+ * move fail.
+ */
 export class Shower {
   readonly stepSec: number
-  readonly delaySteps: number
-  readonly smoothSec: number
+  readonly delaySec: number
   readonly offset: number
   knob: number
   water: number
   t = 0
-  /** Knob history, newest last; length is held at delaySteps + 1. */
-  private buf: number[]
+  private stages: number[]
+  private readonly a: number
 
   constructor(o: ShowerOpts) {
     this.stepSec = o.stepSec ?? 0.05
-    this.delaySteps = Math.max(0, Math.round(o.delaySec / this.stepSec))
-    this.smoothSec = o.smoothSec ?? 0.4
+    this.delaySec = Math.max(0, o.delaySec)
     this.offset = o.offset ?? 0
     this.water = o.startTemp ?? START_TEMP
     // Start in equilibrium: the knob sits wherever makes the water equal the start temperature.
     this.knob = clamp(this.water - this.offset)
-    this.buf = [this.knob]
+    this.stages = Array<number>(STAGES).fill(this.water)
+    const tau = this.delaySec / STAGES
+    this.a = tau > 0 ? 1 - Math.exp(-this.stepSec / tau) : 1
   }
 
   setKnob(v: number): void {
@@ -52,12 +63,14 @@ export class Shower {
   }
 
   step(): void {
-    this.buf.push(this.knob)
-    if (this.buf.length > this.delaySteps + 1) this.buf.shift()
-    // Oldest entry in the buffer is the knob setting `delaySteps` ticks ago.
-    const delayed = clamp(this.buf[0] + this.offset)
-    const a = 1 - Math.exp(-this.stepSec / this.smoothSec)
-    this.water += (delayed - this.water) * a
+    let input = clamp(this.knob + this.offset)
+    for (let i = 0; i < STAGES; i++) {
+      // Each stage follows the previous stage's already-updated value, so a change reaches the
+      // water on the very first tick (just not by much) rather than one stage per tick.
+      this.stages[i] += (input - this.stages[i]) * this.a
+      input = this.stages[i]
+    }
+    this.water = this.stages[STAGES - 1]
     this.t += this.stepSec
   }
 }

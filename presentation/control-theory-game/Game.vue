@@ -224,7 +224,7 @@ const verdict = computed(() => {
 
     <section class="settings">
       <label>
-        Pipe delay <b>{{ delaySec }} s</b>
+        Lag <b>{{ delaySec }} s</b>
         <input v-model.number="delaySec" type="range" min="0" max="10" step="0.5">
       </label>
       <button class="ghost" @click="reset(true)">New round <kbd>Space</kbd></button>
@@ -236,7 +236,7 @@ const verdict = computed(() => {
       <div class="score">{{ result.hits }}<small> {{ result.hits === 1 ? 'target' : 'targets' }} held</small></div>
       <p>{{ verdict }}</p>
       <p class="stats">Lost the band {{ result.lostBand }}×<template v-if="result.overshoot > 0"> · worst overshoot {{ result.overshoot }}°</template></p>
-      <p class="bridge">Your pipe delay was <b>{{ delaySec }} s</b>. An autoscaler's is <b>minutes</b>.</p>
+      <p class="bridge">Your lag was <b>{{ delaySec }} s</b>. An autoscaler's is <b>minutes</b>.</p>
       <button class="ghost" @click="reset(true)">Play again <kbd>Space</kbd></button>
     </div>
   </main>

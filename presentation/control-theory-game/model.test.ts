@@ -4,54 +4,96 @@ import { BAND, MAX_OFFSET, MIN_JUMP, nextTarget, randomOffset, randomTarget, Rou
 // Tiny smoothing so the water tracks the (delayed) knob almost exactly.
 const sharp = (delaySec: number, offset = 0) => new Shower({ delaySec, smoothSec: 1e-6, offset })
 
+/** Step the knob by `delta` from equilibrium and return the water trace (one entry per tick). */
+function stepResponse(delaySec: number, delta = 10, seconds = delaySec * 8 + 5, offset = 0): { water: number[]; dt: number } {
+  const s = new Shower({ delaySec, offset })
+  s.setKnob(s.knob + delta)
+  const water: number[] = []
+  for (let i = 0; i < seconds / s.stepSec; i++) {
+    s.step()
+    water.push(s.water)
+  }
+  return { water, dt: s.stepSec }
+}
+
 describe('Shower', () => {
-  test('water does not move until the pipe delay has elapsed', () => {
-    const s = sharp(2) // 40 steps at 0.05s
-    s.setKnob(40)
-    for (let i = 0; i < 39; i++) s.step()
-    expect(s.water).toBeCloseTo(START_TEMP, 3)
-    s.step()
-    s.step()
-    expect(s.water).toBeCloseTo(40, 3)
+  test('responds on the very first tick, but only barely', () => {
+    const { water } = stepResponse(3)
+    expect(water[0]).toBeGreaterThan(START_TEMP) // immediate...
+    expect(water[0] - START_TEMP).toBeLessThan(0.01) // ...but negligible
   })
 
-  test('zero delay responds on the very next tick', () => {
-    const s = sharp(0)
-    s.setKnob(30)
-    s.step()
-    expect(s.water).toBeCloseTo(30, 3)
+  test('slow start: the rate of change keeps rising until the middle of the S-curve', () => {
+    const { water, dt } = stepResponse(3)
+    const rate = (k: number) => (water[k + 1] - water[k]) / dt
+    expect(rate(10)).toBeGreaterThan(rate(1))
+    expect(rate(30)).toBeGreaterThan(rate(10))
+    expect(rate(30)).toBeGreaterThan(rate(400)) // and the late tail is slow again
   })
 
-  test('a short knob pulse reaches the water exactly one delay later, unchanged', () => {
-    const s = sharp(2) // 40 steps
+  test('approaches the setting monotonically and never overshoots', () => {
+    const { water } = stepResponse(3, 10)
+    for (let i = 1; i < water.length; i++) expect(water[i]).toBeGreaterThanOrEqual(water[i - 1])
+    expect(Math.max(...water)).toBeLessThanOrEqual(START_TEMP + 10 + 1e-9)
+    expect(water.at(-1)).toBeCloseTo(START_TEMP + 10, 1)
+  })
+
+  test('mean delay of a step response equals delaySec', () => {
+    for (const delay of [1, 3, 8]) {
+      const { water, dt } = stepResponse(delay, 10, delay * 12)
+      // mean delay = integral of (1 - normalised response)
+      const mean = water.reduce((sum, w) => sum + (1 - (w - START_TEMP) / 10) * dt, 0)
+      expect(Math.abs(mean - delay) / delay).toBeLessThan(0.08)
+    }
+  })
+
+  test('longer lag means a later response', () => {
+    const half = (d: number) => {
+      const { water, dt } = stepResponse(d, 10)
+      return (water.findIndex((w) => w - START_TEMP >= 5) + 1) * dt
+    }
+    expect(half(1)).toBeLessThan(half(3))
+    expect(half(3)).toBeLessThan(half(8))
+  })
+
+  test('zero lag is instant', () => {
+    const s = new Shower({ delaySec: 0 })
+    s.setKnob(s.knob + 10)
+    s.step()
+    expect(s.water).toBeCloseTo(START_TEMP + 10, 6)
+  })
+
+  test('a knob pulse shorter than the lag is blunted and arrives after it ended', () => {
+    const s = new Shower({ delaySec: 3 })
+    const base = s.knob
     const water: number[] = []
-    for (let i = 0; i < 80; i++) {
-      s.setKnob(i >= 5 && i < 15 ? 45 : START_TEMP) // 10-step pulse starting at step 5
+    for (let i = 0; i < 12 / s.stepSec; i++) {
+      s.setKnob(i * s.stepSec < 0.5 ? base + 10 : base) // half-second pulse
       s.step()
       water.push(s.water)
     }
-    // Pulse enters the pipe at steps 5..14 and exits exactly delaySteps (40) ticks later: 45..54.
-    const hot = water.map((w, i) => (w > 30 ? i : -1)).filter((i) => i >= 0)
-    expect(hot.length).toBe(10)
-    expect(hot[0]).toBe(5 + 40)
-    expect(Math.max(...water.slice(0, hot[0]))).toBeCloseTo(START_TEMP, 3)
+    const peak = Math.max(...water)
+    expect(peak - START_TEMP).toBeLessThan(2) // under a fifth of the pulse's height (analytically ~1.35)
+    expect(water.indexOf(peak) * s.stepSec).toBeGreaterThan(0.5) // peaks after the pulse ended
+    expect(water.at(-1)! - START_TEMP).toBeLessThan(0.2) // and fades away
   })
 
-  test('smoothing makes the water approach the setting without overshooting it', () => {
-    const s = new Shower({ delaySec: 0, smoothSec: 0.5 })
-    s.setKnob(30)
-    let prev = s.water
+  test('re-adjusting does not reset earlier moves: they still arrive', () => {
+    const s = new Shower({ delaySec: 3 })
+    const base = s.knob
+    s.setKnob(base + 10)
+    for (let i = 0; i < 20; i++) s.step() // 1s in, then keep jiggling
     for (let i = 0; i < 200; i++) {
+      s.setKnob(base + 10 + (i % 2 ? 0.1 : -0.1))
       s.step()
-      expect(s.water).toBeGreaterThanOrEqual(prev)
-      expect(s.water).toBeLessThanOrEqual(30)
-      prev = s.water
     }
-    expect(s.water).toBeCloseTo(30, 1)
+    expect(s.water).toBeGreaterThan(base + 8) // jiggling did not stall the response
   })
 
   test('hidden offset shifts the steady-state water relative to the knob', () => {
-    const s = sharp(0, 4)
+    const { water } = stepResponse(0, 0, 1, 4)
+    expect(water.at(-1)).toBeCloseTo(START_TEMP, 3) // equilibrium start, no movement
+    const s = new Shower({ delaySec: 0, offset: 4 })
     s.setKnob(30)
     s.step()
     expect(s.water).toBeCloseTo(34, 3)
@@ -59,7 +101,7 @@ describe('Shower', () => {
 
   test('starts in equilibrium: knob is placed so the water equals the start temperature', () => {
     for (const off of [-6, -2.5, 0, 3, 6]) {
-      const s = sharp(2, off)
+      const s = new Shower({ delaySec: 2, offset: off })
       expect(s.water).toBe(START_TEMP)
       for (let i = 0; i < 100; i++) s.step() // knob untouched
       expect(s.water).toBeCloseTo(START_TEMP, 3)
@@ -67,7 +109,7 @@ describe('Shower', () => {
   })
 
   test('knob is clamped to the temperature range', () => {
-    const s = sharp(0)
+    const s = new Shower({ delaySec: 0 })
     s.setKnob(999)
     expect(s.knob).toBe(T_MAX)
     s.setKnob(-5)

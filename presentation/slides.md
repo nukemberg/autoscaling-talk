@@ -13,7 +13,7 @@ comark: true
 duration: 30min
 mdc: true
 # Deployed slides; QR codes (<Qr path=…>) resolve against this.
-baseUrl: https://autoscaling-talk.fewbytes.com
+baseUrl: https://autoscaling-rant.fewbytes.com
 ---
 
 # Autoscaling
@@ -458,7 +458,7 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
 </div>
 
 <div class="abs-tr m-4 play">
-  <a href="https://autoscaling-talk.fewbytes.com/shower/" target="_blank" rel="noopener">Play it ↗</a>
+  <a :href="`${$slidev.configs.baseUrl}/shower/`" target="_blank" rel="noopener">Play it ↗</a>
   <Qr path="shower/" :size="90" :label="false" />
 </div>
 

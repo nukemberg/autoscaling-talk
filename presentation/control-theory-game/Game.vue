@@ -8,7 +8,7 @@ const TRACE_EVERY = 2 // record a trace point every N sim ticks
 type Phase = 'ready' | 'running' | 'done'
 interface TracePt { t: number; knob: number; water: number; target: number }
 
-const delaySec = ref(3)
+const delaySec = ref(5)
 const startTarget = ref(randomTarget()) // where the round begins; restarts reuse it
 const target = ref(startTarget.value)
 const hits = ref(0)

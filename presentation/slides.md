@@ -280,7 +280,7 @@ layout: default
 <div class="total"><span>dead time</span></div>
 
 <div class="takeaway">
-  <div>Decide now. Capacity arrives <strong class="accent-takeaway">later</strong>.</div>
+  <div>Can't track anything <strong class="accent-takeaway">faster</strong> than this.</div>
 </div>
 
 <style>

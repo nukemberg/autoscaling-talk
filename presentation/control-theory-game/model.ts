@@ -8,13 +8,16 @@
 
 export const T_MIN = 10
 export const T_MAX = 50
-export const START_TEMP = 15
+/** 16 so that even the largest hidden offset (+MAX_OFFSET) puts the equilibrium knob at T_MIN, not below it. */
+export const START_TEMP = 16
 
 export const clamp = (v: number, lo = T_MIN, hi = T_MAX): number => Math.min(hi, Math.max(lo, v))
 
 export interface ShowerOpts {
   /** Pipe delay: seconds between turning the knob and the water starting to respond. */
   delaySec: number
+  /** Hidden knob→water offset (°): steady-state water = knob + offset. Lets the player feel the mapping instead of reading it. */
+  offset?: number
   /** First-order smoothing time constant (s) applied after the delay. */
   smoothSec?: number
   /** Fixed simulation tick (s). */
@@ -26,6 +29,7 @@ export class Shower {
   readonly stepSec: number
   readonly delaySteps: number
   readonly smoothSec: number
+  readonly offset: number
   knob: number
   water: number
   t = 0
@@ -36,7 +40,10 @@ export class Shower {
     this.stepSec = o.stepSec ?? 0.05
     this.delaySteps = Math.max(0, Math.round(o.delaySec / this.stepSec))
     this.smoothSec = o.smoothSec ?? 0.4
-    this.knob = this.water = o.startTemp ?? START_TEMP
+    this.offset = o.offset ?? 0
+    this.water = o.startTemp ?? START_TEMP
+    // Start in equilibrium: the knob sits wherever makes the water equal the start temperature.
+    this.knob = clamp(this.water - this.offset)
     this.buf = [this.knob]
   }
 
@@ -48,11 +55,19 @@ export class Shower {
     this.buf.push(this.knob)
     if (this.buf.length > this.delaySteps + 1) this.buf.shift()
     // Oldest entry in the buffer is the knob setting `delaySteps` ticks ago.
-    const delayed = this.buf[0]
+    const delayed = clamp(this.buf[0] + this.offset)
     const a = 1 - Math.exp(-this.stepSec / this.smoothSec)
     this.water += (delayed - this.water) * a
     this.t += this.stepSec
   }
+}
+
+/** Max hidden offset (°). Keeps every target reachable: target 24..42 needs knob 18..48 within 10..50. */
+export const MAX_OFFSET = 6
+
+/** Random hidden offset in [-MAX_OFFSET, MAX_OFFSET], on half-degree steps. */
+export function randomOffset(rng: () => number = Math.random): number {
+  return Math.round((rng() * 2 - 1) * MAX_OFFSET * 2) / 2
 }
 
 export const BAND = 1.5

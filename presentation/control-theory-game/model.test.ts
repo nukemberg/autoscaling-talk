@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'vitest'
-import { BAND, randomTarget, Round, Shower, START_TEMP, T_MAX, T_MIN } from './model'
+import { BAND, MAX_OFFSET, randomOffset, randomTarget, Round, Shower, START_TEMP, T_MAX, T_MIN } from './model'
 
 // Tiny smoothing so the water tracks the (delayed) knob almost exactly.
-const sharp = (delaySec: number) => new Shower({ delaySec, smoothSec: 1e-6 })
+const sharp = (delaySec: number, offset = 0) => new Shower({ delaySec, smoothSec: 1e-6, offset })
 
 describe('Shower', () => {
   test('water does not move until the pipe delay has elapsed', () => {
@@ -50,12 +50,48 @@ describe('Shower', () => {
     expect(s.water).toBeCloseTo(30, 1)
   })
 
+  test('hidden offset shifts the steady-state water relative to the knob', () => {
+    const s = sharp(0, 4)
+    s.setKnob(30)
+    s.step()
+    expect(s.water).toBeCloseTo(34, 3)
+  })
+
+  test('starts in equilibrium: knob is placed so the water equals the start temperature', () => {
+    for (const off of [-6, -2.5, 0, 3, 6]) {
+      const s = sharp(2, off)
+      expect(s.water).toBe(START_TEMP)
+      for (let i = 0; i < 100; i++) s.step() // knob untouched
+      expect(s.water).toBeCloseTo(START_TEMP, 3)
+    }
+  })
+
   test('knob is clamped to the temperature range', () => {
     const s = sharp(0)
     s.setKnob(999)
     expect(s.knob).toBe(T_MAX)
     s.setKnob(-5)
     expect(s.knob).toBe(T_MIN)
+  })
+})
+
+describe('randomOffset', () => {
+  test('stays within ±MAX_OFFSET on half-degree steps', () => {
+    for (let i = 0; i < 200; i++) {
+      const o = randomOffset()
+      expect(Math.abs(o)).toBeLessThanOrEqual(MAX_OFFSET)
+      expect(o * 2).toBe(Math.round(o * 2))
+    }
+  })
+
+  test('every target stays reachable at the extreme offsets', () => {
+    for (const off of [-MAX_OFFSET, MAX_OFFSET]) {
+      for (const target of [randomTarget(() => 0), randomTarget(() => 1)]) {
+        const needed = target - off
+        expect(needed).toBeGreaterThanOrEqual(T_MIN)
+        expect(needed).toBeLessThanOrEqual(T_MAX)
+      }
+    }
   })
 })
 

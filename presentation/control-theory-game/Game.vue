@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, triggerRef, watch } from 'vue'
-import { BAND, clamp, randomTarget, Round, ROUND_SEC, Shower, START_TEMP, T_MAX, T_MIN, type RoundResult } from './model'
+import { BAND, clamp, randomOffset, randomTarget, Round, ROUND_SEC, Shower, START_TEMP, T_MAX, T_MIN, type RoundResult } from './model'
 
 const RATE = 10 // °C per second while a direction is held
 const TRACE_EVERY = 2 // record a trace point every N sim ticks
@@ -10,6 +10,7 @@ interface TracePt { t: number; knob: number; water: number }
 
 const delaySec = ref(3)
 const target = ref(randomTarget())
+let offset = randomOffset() // hidden: water = knob + offset
 const phase = ref<Phase>('ready')
 const knob = ref(START_TEMP)
 const water = ref(START_TEMP)
@@ -17,15 +18,19 @@ const elapsed = ref(0)
 const result = ref<RoundResult | null>(null)
 const trace = shallowRef<TracePt[]>([])
 
-let shower = new Shower({ delaySec: delaySec.value })
+let shower = new Shower({ delaySec: delaySec.value, offset })
 let round = new Round(target.value)
 let tick = 0
 
 function reset(newTarget: boolean): void {
-  if (newTarget) target.value = randomTarget()
-  shower = new Shower({ delaySec: delaySec.value })
+  if (newTarget) {
+    target.value = randomTarget()
+    offset = randomOffset()
+  }
+  shower = new Shower({ delaySec: delaySec.value, offset })
   round = new Round(target.value)
-  knob.value = water.value = START_TEMP
+  knob.value = shower.knob
+  water.value = START_TEMP
   elapsed.value = 0
   result.value = null
   trace.value = []
@@ -102,7 +107,8 @@ function frame(now: number): void {
     if (phase.value !== 'running') continue
     shower.step()
     round.update(shower.water, dt)
-    if (tick++ % TRACE_EVERY === 0) trace.value.push({ t: round.elapsed, knob: shower.knob, water: shower.water })
+    // The knob is plotted in water units ("what you asked for") so the delay is visible without printing the offset.
+    if (tick++ % TRACE_EVERY === 0) trace.value.push({ t: round.elapsed, knob: shower.knob + offset, water: shower.water })
     if (round.done) {
       phase.value = 'done'
       result.value = round.result()
@@ -163,7 +169,7 @@ const verdict = computed(() => {
           <div class="fill" :style="{ width: pct(knob) + '%' }" />
           <div class="thumb" :style="{ left: pct(knob) + '%' }" />
         </div>
-        <span class="val">{{ knob.toFixed(0) }}°</span>
+        <span class="val" />
       </div>
 
       <div class="row">
@@ -182,7 +188,7 @@ const verdict = computed(() => {
       <polyline class="tknob" :points="line('knob')" />
       <polyline class="twater" :points="line('water')" />
     </svg>
-    <p class="legend"><i class="k" /> your knob <i class="w" /> the water</p>
+    <p class="legend"><i class="k" /> what you asked for <i class="w" /> the water</p>
 
     <section class="controls">
       <button class="big" aria-label="Colder" @pointerdown.prevent="heldButton = -1" @pointerup="heldButton = 0" @pointerleave="heldButton = 0" @pointercancel="heldButton = 0">−</button>

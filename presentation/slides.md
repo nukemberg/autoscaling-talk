@@ -659,15 +659,10 @@ backgroundSize: contain
 
 # Comfortable Patch
 
-<style>
-.content li { font-size: 0.92em; }
-.takeaway { font-size: 0.92em; }
-</style>
-
 <div class="content">
 
-- Autoscaling hides perf problems
-- You pay for more capacity. **Forever.**
+- Hides perf problems
+- Pay more. **Forever.**
 
 </div>
 

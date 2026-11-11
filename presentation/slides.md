@@ -88,7 +88,7 @@ low utilization → Responsible (cost side); hard to tune → Control Theory.
 layout: default
 ---
 
-# You Should Be Scaling Down, Not Up
+# You Think You're Scaling Up. You're Scaling Down.
 
 <div class="content">
 

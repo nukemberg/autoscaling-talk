@@ -278,3 +278,6 @@
 
 .takeaway p, .takeaway div, .card p { line-height: 1.25; }
 .takeaway p { margin: 0 0 0.4rem; }
+
+/* Frontmatter `class: bottom-margin` — keeps the last line clear of the bottom edge (back-row visibility). */
+.slidev-layout.bottom-margin, .bottom-margin .slidev-layout { padding-bottom: 6rem; }

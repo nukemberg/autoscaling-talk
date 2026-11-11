@@ -565,7 +565,7 @@ layout: default
   <div class="card">
     <div class="card-label">Well-behaved</div>
     <div class="card-title">Bounded workers</div>
-    <p class="card-body">Says no when full. Honest metrics.</p>
+    <p class="card-body">Says no when full. Fails fast.</p>
   </div>
   <div class="card card-symptom">
     <div class="card-label">Bad</div>
@@ -612,12 +612,14 @@ class: sim
 
 # Same Pulse, Node.js
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0, initialInstances: 16, maxInstances: 80 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
 
 <!--
-Same preset, serverProfile=event-loop (unbounded workers). p95 ~82s, 6-7 min recovery, and
-still sheds ~8.7% — worse than threaded on EVERY axis, including errors. Flip back to the
-previous slide to compare. Only variable: can the unit say no.
+Same preset, serverProfile=event-loop (unbounded workers), single-core processes. Equal
+hardware: 16 one-core Node processes (initialInstances 16) vs 4 four-core threaded boxes —
+same 16 cores, same ~70% base CPU, p95 ~175-210ms before the pulse. Pulse: 0% errors, but p95
+peaks ~50s (mean ~39s) and takes ~3 min to drain. Fails as latency, not errors. Flip back to
+the previous slide to compare. Only variable: can the unit say no.
 -->
 
 ---
@@ -648,6 +650,7 @@ into "an outage you chose."
 
 ---
 layout: image-right
+class: bottom-margin
 image: /memes/drake-autoscaling.jpg
 backgroundSize: contain
 ---
@@ -655,9 +658,8 @@ backgroundSize: contain
 # Comfortable Patch
 
 <style>
-.slidev-page-23 .slidev-layout { padding-bottom: 6rem; }
-.slidev-page-23 .content li { font-size: 0.92em; }
-.slidev-page-23 .takeaway { font-size: 0.92em; }
+.content li { font-size: 0.92em; }
+.takeaway { font-size: 0.92em; }
 </style>
 
 <div class="content">
@@ -786,7 +788,7 @@ class: tradeoffs
 </div>
 
 <div class="abs-tr m-4">
-  <Qr path="docs/controller-tradeoffs.md" :size="90" :label="false" />
+  <Qr url="https://github.com/nukemberg/autoscaling-talk/blob/master/docs/controller-tradeoffs.md" :size="90" :label="false" />
 </div>
 
 <!--

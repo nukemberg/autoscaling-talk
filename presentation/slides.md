@@ -454,7 +454,7 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
     <div class="card-label">Impatient</div>
     <div class="card-title">Still cold? Turn more.</div>
     <p class="card-body">It all arrives at once. Scalding. Repeat forever.</p>
-    <p class="card-note">adjust interval ≈ pipe delay</p>
+    <p class="card-note">adjust interval ≪ pipe delay</p>
   </div>
 </div>
 
@@ -541,7 +541,7 @@ layout: default
 <div class="content">
 
 - **×N** instances = **×N** connection pools
-- LB registration + health checks = dead time
+- New instances start **cold**: caches, pools, JIT
 - Recovery exhibits **herd behavior**
 - Fast-onset load beats any controller
 
@@ -549,7 +549,7 @@ layout: default
 
 <!--
 [4 min] Anchor story: an autoscaler overwhelmed the very DB it depended on — cascading failure.
-Slide covers the mechanics; land the closer: fast-onset load beats any tuned loop —
+Slide covers the mechanics (cold starts: new instances hit the DB hardest, before caches warm); land the closer: fast-onset load beats any tuned loop —
 headroom, not a smarter controller, is what survives it.
 -->
 

@@ -248,8 +248,9 @@ Dead time · Gain · Visibility
 everything here only sees the world every sync-period. Sims stand in for formal models
 (these loops are too nonlinear for hand math). QR = workbench, people can play along.
 
-Land at the end of the section: HPA/ASG knobs (sync-period, stabilization, cooldown,
-warm-up) are these same three ideas (dead time, gain, visibility), just unnamed.
+Land at the end of the section: every autoscaler knob (sync period, stabilization,
+cooldown, warm-up) is one of these same three ideas, just unnamed. No HPA/ASG specifics on
+stage — offer to map them offline; the bonus slide has the knob table.
 -->
 
 ---
@@ -410,32 +411,8 @@ No controller is perfect.
 </div>
 
 <!--
-[0.5 min] The section's one-line takeaway. Next: the oscillation sim — dead time and gain
-together.
--->
-
----
-class: sim
----
-
-# Oscillation, by Default
-
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :summary-keys="['errors %']" />
-
-<!--
-War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
-CPU-triggered autoscaler, tuned for a fast reaction, had a sync period far shorter than
-boot time — so every cycle without immediate relief ordered another batch of instances
-before the last batch had even finished starting. Utilization swung from pegged to
-starved and back as oversized batches landed all at once, and on every down-swing the
-scale-in policy killed youngest-first — the instances still booting, the ones that had
-never served a single request. The cluster spent real money cycling capacity that existed
-only on paper. Dead time doesn't forgive a fast loop; it punishes it.
-
-Live DES from presets/cpu-oscillation.json. AWS simple scaling ±1, thresholds 0.55/0.45,
-cooldown 0, 15s period vs 240s boot: +1 every 15s orders ~16 instances before one helps;
-needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps to 1360 —
-7 instances sit at 49%, settles after one overshoot. QR = workbench, people can try it.
+[0.5 min] The section's one-line takeaway. Next: the shower game (intuition), then the
+oscillation sim — the same thing in production.
 -->
 
 ---
@@ -481,9 +458,33 @@ needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps t
 </style>
 
 <!--
-[2 min] Play it live first: you take the shower (pick a delay, overshoot on purpose), then QR for the room — everyone plays solo on their phone, no backend. Then bridge to the AWS sim. Slide tells the story — just land the meta-point: the only
+[2 min] Play it live first: you take the shower (pick a delay, overshoot on purpose), then QR for the room — everyone plays solo on their phone, no backend. Then bridge to the AWS oscillation sim: same shower, real fleet. Slide tells the story — just land the meta-point: the only
 knob you control is your own adjustment interval, not the pipe. That's exactly the datapoint
-period / metric delay lever on the next slide.
+period / metric delay lever — and next slide is the production version of exactly this shower.
+-->
+
+---
+class: sim
+---
+
+# Oscillation, by Default
+
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :summary-keys="['errors %']" />
+
+<!--
+Callback to the shower: this is the impatient hand on the tap, with a fleet. War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a
+CPU-triggered autoscaler, tuned for a fast reaction, had a sync period far shorter than
+boot time — so every cycle without immediate relief ordered another batch of instances
+before the last batch had even finished starting. Utilization swung from pegged to
+starved and back as oversized batches landed all at once, and on every down-swing the
+scale-in policy killed youngest-first — the instances still booting, the ones that had
+never served a single request. The cluster spent real money cycling capacity that existed
+only on paper. Dead time doesn't forgive a fast loop; it punishes it.
+
+Live DES from presets/cpu-oscillation.json. AWS simple scaling ±1, thresholds 0.55/0.45,
+cooldown 0, 15s period vs 240s boot: +1 every 15s orders ~16 instances before one helps;
+needed 3.5, swings 3<->20 all run (no count rests in the band). Demo: drag rps to 1360 —
+7 instances sit at 49%, settles after one overshoot. QR = workbench, people can try it.
 -->
 
 ---

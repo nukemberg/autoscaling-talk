@@ -281,3 +281,6 @@
 
 /* Frontmatter `class: bottom-margin` — keeps the last line clear of the bottom edge (back-row visibility). */
 .slidev-layout.bottom-margin, .bottom-margin .slidev-layout { padding-bottom: 6rem; }
+
+/* Clicker "B": blackout toggle (see setup/main.ts). */
+body.blackout::after { content: ''; position: fixed; inset: 0; background: #000; z-index: 99999; }

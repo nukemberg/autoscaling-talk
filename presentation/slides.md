@@ -778,8 +778,8 @@ class: tradeoffs
 
 </div>
 
-<div class="abs-br m-4">
-  <Qr path="docs/controller-tradeoffs.md" :size="120" />
+<div class="abs-tr m-4">
+  <Qr path="docs/controller-tradeoffs.md" :size="90" :label="false" />
 </div>
 
 <!--

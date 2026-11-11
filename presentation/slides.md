@@ -167,13 +167,14 @@ layout: default
 
 <div class="takeaway">
   <div><strong class="accent-takeaway">Latency</strong> is an effect, not a capacity shortage.</div>
-  <div class="punchline">Scale on symptoms = closed feedback loop.</div>
+  <div class="punchline">Demand = feedforward. Symptoms = feedback on the wrong variable.</div>
 </div>
 
 <!--
 [5 min] The right signal (demand) is rarely available per-instance, so everyone
-falls back to CPU/latency proxies — and the moment you scale on a symptom you've built a
-closed feedback loop.
+falls back to CPU/latency proxies. Scaling on demand is feedforward (size for the arrival
+rate). Scaling on a symptom is feedback on a confounded signal: an upstream slowdown raises
+latency, which adds instances to the wrong resource, which can run away.
 
 If you DID know per-server capacity, that's queueing theory (Little's Law);
 nobody has it, and load is compressible anyway. War story up next: a latency-scaled system
@@ -204,7 +205,7 @@ the fleet. Latency kept climbing regardless, so the autoscaler kept adding insta
 the way to the configured max, hundreds of them, no capacity gained, nothing fixed.
 
 The promised payoff of the previous slide's "war story to tell" tease. Keep it short — the
-sim on the next slide is the receipts. Land: this is the symptom-scaling closed loop from
+sim on the next slide is the receipts. Land: this is the symptom-scaling feedback loop from
 "Scaling by Metrics" one slide back, now with a body count.
 -->
 

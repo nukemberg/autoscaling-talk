@@ -249,7 +249,7 @@ everything here only sees the world every sync-period. Sims stand in for formal 
 (these loops are too nonlinear for hand math). QR = workbench, people can play along.
 
 Land at the end of the section: HPA/ASG knobs (sync-period, stabilization, cooldown,
-warm-up) are these same four ideas, just unnamed.
+warm-up) are these same three ideas (dead time, gain, visibility), just unnamed.
 -->
 
 ---

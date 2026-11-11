@@ -88,7 +88,7 @@ low utilization → Responsible (cost side); hard to tune → Control Theory.
 layout: default
 ---
 
-# You're Not Scaling Up, You're Scaling Down
+# You Should Be Scaling Down, Not Up
 
 <div class="content">
 
@@ -491,7 +491,7 @@ class: sim
 
 # The Metric Pipeline Is Dead Time Too
 
-<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" :bands="[{ from: 1000, to: 1400, label: 'wasted: still scaling after recovery' }]" />
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" :bands="[{ from: 1000, to: 1400, label: 'wasted:\nerrors gone, load flat,\nstill scaling up' }]" />
 
 <!--
 Live DES from presets/metric-delay-compare.json. Flip period/delay live: AWS realistic
@@ -652,6 +652,12 @@ backgroundSize: contain
 ---
 
 # Comfortable Patch
+
+<style>
+.slidev-page-23 .slidev-layout { padding-bottom: 6rem; }
+.slidev-page-23 .content li { font-size: 0.92em; }
+.slidev-page-23 .takeaway { font-size: 0.92em; }
+</style>
 
 <div class="content">
 

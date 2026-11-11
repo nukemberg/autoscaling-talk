@@ -68,11 +68,21 @@ function bandHook(labelled: boolean) {
       ctx.fillStyle = 'rgba(220, 38, 38, 0.14)'
       ctx.fillRect(x0, top, x1 - x0, height)
       if (labelled && b.label) {
-        ctx.fillStyle = 'rgb(220, 38, 38)'
-        ctx.font = `600 ${14 * devicePixelRatio}px sans-serif`
+        // Bottom-anchored (empty plot area), large, with a white halo so it reads from the back row.
+        const px = 22 * devicePixelRatio
+        ctx.font = `700 ${px}px sans-serif`
         ctx.textAlign = 'center'
-        ctx.textBaseline = 'top'
-        ctx.fillText(b.label, (x0 + x1) / 2, top + 6 * devicePixelRatio)
+        ctx.textBaseline = 'bottom'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = 5 * devicePixelRatio
+        const lines = b.label.split('\n')
+        lines.forEach((line, k) => {
+          const y = top + height - 10 * devicePixelRatio - (lines.length - 1 - k) * px * 1.15
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)'
+          ctx.strokeText(line, (x0 + x1) / 2, y)
+          ctx.fillStyle = 'rgb(185, 28, 28)'
+          ctx.fillText(line, (x0 + x1) / 2, y)
+        })
       }
       ctx.restore()
     }

@@ -617,8 +617,11 @@ class: sim
 <!--
 Same preset, serverProfile=event-loop (unbounded workers), single-core processes. Equal
 hardware: 16 one-core Node processes (initialInstances 16) vs 4 four-core threaded boxes —
-same 16 cores, same ~70% base CPU, p95 ~175-210ms before the pulse. Pulse: 0% errors, but p95
-peaks ~50s (mean ~39s) and takes ~3 min to drain. Fails as latency, not errors. Flip back to
+same 16 cores, same ~70% base CPU, p95 ~175-210ms before the pulse. Clients/LB give up after
+30s (clientTimeoutSec, both slides). Pulse: queue builds, waits blow past 30s, ~6% of requests
+time out (threaded: ~5.3% rejected — similar rate!). The difference is HOW: threaded says no in
+milliseconds; Node says no after 30s of waiting, and the abandoned work still burns CPU, so
+the drain still takes ~3 min. Memory isn't modelled. Flip back to
 the previous slide to compare. Only variable: can the unit say no.
 -->
 

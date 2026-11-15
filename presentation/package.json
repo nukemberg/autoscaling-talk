@@ -7,7 +7,7 @@
   },
   "scripts": {
     "build": "slidev build",
-    "dev": "NODE_OPTIONS=--localstorage-file=.slidev-localstorage slidev --open",
+    "dev": "slidev --open",
     "export": "slidev export",
     "test": "vitest run",
     "test:watch": "vitest",

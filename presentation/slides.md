@@ -92,7 +92,7 @@ layout: default
 
 <div class="usl-wrap">
   <UslChart />
-  <div class="usl-plug">
+  <div v-click class="usl-plug">
     <Qr url="https://nukemberg.github.io/the-math-of-scalability/" :size="130" :label="false" />
     <span>The Math of Scalability ↗</span>
   </div>
@@ -249,7 +249,7 @@ Dead time · Gain · Visibility
 
 </div>
 
-<div class="abs-br m-4">
+<div v-click class="abs-br m-4">
   <Qr path="workbench/" :size="100" />
 </div>
 
@@ -445,7 +445,7 @@ oscillation sim — the same thing in production.
   </div>
 </div>
 
-<div class="abs-tr m-4 play">
+<div v-click class="abs-tr m-4 play">
   <a :href="`${$slidev.configs.baseUrl}/shower/`" target="_blank" rel="noopener">Play it ↗</a>
   <Qr path="shower/" :size="90" :label="false" />
 </div>
@@ -800,7 +800,7 @@ class: tradeoffs
 
 </div>
 
-<div class="abs-tr m-4">
+<div v-click class="abs-tr m-4">
   <Qr url="https://github.com/nukemberg/autoscaling-talk/blob/master/docs/controller-tradeoffs.md" :size="90" :label="false" />
 </div>
 

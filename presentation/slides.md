@@ -761,23 +761,6 @@ Thesis: static is the default. Autoscaling has to earn its place. It earns it wh
 -->
 
 ---
-layout: center
-class: text-center
----
-
-# Thank You
-
-Questions?
-
-<div class="mt-6">
-  <Qr path="" :size="140" />
-</div>
-
-<div class="social">
-  <a href="https://x.com/nukemberg" target="_blank"><XLogo /> @nukemberg</a>
-</div>
-
----
 layout: default
 class: tradeoffs
 ---
@@ -813,3 +796,21 @@ class: tradeoffs
 <!--
 Bonus slide — dense on purpose, for photos. Full notes in docs/controller-tradeoffs.md.
 -->
+
+---
+layout: center
+class: text-center
+---
+
+# Thank You
+
+Questions?
+
+<div class="mt-6">
+  <Qr path="" :size="140" />
+</div>
+
+<div class="social">
+  <a href="https://x.com/nukemberg" target="_blank"><XLogo /> @nukemberg</a>
+</div>
+

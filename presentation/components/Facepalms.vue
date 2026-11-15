@@ -2,12 +2,12 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 /**
- * The meme autoscales: once `step` reaches `startAt` (pass Slidev's `$clicks`), the facepalms
+ * The meme autoscales: hidden until `step` reaches `appearAt`; once it reaches `startAt` (pass Slidev's `$clicks`), the facepalms
  * multiply every `everyMs` — a bigger square grid each tick: 1, 4, 9, 16, 25, 36 — and the caption appears from 16 on. Going back
  * below `startAt` resets it.
  */
-const props = withDefaults(defineProps<{ src: string, step?: number, startAt?: number, everyMs?: number, maxSide?: number, caption?: string }>(),
-  { step: 0, startAt: 2, everyMs: 2200, maxSide: 6 })
+const props = withDefaults(defineProps<{ src: string, step?: number, appearAt?: number, startAt?: number, everyMs?: number, maxSide?: number, caption?: string }>(),
+  { step: 0, appearAt: 1, startAt: 2, everyMs: 2200, maxSide: 6 })
 const side = ref(1)
 const count = computed(() => side.value * side.value)
 let timer: ReturnType<typeof setInterval> | undefined
@@ -27,7 +27,7 @@ const cols = side
 </script>
 
 <template>
-  <figure class="fp">
+  <figure class="fp" :class="{ hidden: step < appearAt }">
     <div class="grid" :style="{ gridTemplateColumns: `repeat(${cols}, 1fr)` }">
       <img v-for="i in count" :key="i" :src="src" alt="Picard facepalm">
     </div>
@@ -36,6 +36,7 @@ const cols = side
 </template>
 
 <style scoped>
+.fp.hidden { visibility: hidden; }
 .fp { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
 .grid { display: grid; gap: 6px; width: 100%; }
 .grid img { width: 100%; height: auto; display: block; border-radius: 4px; animation: pop 0.35s ease-out both; }

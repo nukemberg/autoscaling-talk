@@ -57,34 +57,31 @@ layout: default
 -->
 
 ---
-layout: two-cols
+layout: default
 clicks: 2
 ---
 
 # What Could Possibly Go Wrong
 
-<v-click>
-
-<div class="content">
-
-- Runaway bills
-- Cascading failures
-- Idle clusters
-- Endless tuning
-
+<div class="wcpgw">
+  <div class="content">
+    <ul v-click>
+      <li>Runaway bills</li>
+      <li>Cascading failures</li>
+      <li>Idle clusters</li>
+      <li>Endless tuning</li>
+    </ul>
+  </div>
+  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" :appear-at="1" :start-at="2" caption="Autoscaled problem." />
 </div>
 
-</v-click>
-
-::right::
-
-<div class="h-full flex items-center">
-  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" :start-at="2" caption="Autoscaled problem." />
-</div>
+<style>
+.wcpgw { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: center; }
+</style>
 
 <!--
 [1.5 min] Audience participation: ask the room what goes wrong, let answers land, don't rush the click.
-Clicks: 1 = bullets, 2 = start the meme autoscaling: Picard multiplies every ~2s (1,4,9,16,25,36),
+Clicks: 1 = bullets + first Picard, 2 = start the meme autoscaling: Picard multiplies every ~2s (1,4,9,16,25,36),
 caption "Autoscaled problem." from 16. Talk over it; don't click again until it's done.
 
 A feedback loop adds failure modes that only exist because

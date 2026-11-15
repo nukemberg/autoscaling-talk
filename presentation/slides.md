@@ -469,7 +469,7 @@ class: sim
 
 # Oscillation, by Default
 
-<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances']" :summary-keys="['errors %']" />
+<Sim preset="cpu-oscillation" :expose="['baseRps', 'rps', 'algo', 'awsOutThreshold', 'awsInThreshold', 'awsCooldownSec', 'awsPeriodSec']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
 
 <!--
 Callback to the shower: this is the impatient hand on the tap, with a fleet. War story (payoff for the control-system pivot flagged in AGENTS.md's outline): a

@@ -57,7 +57,8 @@ layout: default
 -->
 
 ---
-layout: default
+layout: two-cols
+clicks: 3
 ---
 
 # What Could Possibly Go Wrong
@@ -75,8 +76,15 @@ layout: default
 
 </v-click>
 
+::right::
+
+<div class="h-full flex items-center">
+  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" caption="Autoscaled problem." />
+</div>
+
 <!--
 [1.5 min] Audience participation: ask the room what goes wrong, let answers land, don't rush the click.
+Clicks: 1 = bullets, 2 = Picard x4, 3 = Picard x16 + "Autoscaled problem." (the meme autoscales).
 
 A feedback loop adds failure modes that only exist because
 the loop exists — oscillation, runaway, coupling. New categories, not more of the old ones.
@@ -800,7 +808,7 @@ class: tradeoffs
 
 </div>
 
-<div v-click class="abs-tr m-4">
+<div class="abs-tr m-4">
   <Qr url="https://github.com/nukemberg/autoscaling-talk/blob/master/docs/controller-tradeoffs.md" :size="90" :label="false" />
 </div>
 

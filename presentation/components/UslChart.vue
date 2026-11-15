@@ -14,7 +14,7 @@ const y = (v: number) => H - B - (v / yMax) * (H - T - B)
 const curve = Array.from({ length: nMax * 2 + 1 }, (_, i) => i / 2)
   .map((n, i) => `${i ? 'L' : 'M'}${x(n).toFixed(1)},${y(usl(n)).toFixed(1)}`).join(' ')
 const ideal = `M${x(0)},${y(0)} L${x(yMax)},${y(yMax)}`
-const target = { x: x(38), y: y(usl(38)) } // diminishing-returns region, short of the peak
+const target = { x: x(44), y: y(usl(44)) } // flat top of the curve: diminishing returns, around the peak
 </script>
 
 <template>
@@ -25,7 +25,7 @@ const target = { x: x(38), y: y(usl(38)) } // diminishing-returns region, short 
     <text :x="(L + W - R) / 2" :y="H - 12" class="lbl" text-anchor="middle">instances</text>
     <text :x="18" :y="(T + H - B) / 2" class="lbl" text-anchor="middle" :transform="`rotate(-90 18 ${(T + H - B) / 2})`">throughput</text>
     <!-- diminishing-returns zone -->
-    <rect :x="x(24)" :y="T" :width="x(80) - x(24)" :height="H - B - T" class="zone" />
+    <ellipse :cx="target.x" :cy="target.y" :rx="150" :ry="42" class="zone" />
     <!-- ideal linear scaling -->
     <path :d="ideal" class="ideal" />
     <text :x="x(yMax) + 14" :y="y(yMax) + 22" class="note">linear (what we imagine)</text>
@@ -33,16 +33,16 @@ const target = { x: x(38), y: y(usl(38)) } // diminishing-returns region, short 
     <path :d="curve" class="curve" />
     <!-- annotation: where max lives -->
     <g class="callout">
-      <path :d="`M${target.x},${target.y + 118} L${target.x},${target.y + 26}`" class="arrow" />
-      <polygon :points="`${target.x},${target.y + 8} ${target.x - 14},${target.y + 32} ${target.x + 14},${target.y + 32}`" class="arrowhead" />
-      <text :x="target.x" :y="target.y + 156" class="warn" text-anchor="middle">You're designing for this</text>
+      <path :d="`M${target.x},${target.y + 128} L${target.x},${target.y + 66}`" class="arrow" />
+      <polygon :points="`${target.x},${target.y + 46} ${target.x - 14},${target.y + 70} ${target.x + 14},${target.y + 70}`" class="arrowhead" />
+      <text :x="target.x" :y="target.y + 166" class="warn" text-anchor="middle">You're designing for this</text>
     </g>
   </svg>
 </template>
 
 <style scoped>
 .usl { width: 100%; height: auto; display: block; }
-.zone { fill: var(--c-symptom, #e11d48); opacity: 0.14; }
+.zone { fill: var(--c-symptom, #e11d48); opacity: 0.22; }
 .axis { stroke: var(--chart-muted, #888); stroke-width: 2; }
 .lbl { fill: var(--chart-muted, #888); font-size: 22px; font-family: inherit; }
 .note { fill: var(--chart-muted, #888); font-size: 20px; font-style: italic; }

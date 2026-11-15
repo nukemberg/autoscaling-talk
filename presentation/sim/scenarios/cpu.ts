@@ -12,7 +12,7 @@ import {
   attachController, clientParams, clusterOpts, costOpts, costParams, faultParams, faults, instanceOpts, lbOpts,
   loadParams, loadProfile, neededInstances, scalerParams, serverParams,
 } from './shared'
-import { bool, num, type ParamSpec, type Params, type SimModel } from './types'
+import { bool, num, str, type ParamSpec, type Params, type SimModel } from './types'
 
 const simParams: ParamSpec[] = [
   { key: 'horizonSec', label: 'horizon', group: 'sim', kind: 'range', min: 300, max: 7200, step: 60, default: 2100, unit: 's',
@@ -116,7 +116,14 @@ export const cpuModel: SimModel = {
     // The starting fleet is steady-state, not freshly launched: don't let an autoscaler's
     // instance-warm-up window (AWS default 300s) hide it from the metric for the first minutes.
     for (const i of cluster.instances) if (i.readySince !== undefined) i.readySince = -Infinity
-    const t0 = sim.now
+
+    // Pre-roll: a steady system already has metric history. Run the base load with the controller
+    // attached for one metric-pipeline length (scrapes + datapoint period + delay), so the charts
+    // (which start at `t0`) show the metric from t=0 instead of a blank until the first datapoint.
+    // (AWS only: its datapoint period + delay is long enough to leave the chart blank; HPA's pipeline is seconds.)
+    const isAws = str(p, 'algo').startsWith('aws')
+    const pipelineSec = isAws ? 2 * num(p, 'metricsResolutionSec') + num(p, 'awsPeriodSec') + num(p, 'awsMetricDelaySec') : 0
+    const t0 = sim.now + pipelineSec
 
     const offered = loadProfile(p, t0 + quietSec, rng)
     new Arrivals(sim, rng, offered, (r) => clients.handle(r)).start()
@@ -128,6 +135,7 @@ export const cpuModel: SimModel = {
     const controller = attachController(sim, cluster, p, stats)
     const faultList = faults(p, t0)
     injectFaults(sim, { cluster, pools: cluster.pools }, faultList)
+    sim.run(t0)
 
     let lastTotals = { ...stats.totals }
     let lastRetries = clients.retries

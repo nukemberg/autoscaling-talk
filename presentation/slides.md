@@ -58,7 +58,7 @@ layout: default
 
 ---
 layout: two-cols
-clicks: 3
+clicks: 2
 ---
 
 # What Could Possibly Go Wrong
@@ -79,12 +79,13 @@ clicks: 3
 ::right::
 
 <div class="h-full flex items-center">
-  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" caption="Autoscaled problem." />
+  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" :start-at="2" caption="Autoscaled problem." />
 </div>
 
 <!--
 [1.5 min] Audience participation: ask the room what goes wrong, let answers land, don't rush the click.
-Clicks: 1 = bullets, 2 = Picard x4, 3 = Picard x16 + "Autoscaled problem." (the meme autoscales).
+Clicks: 1 = bullets, 2 = start the meme autoscaling: Picard multiplies every ~2s (1,4,9,16,25,36),
+caption "Autoscaled problem." from 16. Talk over it; don't click again until it's done.
 
 A feedback loop adds failure modes that only exist because
 the loop exists — oscillation, runaway, coupling. New categories, not more of the old ones.

@@ -1,21 +1,37 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 /**
- * The meme autoscales: 1 → 4 → 16 facepalms as `step` grows (pass Slidev's `$clicks`),
- * with a caption once fully scaled out.
+ * The meme autoscales: once `step` reaches `startAt` (pass Slidev's `$clicks`), the facepalms
+ * multiply every `everyMs` — a bigger square grid each tick: 1, 4, 9, 16, 25, 36 — and the caption appears from 16 on. Going back
+ * below `startAt` resets it.
  */
-const props = withDefaults(defineProps<{ src: string, step?: number, caption?: string }>(), { step: 0 })
-const count = computed(() => (props.step >= 3 ? 16 : props.step === 2 ? 4 : 1))
-const cols = computed(() => Math.sqrt(count.value))
+const props = withDefaults(defineProps<{ src: string, step?: number, startAt?: number, everyMs?: number, maxSide?: number, caption?: string }>(),
+  { step: 0, startAt: 2, everyMs: 2200, maxSide: 6 })
+const side = ref(1)
+const count = computed(() => side.value * side.value)
+let timer: ReturnType<typeof setInterval> | undefined
+
+function stop() { if (timer) { clearInterval(timer); timer = undefined } }
+watch(() => props.step >= props.startAt, (on) => {
+  stop()
+  if (!on) { side.value = 1; return }
+  timer = setInterval(() => {
+    if (side.value >= props.maxSide) return stop()
+    side.value++
+  }, props.everyMs)
+}, { immediate: true })
+onBeforeUnmount(stop)
+
+const cols = side
 </script>
 
 <template>
   <figure class="fp">
     <div class="grid" :style="{ gridTemplateColumns: `repeat(${cols}, 1fr)` }">
-      <img v-for="i in count" :key="`${count}-${i}`" :src="src" alt="Picard facepalm" :style="{ animationDelay: `${(i - 1) * 25}ms` }">
+      <img v-for="i in count" :key="i" :src="src" alt="Picard facepalm">
     </div>
-    <figcaption :class="{ show: step >= 3 }">{{ caption }}</figcaption>
+    <figcaption :class="{ show: count >= 16 }">{{ caption }}</figcaption>
   </figure>
 </template>
 

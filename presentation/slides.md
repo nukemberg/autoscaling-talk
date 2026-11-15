@@ -493,13 +493,14 @@ class: sim
 
 # The Metric Pipeline Is Dead Time Too
 
-<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" :bands="[{ from: 1000, to: 1400, label: 'System OK, but\nstill scaling up' }]" />
+<Sim preset="metric-delay-compare" :expose="['awsPeriodSec', 'awsMetricDelaySec', 'metricsResolutionSec', 'rps']" :charts="['instances', 'req/s']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" :bands="[{ from: 810, to: 1290, label: 'System OK, but\nstill scaling up' }]" />
 
 <!--
 Live DES from presets/metric-delay-compare.json. Flip period/delay live: AWS realistic
 (60s/60s, dead time = period×3 + delay = 240s) vs fastest (10s/0s = 30s) — same 9x step,
-same algorithm, same alarm rule. Numbers: first scale-out t=480s vs 325s; recovery t=1000s
-vs 805s; errors 25.1% vs 18.8%. Controller math identical in both runs — only visibility
+same algorithm, same alarm rule. Numbers: first scale-out t=300s vs 95s (load starts t=60, so 240s vs 35s
+of dead time); recovery t=810s vs 570s; errors 18.6% vs 10.5%. The shaded band: errors are
+already 0 at t=810 but the fleet keeps growing 8→12 until t=1290 — acting on stale data. Controller math identical in both runs — only visibility
 changed. Bonus demo: drag period below the 5s metric resolution and the alarm goes SILENT
 (empty datapoints) — sampling can't outrun what it samples.
 -->

@@ -113,6 +113,9 @@ export const cpuModel: SimModel = {
     const needed = initial > 0 ? initial : Math.ceil(neededInstances(p, num(p, 'baseRps')))
     cluster.scaleTo(Math.min(num(p, 'maxInstances'), Math.max(num(p, 'minInstances'), needed)))
     sim.run(warmupEnd)
+    // The starting fleet is steady-state, not freshly launched: don't let an autoscaler's
+    // instance-warm-up window (AWS default 300s) hide it from the metric for the first minutes.
+    for (const i of cluster.instances) if (i.readySince !== undefined) i.readySince = -Infinity
     const t0 = sim.now
 
     const offered = loadProfile(p, t0 + quietSec, rng)

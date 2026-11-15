@@ -203,6 +203,12 @@ describe('cpu model', () => {
     expect(last).toBeGreaterThan(0)
   })
 
+  test('latency is NaN (a gap), not 0, in a window with no OK requests', () => {
+    const r = runPreset('thundering-herd')
+    r.series.okRps.forEach((ok, i) => { if (ok === 0) expect(r.series.latencyMs[i]).toBeNaN() })
+    expect(r.series.okRps.some((v) => v === 0)).toBe(true)
+  })
+
   test('thundering-herd preset (as shipped): retry flood, OK collapse, fleet pinned at max', () => {
     const r = runPreset('thundering-herd')
     const avg = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length
@@ -213,7 +219,9 @@ describe('cpu model', () => {
     expect(tail(r.series.failedRps)).toBeGreaterThan(250) // every offered request dies
     expect(tail(r.series.retriedRps)).toBeGreaterThan(100) // sustained retry flood, not a blip
     // Healthy before the step: base-load latency stays ~100ms for the first samples.
-    expect(avg(r.series.latencyMs.slice(0, 5))).toBeLessThan(200)
+    const early = r.series.latencyMs.slice(0, 5).filter((v) => !Number.isNaN(v)) // NaN = no OK request that window
+    expect(early.length).toBeGreaterThan(0)
+    expect(avg(early)).toBeLessThan(200)
   })
 
   test('db-outage-scalein preset (as shipped): fast DB death, fleet shrinks to min during outage, slow recovery', () => {

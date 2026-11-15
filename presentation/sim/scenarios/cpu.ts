@@ -151,8 +151,10 @@ export const cpuModel: SimModel = {
       usefulRps: () => (delta('ok') - (scraperOk - lastScraperOk)) / sample,
       failedRps: () => (delta('rejected') + delta('error') + delta('timeout')) / sample,
       retriedRps: () => (clients.retries - lastRetries) / sample,
-      latencyMs: () => latencyTally.count ? latencyTally.mean : 0,
-      p95Ms: () => latencyTally.count ? latencyTally.percentile(0.95) : 0,
+      // No OK request in the window = no latency to report (NaN → a gap), not 0: a window that is
+      // all timeouts/rejections must not plot as "fast".
+      latencyMs: () => latencyTally.count ? latencyTally.mean : NaN,
+      p95Ms: () => latencyTally.count ? latencyTally.percentile(0.95) : NaN,
       instanceCost: () => cost.instanceCost,
       extraCost: () => cost.extraCost,
       // Probes run in order; this last one resets the per-window baselines.

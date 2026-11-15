@@ -58,7 +58,7 @@ layout: default
 
 ---
 layout: default
-clicks: 2
+clicks: 1
 ---
 
 # What Could Possibly Go Wrong
@@ -72,7 +72,7 @@ clicks: 2
       <li>Endless tuning</li>
     </ul>
   </div>
-  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" :appear-at="1" :start-at="2" caption="Autoscaled problem." />
+  <Facepalms src="/memes/picard-facepalm.jpeg" :step="$clicks" :appear-at="1" :start-at="1" caption="Autoscaled problem." />
 </div>
 
 <style>
@@ -81,7 +81,7 @@ clicks: 2
 
 <!--
 [1.5 min] Audience participation: ask the room what goes wrong, let answers land, don't rush the click.
-Clicks: 1 = bullets + first Picard, 2 = start the meme autoscaling: Picard multiplies every ~2s (1,4,9,16,25,36),
+One click: bullets + first Picard appear and the meme starts autoscaling: Picard multiplies every ~2s (1,4,9,16,25,36),
 caption "Autoscaled problem." from 16. Talk over it; don't click again until it's done.
 
 A feedback loop adds failure modes that only exist because

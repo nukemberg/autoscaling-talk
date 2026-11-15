@@ -90,12 +90,12 @@ layout: default
 
 # You Think You're Scaling Up. You're Scaling Down.
 
-<div class="content">
-
-- You load-test for **max** — autoscaling or not
-- Shared resources don't scale linearly
-- You scale **down** from max, not up from min
-
+<div class="usl-wrap">
+  <UslChart />
+  <div class="usl-plug">
+    <Qr url="https://nukemberg.github.io/the-math-of-scalability/" :size="130" :label="false" />
+    <span>The Math of Scalability ↗</span>
+  </div>
 </div>
 
 <div class="takeaway">
@@ -104,8 +104,18 @@ Autoscaling is **cost optimization**, not scaleout.
 
 </div>
 
+<style>
+.usl-wrap { display: flex; align-items: center; gap: 2rem; margin-top: 0.25rem; }
+.usl-wrap > svg { width: 66%; flex: none; }
+.usl-plug { display: flex; flex-direction: column; align-items: center; gap: 0.4rem; font-size: 0.9rem; font-weight: 700; text-align: center; }
+</style>
+
 <!--
-[1.5 min] The max-scale ceiling exists regardless of the autoscaler — find it in
+[1.5 min] USL curve (α contention, β coherence): linear at first, then diminishing returns
+(Amdahl), then throughput goes DOWN. The red arrow is where max lives — it's an architectural
+property of shared resources (DB, locks, caches), not a number. Shameless plug: QR = The Math
+of Scalability. Shared resources don't scale linearly; you scale DOWN from max, not up from min.
+The max-scale ceiling exists regardless of the autoscaler — find it in
 load tests, not in prod. Once max is known, autoscaling's only job is "don't run at max
 when you don't have to" — cost optimization, not capacity engineering.
 Treat it as scaleout, and you find out in prod you can't actually scale.

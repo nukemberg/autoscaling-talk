@@ -614,7 +614,7 @@ class: sim
 
 # Same Pulse, Node.js
 
-<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0, initialInstances: 16, maxInstances: 80 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" />
+<Sim preset="pulse-compare-threaded-vs-event-loop" :params="{ serverProfile: 'event-loop', unlimitedWorkers: true, cores: 1, queueSlots: 0, dbPoolSlots: 0, initialInstances: 16, maxInstances: 80 }" :expose="['baseRps', 'rps', 'holdSec']" :charts="['instances', 'req/s', 'ms']" :hide-series="['usefulRps', 'retriedRps', 'inRotation']" :summary-keys="['errors %']" :bands="[{ from: 80, to: 185, label: 'Outage' }]" />
 
 <!--
 Same preset, serverProfile=event-loop (unbounded workers), single-core processes. Equal
@@ -622,7 +622,12 @@ hardware: 16 one-core Node processes (initialInstances 16) vs 4 four-core thread
 same 16 cores, same ~70% base CPU, p95 ~175-210ms before the pulse. Clients/LB give up after
 10s (clientTimeoutSec, both slides). Pulse: queue builds, waits blow past 10s, ~11% of requests
 time out (threaded: ~5.3% rejected, in milliseconds). Node says no after 10s of waiting, and the abandoned work still burns CPU, so
-the drain still takes ~3 min. Flip back to the previous slide to compare. Only variable: can the unit say no.
+the drain still takes ~3 min.
+Why p95 looks fine (~175ms) from t≈105 while errors stay ~500/s: the latency chart only counts
+OK requests. The 7 new instances have empty queues and serve their 1/23 share fast; the 16 old
+ones are still clogged with abandoned work, so everything routed to them times out and never
+shows up as latency (survivorship). Backlog clears at t≈180 (the last p95 bump) — hence the
+red 'Outage' band 80-185. Flip back to the previous slide to compare. Only variable: can the unit say no.
 -->
 
 ---

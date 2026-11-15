@@ -24,6 +24,8 @@ const target = { x: x(38), y: y(usl(38)) } // diminishing-returns region, short 
     <line :x1="L" :y1="T" :x2="L" :y2="H - B" class="axis" />
     <text :x="(L + W - R) / 2" :y="H - 12" class="lbl" text-anchor="middle">instances</text>
     <text :x="18" :y="(T + H - B) / 2" class="lbl" text-anchor="middle" :transform="`rotate(-90 18 ${(T + H - B) / 2})`">throughput</text>
+    <!-- diminishing-returns zone -->
+    <rect :x="x(24)" :y="T" :width="x(80) - x(24)" :height="H - B - T" class="zone" />
     <!-- ideal linear scaling -->
     <path :d="ideal" class="ideal" />
     <text :x="x(yMax) + 14" :y="y(yMax) + 22" class="note">linear (what we imagine)</text>
@@ -40,6 +42,7 @@ const target = { x: x(38), y: y(usl(38)) } // diminishing-returns region, short 
 
 <style scoped>
 .usl { width: 100%; height: auto; display: block; }
+.zone { fill: var(--c-symptom, #e11d48); opacity: 0.14; }
 .axis { stroke: var(--chart-muted, #888); stroke-width: 2; }
 .lbl { fill: var(--chart-muted, #888); font-size: 22px; font-family: inherit; }
 .note { fill: var(--chart-muted, #888); font-size: 20px; font-style: italic; }

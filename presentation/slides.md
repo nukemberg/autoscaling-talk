@@ -249,25 +249,24 @@ layout: default
 # Think CPU Is Better? Well…
 
 <div class="cpu-wrap">
-  <div class="cpu-left">
-    <MM1Chart />
-    <div v-click class="usl-plug cpu-plug">
-      <Qr url="https://www.usenix.org/system/files/srecon21_slides_ish-shalom.pdf" :size="110" :label="false" />
-      <span>What's the Cost of a Millisecond? (SREcon21) ↗</span>
-    </div>
-  </div>
   <div class="cpu-points">
-    <div v-click><strong class="accent-takeaway">Non-linear.</strong> Latency vs. utilization is a hockey stick (M/M/1: 1/(1−ρ)). Flat, flat, flat, <em>boom</em>.</div>
-    <div v-click><strong class="accent-takeaway">Confounded.</strong> GC, noisy neighbors, retries, JIT, deploys, health checks all burn CPU. Not just workload.</div>
-    <div v-click><strong class="accent-takeaway">No shedding, no recovery.</strong> Backlog + retries keep CPU pinned after the spike ends. Residual overload.</div>
+    <div><strong class="accent-takeaway">Non-linear.</strong> Latency vs. utilization is a hockey stick (M/M/1: 1/(1−ρ)). Flat, flat, flat, <em>boom</em>.</div>
+    <div><strong class="accent-takeaway">Confounded.</strong> GC, noisy neighbors, retries, JIT, deploys, health checks all burn CPU. Not just workload.</div>
+    <div><strong class="accent-takeaway">No shedding, no recovery.</strong> Backlog + retries keep CPU pinned after the spike ends. Residual overload.</div>
   </div>
+  <MM1Chart class="cpu-chart" />
+</div>
+
+<div class="abs-tr m-4 cpu-plug">
+  <Qr url="https://www.usenix.org/system/files/srecon21_slides_ish-shalom.pdf" :size="110" :label="false" />
+  <span>What's the Cost of a Millisecond?</span>
 </div>
 
 <style>
 .cpu-wrap { display: flex; align-items: center; gap: 2rem; margin-top: 0.25rem; }
-.cpu-left { width: 56%; flex: none; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
-.cpu-points { display: flex; flex-direction: column; gap: 1.2rem; font-size: 1.25rem; line-height: 1.35; }
-.cpu-plug { display: flex; flex-direction: row; align-items: center; gap: 1rem; font-size: 0.9rem; font-weight: 700; }
+.cpu-points { flex: 1; display: flex; flex-direction: column; gap: 1.2rem; font-size: 1.25rem; line-height: 1.35; }
+.cpu-chart { width: 56%; flex: none; }
+.cpu-plug { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; max-width: 9rem; font-size: 0.7rem; font-weight: 700; text-align: center; }
 </style>
 
 <!--

@@ -250,9 +250,9 @@ layout: default
 
 <div class="cpu-wrap">
   <div class="cpu-points">
-    <div><strong class="accent-takeaway">Non-linear.</strong> Latency vs. utilization is a hockey stick (M/M/1: 1/(1−ρ)). Flat, flat, flat, <em>boom</em>.</div>
-    <div><strong class="accent-takeaway">Confounded.</strong> GC, noisy neighbors, retries, JIT, deploys, health checks all burn CPU. Not just workload.</div>
-    <div><strong class="accent-takeaway">No shedding, no recovery.</strong> Backlog + retries keep CPU pinned after the spike ends. Residual overload.</div>
+    <div><strong class="accent-takeaway">Non-linear.</strong> Hockey stick, not a line.</div>
+    <div><strong class="accent-takeaway">Confounded.</strong> GC, retries, noisy neighbors.</div>
+    <div><strong class="accent-takeaway">No shedding?</strong> Overload outlives the spike.</div>
   </div>
   <MM1Chart class="cpu-chart" />
 </div>

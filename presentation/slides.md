@@ -251,7 +251,7 @@ layout: default
 <div class="cpu-wrap">
   <div class="cpu-points">
     <div><strong class="accent-takeaway">Non-linear.</strong> Hockey stick, not a line.</div>
-    <div><strong class="accent-takeaway">Confounded.</strong> GC, retries, noisy neighbors.</div>
+    <div><strong class="accent-takeaway">Confounded.</strong> Locks, background tasks, overhead, GC, scheduling…</div>
     <div><strong class="accent-takeaway">No shedding?</strong> Overload outlives the spike.</div>
   </div>
   <MM1Chart class="cpu-chart" />
@@ -275,8 +275,8 @@ CPU looks better than latency: it's closer to the cause. Still a symptom. Three 
 1) Queueing: M/M/1 mean response time = S/(1-rho). 50% util = 2x service time, 80% = 5x,
 95% = 20x. Utilization is linear in load, latency isn't — a fixed CPU target sits on a
 cliff, and small error in the signal is a big error in latency.
-2) CPU is confounded: GC, noisy neighbors, retry storms, JIT/cache warmup, deploys, health
-checks, compaction. Scaler adds instances for load that isn't demand.
+2) CPU is confounded: locks, background tasks, overhead, GC, scheduling (plus noisy
+neighbors, retry storms, JIT/cache warmup, deploys, health checks, compaction). Scaler adds instances for load that isn't demand.
 3) No load shedding: overload doesn't leave when the spike does. Queue + client retries keep
 CPU at 100%, and 100% looks the same at 120% or 300% of demand — saturated signal, scaler
 can't size the response. QR: my SREcon21 talk on the cost of a millisecond (queueing + latency).

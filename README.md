@@ -51,9 +51,13 @@ GC, locks and background work, and it saturates under overload.
 
 ### 4. Scaling changes the system it's scaling
 
-More instances is not just more of the same system. N instances means N
-connection pools pointed at the same database. New instances start cold, and
-recovery turns into a thundering herd, so scale-out widens the blast radius.
+Autoscaling turns a static system into a dynamic one, and dynamic systems
+have dynamic problems: oscillation, runaway, coupling and cascading failures
+that a fixed fleet can't have. Fleet size becomes a moving part that reacts to
+the rest of the system and pushes back on it. N instances means N connection
+pools pointed at the same database. New instances start cold, and when the
+database falls over, recovery turns into a thundering herd. One overload can
+cascade through every dependency the fleet shares.
 Whether a unit can **say no** decides how it fails: a unit that can reject
 work fails fast with errors, and one that can't fails slowly as latency.
 Outside actors (retry storms, scrapers, attackers) can drive the signal and

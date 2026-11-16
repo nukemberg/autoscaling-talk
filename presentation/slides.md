@@ -263,7 +263,8 @@ layout: default
 </div>
 
 <style>
-.cpu-wrap { display: flex; align-items: center; gap: 2rem; margin-top: 0.25rem; }
+.cpu-wrap { display: flex; align-items: center; gap: 2rem; margin-top: 3.5rem; }
+.cpu-plug { z-index: 10; }
 .cpu-points { flex: 1; display: flex; flex-direction: column; gap: 1.2rem; font-size: 1.25rem; line-height: 1.35; }
 .cpu-chart { width: 56%; flex: none; }
 .cpu-plug { display: flex; flex-direction: column; align-items: center; gap: 0.3rem; max-width: 9rem; font-size: 0.7rem; font-weight: 700; text-align: center; }

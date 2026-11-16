@@ -257,6 +257,10 @@ layout: default
   <MM1Chart class="cpu-chart" />
 </div>
 
+<div class="takeaway">
+  <div class="punchline">How did CPU utilization look last time you had an outage?</div>
+</div>
+
 <div class="abs-tr m-4 cpu-plug">
   <Qr url="https://www.usenix.org/system/files/srecon21_slides_ish-shalom.pdf" :size="110" :label="false" />
   <span>What's the Cost of a Millisecond?</span>
